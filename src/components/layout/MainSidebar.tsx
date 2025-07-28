@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, VStack, Text, useColorModeValue, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
-import Cookies from 'js-cookie';
+import Cookies from '../../../node_modules/@types/js-cookie';
 
 interface NavItem {
     label: string;

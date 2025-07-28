@@ -146,7 +146,6 @@ const GroupedView: React.FC = () => {
             if (weightedValue) params.set('weighted', 'true');
 
             const response = await axios.get(`/api/grouped/plot?${params.toString()}`);
-            console.log(response)
             return response.data;
         },
         enabled: !!execIdsValue,
