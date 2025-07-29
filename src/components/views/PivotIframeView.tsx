@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Box, Button, useToast, HStack } from '@chakra-ui/react';
+import React from 'react';
+import { Box, useToast } from '@chakra-ui/react';
 import axios from 'axios';
 
 interface PivotField {
@@ -11,18 +11,17 @@ interface PivotField {
 }
 
 interface PivotIframeViewProps {
-    fields: PivotField[];
+    fields: string[];
     isRelativePivot: boolean;
-    onFieldsChange: (fields: PivotField[]) => void;
-    triggerGeneration: number;
-    setTriggerGeneration: (value: number | ((prev: number) => number)) => void;
-    setIsGenerating: (value: boolean) => void;
-    onGenerationComplete?: (() => void) | null;
+    triggerGeneration: boolean;
+    setTriggerGeneration: (trigger: boolean) => void;
+    setIsGenerating: (generating: boolean) => void;
+    onGenerationComplete: () => void;
 }
 
-export const PivotIframeView = ({ fields, isRelativePivot, onFieldsChange, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotIframeViewProps) => {
+export const PivotIframeView = ({ fields, isRelativePivot, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotIframeViewProps) => {
     const toast = useToast();
-    const [pivotHtml, setPivotHtml] = useState<string>('');
+    const [pivotHtml, setPivotHtml] = React.useState<string>('');
 
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
@@ -79,11 +78,16 @@ export const PivotIframeView = ({ fields, isRelativePivot, onFieldsChange, trigg
     };
 
     // Respond to trigger from parent component
-    useEffect(() => {
-        if (triggerGeneration > 0 && fields.length > 0) {
-            generatePivotFromFields(fields);
+    React.useEffect(() => {
+        if (triggerGeneration && fields.length > 0) {
+            // Convert string fields to PivotField format
+            const pivotFields: PivotField[] = fields.map(field => ({
+                field,
+                type: 'row' // Default to row type
+            }));
+            generatePivotFromFields(pivotFields);
             // Reset trigger after generation
-            setTriggerGeneration(0);
+            setTriggerGeneration(false);
         }
     }, [triggerGeneration, fields, isRelativePivot]);
 

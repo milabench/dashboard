@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Select, FormControl, FormLabel, HStack, Input, VStack, Button, useToast, Text, Heading, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure, Switch, IconButton, Tooltip } from '@chakra-ui/react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Box, Select, FormControl, FormLabel, HStack, Input, VStack, Button, useToast, Text, Heading, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure, Switch, Tooltip } from '@chakra-ui/react';
 import axios from 'axios';
 import { AddIcon, DeleteIcon, CopyIcon, DownloadIcon } from '@chakra-ui/icons';
 import { saveQuery, getAllSavedQueries } from '../../services/api';
@@ -13,7 +13,6 @@ interface ExtraField {
 
 const GroupedView: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const navigate = useNavigate();
     const toast = useToast();
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
     const [selectedField, setSelectedField] = useState<string>('');
@@ -44,18 +43,7 @@ const GroupedView: React.FC = () => {
     const [weightedValue, setWeightedValue] = useState<boolean>(false);
 
     // Default values for the parameters (used for URL and iframe)
-    const g1 = searchParams.get('g1') || '';
-    const n1 = searchParams.get('n1') || '';
-    const g2 = searchParams.get('g2') || '';
-    const n2 = searchParams.get('n2') || '';
-    const metric = searchParams.get('metric') || 'rate';
     const more = searchParams.get('more') || '';
-    const execIds = searchParams.get('exec_ids') || '';
-    const color = searchParams.get('color') || 'pytorch';
-    const profile = searchParams.get('profile') || 'default';
-    const inverted = searchParams.get('inverted') === 'true';
-    const weighted = searchParams.get('weighted') === 'true';
-    const relative = searchParams.get('relative') || '';
 
     // Initialize local state from URL parameters
     useEffect(() => {
@@ -152,7 +140,7 @@ const GroupedView: React.FC = () => {
     });
 
     // Get available columns from grouped data
-    const availableColumns = React.useMemo(() => { 
+    const availableColumns = React.useMemo(() => {
         if (!groupedData || groupedData.length === 0) return [];
 
         const columns = Object.keys(groupedData[0]).filter(key =>
@@ -759,7 +747,7 @@ const GroupedView: React.FC = () => {
                     </FormControl>
                 </HStack>
 
-                
+
                 <HStack>
                     {/* Extra Fields Section */}
                     <Box borderWidth={1} borderRadius="md" width="50%" p={4}>
@@ -823,23 +811,23 @@ const GroupedView: React.FC = () => {
                             )}
                         </VStack>
                     </Box>
-                    
+
                     {/* Relative View Configuration Form */}
                     {(
-                        <Box borderWidth={1} borderRadius="md"  width="50%" height="100%" p={4} bg="gray.50">
+                        <Box borderWidth={1} borderRadius="md" width="50%" height="100%" p={4} bg="gray.50">
                             <VStack align="stretch" spacing={4}>
                                 <HStack spacing={4}>
                                     <Heading size="md">Relative View Configuration</Heading>
-                                        <Switch
-                                            id="relative-view-toggle"
-                                            isChecked={isRelativeView}
-                                            onChange={handleRelativeViewToggle}
-                                            isDisabled={false}
-                                            colorScheme="green"
-                                            size="md"
-                                        />
+                                    <Switch
+                                        id="relative-view-toggle"
+                                        isChecked={isRelativeView}
+                                        onChange={handleRelativeViewToggle}
+                                        isDisabled={false}
+                                        colorScheme="green"
+                                        size="md"
+                                    />
                                 </HStack>
- 
+
                                 <HStack spacing={4}>
                                     <FormControl flex="1">
                                         <FormLabel>Relative Column</FormLabel>
@@ -864,7 +852,7 @@ const GroupedView: React.FC = () => {
                                             isDisabled={!relativeColumn}
                                         >
                                             {availableBaselineValues.map((value) => (
-                                                <option key={String(value)} value={value}>
+                                                <option key={String(value)} value={String(value)}>
                                                     {String(value).replace(/"/g, '')}
                                                 </option>
                                             ))}

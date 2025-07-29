@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Box, Heading, Text, Badge, useToast } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -10,12 +10,6 @@ import type { Column } from '../common/Table';
 
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
-};
-
-const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}m ${remainingSeconds}s`;
 };
 
 export const Executions = () => {

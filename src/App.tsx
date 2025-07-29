@@ -11,20 +11,7 @@ import Scaling from './components/views/Scaling';
 import GroupedView from './components/views/GroupedView';
 import SavedQueriesView from './components/views/SavedQueriesView';
 
-import { extendTheme } from "@chakra-ui/react";
 import { DashboardView } from './components/views/Dashboard';
-const theme = extendTheme({
-  styles: {
-    global: {
-      'html, body, #root': {
-        height: '100%',
-        margin: 0,
-        padding: 0,
-        width: '100vh',
-      },
-    },
-  },
-});
 
 const queryClient = new QueryClient();
 

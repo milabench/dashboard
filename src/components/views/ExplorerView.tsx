@@ -1,53 +1,45 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
     Box,
+    Heading,
+    Text,
     VStack,
     HStack,
-    Heading,
     Button,
-    Text,
-    Select,
     Input,
-    Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
-    Badge,
+    Select,
     useToast,
-    IconButton,
-    Tooltip,
-    Spinner,
-    Center,
-    SimpleGrid,
+    useDisclosure,
     Modal,
     ModalOverlay,
     ModalContent,
     ModalHeader,
     ModalBody,
     ModalCloseButton,
-    useDisclosure,
     FormControl,
     FormLabel,
+    Table,
+    Thead,
+    Tbody,
+    Tr,
+    Th,
+    Td,
+    IconButton,
+    Tooltip,
 } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import { getAllSavedQueries, saveQuery } from '../../services/api';
+import type { Execution } from '../../services/types';
+import { Loading } from '../common/Loading';
 import axios from 'axios';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { SearchIcon, AddIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons';
-import { saveQuery, getAllSavedQueries } from '../../services/api';
 
 interface Filter {
     field: string;
     operator: string;
     value: string | string[];
-}
-
-interface Execution {
-    id: string;
-    run: string;
-    bench: string;
-    [key: string]: any; // For dynamic fields
 }
 
 // Helper function to format field names for display
@@ -131,7 +123,7 @@ export const ExplorerView = () => {
     }, []);
 
     // Fetch available fields
-    const { data: fields } = useQuery({
+    useQuery({
         queryKey: ['explorerFields'],
         queryFn: async () => {
             const response = await axios.get('/api/keys');
@@ -481,95 +473,84 @@ export const ExplorerView = () => {
                 <Box borderWidth={1} borderRadius="md" p={4}>
                     <VStack align="stretch" spacing={4}>
                         <Heading size="md">Quick Filters</Heading>
-                        <SimpleGrid columns={3} spacing={4}>
-                            <Box>
-                                <Text mb={2}>GPU</Text>
-                                <HStack>
-                                    <Select
-                                        value={quickFilters.gpu}
-                                        onChange={(e) => {
-                                            const options = Array.from(e.target.selectedOptions, option => option.value);
-                                            setQuickFilters({ ...quickFilters, gpu: options });
-                                        }}
-                                        placeholder="Select GPUs"
-                                        size="md"
-                                        height="100px"
-                                        multiple
-                                    >
-                                        {gpuList?.map((gpu: string) => (
-                                            <option key={gpu} value={gpu}>
-                                                {gpu}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                    <Button
-                                        size="sm"
-                                        onClick={() => addQuickFilter('gpu', quickFilters.gpu)}
-                                        isDisabled={!quickFilters.gpu.length}
-                                    >
-                                        Add
-                                    </Button>
-                                </HStack>
-                            </Box>
-                            <Box>
-                                <Text mb={2}>PyTorch Version</Text>
-                                <HStack>
-                                    <Select
-                                        value={quickFilters.pytorch}
-                                        onChange={(e) => {
-                                            const options = Array.from(e.target.selectedOptions, option => option.value);
-                                            setQuickFilters({ ...quickFilters, pytorch: options });
-                                        }}
-                                        placeholder="Select PyTorch versions"
-                                        size="md"
-                                        height="100px"
-                                        multiple
-                                    >
-                                        {pytorchList?.map((version: string) => (
-                                            <option key={version} value={version}>
-                                                {version}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                    <Button
-                                        size="sm"
-                                        onClick={() => addQuickFilter('pytorch', quickFilters.pytorch)}
-                                        isDisabled={!quickFilters.pytorch.length}
-                                    >
-                                        Add
-                                    </Button>
-                                </HStack>
-                            </Box>
-                            <Box>
-                                <Text mb={2}>Milabench Version</Text>
-                                <HStack>
-                                    <Select
-                                        value={quickFilters.milabench}
-                                        onChange={(e) => {
-                                            const options = Array.from(e.target.selectedOptions, option => option.value);
-                                            setQuickFilters({ ...quickFilters, milabench: options });
-                                        }}
-                                        placeholder="Select Milabench versions"
-                                        size="md"
-                                        height="100px"
-                                        multiple
-                                    >
-                                        {milabenchList?.map((version: string) => (
-                                            <option key={version} value={version}>
-                                                {version}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                    <Button
-                                        size="sm"
-                                        onClick={() => addQuickFilter('milabench', quickFilters.milabench)}
-                                        isDisabled={!quickFilters.milabench.length}
-                                    >
-                                        Add
-                                    </Button>
-                                </HStack>
-                            </Box>
-                        </SimpleGrid>
+                        <HStack>
+                            <Select
+                                value={quickFilters.gpu}
+                                onChange={(e) => {
+                                    const options = Array.from(e.target.selectedOptions, option => option.value);
+                                    setQuickFilters({ ...quickFilters, gpu: options });
+                                }}
+                                placeholder="Select GPUs"
+                                size="md"
+                                height="100px"
+                                multiple
+                            >
+                                {gpuList?.map((gpu: string) => (
+                                    <option key={gpu} value={gpu}>
+                                        {gpu}
+                                    </option>
+                                ))}
+                            </Select>
+                            <Button
+                                size="sm"
+                                onClick={() => addQuickFilter('gpu', quickFilters.gpu)}
+                                isDisabled={!quickFilters.gpu.length}
+                            >
+                                Add
+                            </Button>
+                        </HStack>
+                        <HStack>
+                            <Select
+                                value={quickFilters.pytorch}
+                                onChange={(e) => {
+                                    const options = Array.from(e.target.selectedOptions, option => option.value);
+                                    setQuickFilters({ ...quickFilters, pytorch: options });
+                                }}
+                                placeholder="Select PyTorch versions"
+                                size="md"
+                                height="100px"
+                                multiple
+                            >
+                                {pytorchList?.map((version: string) => (
+                                    <option key={version} value={version}>
+                                        {version}
+                                    </option>
+                                ))}
+                            </Select>
+                            <Button
+                                size="sm"
+                                onClick={() => addQuickFilter('pytorch', quickFilters.pytorch)}
+                                isDisabled={!quickFilters.pytorch.length}
+                            >
+                                Add
+                            </Button>
+                        </HStack>
+                        <HStack>
+                            <Select
+                                value={quickFilters.milabench}
+                                onChange={(e) => {
+                                    const options = Array.from(e.target.selectedOptions, option => option.value);
+                                    setQuickFilters({ ...quickFilters, milabench: options });
+                                }}
+                                placeholder="Select Milabench versions"
+                                size="md"
+                                height="100px"
+                                multiple
+                            >
+                                {milabenchList?.map((version: string) => (
+                                    <option key={version} value={version}>
+                                        {version}
+                                    </option>
+                                ))}
+                            </Select>
+                            <Button
+                                size="sm"
+                                onClick={() => addQuickFilter('milabench', quickFilters.milabench)}
+                                isDisabled={!quickFilters.milabench.length}
+                            >
+                                Add
+                            </Button>
+                        </HStack>
                     </VStack>
                 </Box>
 
@@ -676,7 +657,7 @@ export const ExplorerView = () => {
                                 </Button>
                                 <Button
                                     as={Link}
-                                    to={`/grouped?exec_ids=${executions?.map((e: Execution) => e.id).join(',')}&more=Exec:name as run&color=run`}
+                                    to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}
                                     colorScheme="green"
                                     isDisabled={!executions || executions.length === 0}
                                 >
@@ -685,9 +666,7 @@ export const ExplorerView = () => {
                             </HStack>
                         </HStack>
                         {isQueryLoading ? (
-                            <Center p={8}>
-                                <Spinner size="xl" />
-                            </Center>
+                            <Loading />
                         ) : executions && executions.length > 0 ? (
                             <Table variant="simple">
                                 <Thead>
@@ -700,10 +679,10 @@ export const ExplorerView = () => {
                                 </Thead>
                                 <Tbody>
                                     {executions.map((execution: Execution) => (
-                                        <Tr key={execution.id}>
+                                        <Tr key={execution._id}>
                                             {getTableColumns().map((field) => (
-                                                <Td key={`${execution.id}-${field}`}>
-                                                    {formatValue(field, execution[field])}
+                                                <Td key={`${execution._id}-${field}`}>
+                                                    {formatValue(field, (execution as any)[field])}
                                                 </Td>
                                             ))}
                                             <Td>
@@ -711,7 +690,7 @@ export const ExplorerView = () => {
                                                     <Tooltip label="View Report">
                                                         <Button
                                                             as={Link}
-                                                            to={`/executions/${execution.id}`}
+                                                            to={`/executions/${execution._id}`}
                                                             size="sm"
                                                             colorScheme="blue"
                                                             variant="ghost"
@@ -726,13 +705,9 @@ export const ExplorerView = () => {
                                 </Tbody>
                             </Table>
                         ) : filters.length > 0 ? (
-                            <Center p={8}>
-                                <Text color="gray.500">No results found</Text>
-                            </Center>
+                            <Text color="gray.500" textAlign="center">No results found</Text>
                         ) : (
-                            <Center p={8}>
-                                <Text color="gray.500">Add filters and click Search to see results</Text>
-                            </Center>
+                            <Text color="gray.500" textAlign="center">Add filters and click Search to see results</Text>
                         )}
                     </VStack>
                 </Box>

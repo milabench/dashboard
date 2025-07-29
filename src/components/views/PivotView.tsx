@@ -1,35 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import {
     Box,
-    Grid,
-    GridItem,
-    Heading,
-    Button,
     VStack,
     HStack,
     Text,
-    Badge,
+    Heading,
+    Button,
     useToast,
-    Select,
-    Input,
+    useDisclosure,
     Modal,
     ModalOverlay,
     ModalContent,
     ModalHeader,
     ModalBody,
     ModalCloseButton,
-    useDisclosure,
     FormControl,
     FormLabel,
+    Select,
+    Input,
+    Badge,
+    Grid,
+    GridItem,
     ButtonGroup,
 } from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-import { useSearchParams } from 'react-router-dom';
-import { saveQuery, getAllSavedQueries } from '../../services/api';
 import { AddIcon } from '@chakra-ui/icons';
-import { PivotIframeView } from './PivotIframeView';
+import { getAllSavedQueries, saveQuery } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
+import { PivotIframeView } from './PivotIframeView';
 
 interface PivotField {
     field: string;
@@ -71,7 +71,7 @@ export const PivotView = () => {
         { field: 'Metric:value', type: 'value', aggregators: ['avg'] },
     ]);
     const dropZonesRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
-    const [triggerGeneration, setTriggerGeneration] = useState(0);
+    const [triggerGeneration, setTriggerGeneration] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [executionTime, setExecutionTime] = useState<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
@@ -193,7 +193,7 @@ export const PivotView = () => {
                         console.log('Auto-executing query from URL parameters');
                         setGenerationStartTime(performance.now());
                         setExecutionTime(null);
-                        setTriggerGeneration(prev => prev + 1);
+                        setTriggerGeneration(true);
                     }, 100);
                 }
             }
@@ -362,10 +362,10 @@ export const PivotView = () => {
 
         // Increment trigger to signal child components to generate
         console.log('Generate pivot triggered from PivotView');
-        setTriggerGeneration(prev => prev + 1);
+        setTriggerGeneration(true);
     };
 
-    const [generationCompleteCallback, setGenerationCompleteCallback] = useState<(() => void) | null>(null);
+
     const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
 
     const handleGenerationComplete = () => {
@@ -449,7 +449,7 @@ export const PivotView = () => {
             newFields.splice(sourceIndex, 1);
 
             // Find the position to insert at the end of the same type group
-            const sameTypeFields = newFields.filter(f => f.type === targetType);
+
             const firstSameTypeIndex = newFields.findIndex(f => f.type === targetType);
 
             if (firstSameTypeIndex === -1) {
@@ -508,22 +508,7 @@ export const PivotView = () => {
         target.style.transform = 'scale(1)';
     };
 
-    // Add a function to handle reordering within the same zone
-    const handleIntraZoneReorder = (sourceIndex: number, targetIndex: number, zoneType: string) => {
-        const newFields = [...fields];
-        const sourceField = newFields[sourceIndex];
 
-        // Remove the source field
-        newFields.splice(sourceIndex, 1);
-
-        // Adjust target index if it's after the source
-        const adjustedTargetIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex;
-
-        // Insert at the new position
-        newFields.splice(adjustedTargetIndex, 0, sourceField);
-
-        setFields(newFields);
-    };
 
     // Add drop zones between fields for precise positioning
     const handleFieldDropZone = (e: React.DragEvent, beforeIndex: number, zoneType: string) => {
@@ -1287,23 +1272,21 @@ export const PivotView = () => {
                 <GridItem colStart={2} rowSpan={1} className="pivot-result" overflow="auto">
                     {viewMode === 'iframe' ? (
                         <PivotIframeView
-                            fields={fields}
+                            fields={fields.map(f => f.field)}
                             isRelativePivot={isRelativePivot}
-                            onFieldsChange={setFields}
                             triggerGeneration={triggerGeneration}
                             setTriggerGeneration={setTriggerGeneration}
                             setIsGenerating={setIsGenerating}
-                            onGenerationComplete={viewMode === 'iframe' ? handleGenerationComplete : undefined}
+                            onGenerationComplete={handleGenerationComplete}
                         />
                     ) : (
                         <PivotTableView
                             fields={fields}
                             isRelativePivot={isRelativePivot}
-                            onFieldsChange={setFields}
                             triggerGeneration={triggerGeneration}
                             setTriggerGeneration={setTriggerGeneration}
                             setIsGenerating={setIsGenerating}
-                            onGenerationComplete={viewMode === 'table' ? handleGenerationComplete : undefined}
+                            onGenerationComplete={handleGenerationComplete}
                         />
                     )}
                 </GridItem>

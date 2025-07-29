@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
     Box,
@@ -8,16 +8,10 @@ import {
     HStack,
     Badge,
     useToast,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
     Stat,
     StatLabel,
     StatNumber,
     StatHelpText,
-    StatArrow,
     SimpleGrid,
     Button,
     Accordion,
@@ -25,41 +19,17 @@ import {
     AccordionButton,
     AccordionPanel,
     AccordionIcon,
-    Grid,
-    GridItem,
-    IconButton,
-    Center,
     Tooltip,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import { getExecution, getPacks, getPackMetrics, getPackMetricsPlot } from '../../services/api';
-import type { Execution, Pack, Metric } from '../../services/types';
+import { getExecution, getPacks } from '../../services/api';
+import type { Execution, Pack } from '../../services/types';
 import { DataTable } from '../common/Table';
 import type { Column } from '../common/Table';
 import { Loading } from '../common/Loading';
-import axios from 'axios';
-import { ChevronLeftIcon } from '@chakra-ui/icons';
 import { MetricsView } from './MetricsView';
 import { FastReportView } from './FastReportView';
 import { HtmlReportView } from './HtmlReportView';
-
-// Utility function to read cookies
-const getCookie = (name: string): string | null => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-    return null;
-};
-
-const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-};
-
-const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}m ${remainingSeconds}s`;
-};
 
 const copyToClipboard = (toast: any, text: string) => {
     return () => {
@@ -94,7 +64,6 @@ const copyCurrentURL = (toast: any) => {
  */
 export const ExecutionReport = () => {
     const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
     const toast = useToast();
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
@@ -408,9 +377,8 @@ export const ExecutionReport = () => {
                             </HStack>
                         </HStack>
                         <MetricsView
-                            selectedPack={selectedPack}
+                            selectedPack={selectedPack!}
                             executionId={Number(id)}
-                            onClose={closeSidePanel}
                         />
                     </VStack>
                 )}

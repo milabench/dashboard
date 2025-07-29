@@ -3,8 +3,7 @@ import {
     Box,
     Heading,
     Text,
-    VStack,
-    useToast
+    VStack
 } from '@chakra-ui/react';
 
 interface DashboardViewProps {
@@ -12,8 +11,6 @@ interface DashboardViewProps {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = () => {
-    const toast = useToast();
-
     return (
         <Box p={6}>
             <VStack align="stretch" spacing={6}>

@@ -22,7 +22,7 @@ const handleError = (error: unknown): never => {
     if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
         throw {
-            message: axiosError.response?.data?.message || axiosError.message,
+            message: (axiosError.response?.data as any)?.message || axiosError.message,
             status: axiosError.response?.status || 500,
         } as ApiError;
     }

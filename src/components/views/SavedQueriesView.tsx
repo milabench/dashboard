@@ -23,7 +23,6 @@ import {
     AlertDialogContent,
     AlertDialogOverlay,
     useDisclosure,
-    Link,
 } from '@chakra-ui/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

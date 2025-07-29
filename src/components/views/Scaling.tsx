@@ -1,20 +1,24 @@
-import React from 'react';
-import { Box, Select, FormControl, FormLabel, HStack } from '@chakra-ui/react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import {
+    Box,
+    HStack,
+    Select,
+    FormControl,
+    FormLabel,
+} from '@chakra-ui/react';
 
-const Scaling: React.FC = () => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const navigate = useNavigate();
+const Scaling = () => {
+    const [searchParams, setSearchParams] = useState({ x: 'memory', y: 'perf' });
 
-    const xAxis = searchParams.get('x') || 'memory';
-    const yAxis = searchParams.get('y') || 'perf';
+    const xAxis = searchParams.x;
+    const yAxis = searchParams.y;
 
     const handleXAxisChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        setSearchParams({ x: event.target.value, y: yAxis });
+        setSearchParams({ ...searchParams, x: event.target.value });
     };
 
     const handleYAxisChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        setSearchParams({ x: xAxis, y: event.target.value });
+        setSearchParams({ ...searchParams, y: event.target.value });
     };
 
     return (

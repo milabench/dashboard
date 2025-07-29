@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
 import {
     Box,
-    Button,
-    useToast,
-    HStack,
     Table,
-    Thead,
     Tbody,
     Tr,
     Th,
     Td,
     Text,
-    Spinner,
+    VStack,
+    HStack,
+    useToast,
+    IconButton,
     Alert,
     AlertIcon,
-    TableContainer,
-    IconButton,
-    Tooltip,
     Select,
-    VStack
+    TableContainer,
+    Tooltip,
 } from '@chakra-ui/react';
 import { CopyIcon, DownloadIcon } from '@chakra-ui/icons';
 import axios from 'axios';
@@ -34,14 +31,13 @@ interface PivotField {
 interface PivotTableViewProps {
     fields: PivotField[];
     isRelativePivot: boolean;
-    onFieldsChange: (fields: PivotField[]) => void;
-    triggerGeneration: number;
-    setTriggerGeneration: (value: number | ((prev: number) => number)) => void;
-    setIsGenerating: (value: boolean) => void;
-    onGenerationComplete?: (() => void) | null;
+    triggerGeneration: boolean;
+    setTriggerGeneration: (trigger: boolean) => void;
+    setIsGenerating: (generating: boolean) => void;
+    onGenerationComplete: () => void;
 }
 
-export const PivotTableView = ({ fields, isRelativePivot, onFieldsChange, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotTableViewProps) => {
+export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotTableViewProps) => {
     const toast = useToast();
     const [pivotData, setPivotData] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -111,10 +107,12 @@ export const PivotTableView = ({ fields, isRelativePivot, onFieldsChange, trigge
 
     // Respond to trigger from parent component
     useEffect(() => {
-        if (triggerGeneration > 0 && fields.length > 0) {
-            generatePivotFromFields(fields);
+        if (triggerGeneration && fields.length > 0) {
+            // Use fields directly since they are already PivotField[]
+            const pivotFields: PivotField[] = fields;
+            generatePivotFromFields(pivotFields);
             // Reset trigger after generation
-            setTriggerGeneration(0);
+            setTriggerGeneration(false);
         }
     }, [triggerGeneration, fields, isRelativePivot]);
 
@@ -304,7 +302,7 @@ export const PivotTableView = ({ fields, isRelativePivot, onFieldsChange, trigge
 
     // Process data for relative pivot
     const processedData = isRelativePivot && pivotData.length > 0 ?
-        pivotData.map((row, index) => {
+        pivotData.map((row) => {
             const processedRow = { ...row };
 
             // Use selected baseline column or fall back to first numeric value column

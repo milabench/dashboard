@@ -11,7 +11,6 @@ import {
     VStack,
     HStack,
     Heading,
-    Text,
     Select,
     Input,
     Table,
@@ -27,7 +26,7 @@ import {
 } from '@chakra-ui/react';
 import type { Weight } from '../../services/types';
 import { getProfileList, getProfileDetails, saveProfile, copyProfile } from '../../services/api';
-import Cookies from '../../../node_modules/@types/js-cookie';
+import Cookies from 'js-cookie';
 
 export const Profile: React.FC = () => {
     const [profiles, setProfiles] = useState<string[]>([]);
