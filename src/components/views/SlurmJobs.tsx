@@ -119,10 +119,6 @@ const SyntaxHighlightedTextarea: React.FC<{
     );
 };
 
-interface DashboardViewProps {
-    // Add props as needed
-}
-
 const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
         case 'running':
@@ -164,12 +160,15 @@ const getStatusIcon = (status: string) => {
     }
 };
 
-export const DashboardView: React.FC<DashboardViewProps> = () => {
+export const SlurmJobsView: React.FC = () => {
     const toast = useToast();
     const queryClient = useQueryClient();
     const { isOpen, onOpen, onClose } = useDisclosure();
     const [selectedJob, setSelectedJob] = useState<SlurmJob | null>(null);
-    const [activeTab, setActiveTab] = useState(0);
+    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+    const [filterUser, setFilterUser] = useState<string>('');
+    const [filterPartition, setFilterPartition] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState<string>('');
 
     const bgColor = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -366,18 +365,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         });
     };
 
-    const handleCancelJob = (jobId: string) => {
-        if (window.confirm(`Are you sure you want to cancel job ${jobId}?`)) {
-            cancelJobMutation.mutate(jobId);
-        }
-    };
-
-    const handleViewJobDetails = (job: SlurmJob) => {
-        setSelectedJob(job);
-        setActiveTab(0);
-        onOpen();
-    };
-
     const handleSaveProfile = () => {
         if (!newProfileName.trim()) {
             toast({
@@ -434,48 +421,97 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         });
     };
 
+    const handleCancelJob = (jobId: string) => {
+        if (window.confirm(`Are you sure you want to cancel job ${jobId}?`)) {
+            cancelJobMutation.mutate(jobId);
+        }
+    };
+
+    const handleViewJobDetails = (job: SlurmJob) => {
+        setSelectedJob(job);
+        onOpen();
+    };
+
+    // Filter and search logic
     const allJobs = [
         ...(jobsData?.active_jobs || []),
         ...(jobsData?.completed_jobs || [])
     ];
 
-    const runningJobs = allJobs.filter(job =>
+    const filteredJobs = allJobs.filter(job => {
+        const status = job.status || job.state || job.job_state || '';
+        const name = job.name || job.job_name || '';
+        const user = job.user || job.user_name || '';
+        const partition = job.partition || '';
+
+        // Status filter
+        if (filterStatus.length > 0 && !filterStatus.includes(status.toLowerCase())) {
+            return false;
+        }
+
+        // User filter
+        if (filterUser && !user.toLowerCase().includes(filterUser.toLowerCase())) {
+            return false;
+        }
+
+        // Partition filter
+        if (filterPartition && !partition.toLowerCase().includes(filterPartition.toLowerCase())) {
+            return false;
+        }
+
+        // Search term
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                job.job_id.toLowerCase().includes(searchLower) ||
+                name.toLowerCase().includes(searchLower) ||
+                user.toLowerCase().includes(searchLower) ||
+                partition.toLowerCase().includes(searchLower)
+            );
+        }
+
+        return true;
+    });
+
+    const runningJobs = filteredJobs.filter(job =>
     (job.status?.toLowerCase() === 'running' ||
         job.state?.toLowerCase() === 'running' ||
         job.job_state?.toLowerCase() === 'running')
     );
-    const pendingJobs = allJobs.filter(job =>
+    const pendingJobs = filteredJobs.filter(job =>
     (job.status?.toLowerCase() === 'pending' ||
         job.state?.toLowerCase() === 'pending' ||
         job.job_state?.toLowerCase() === 'pending')
     );
-    const completedJobs = allJobs.filter(job =>
+    const completedJobs = filteredJobs.filter(job =>
     (job.status?.toLowerCase() === 'completed' ||
         job.state?.toLowerCase() === 'completed' ||
         job.job_state?.toLowerCase() === 'completed')
     );
 
+    // Get unique values for filters
+    const uniqueUsers = [...new Set(allJobs.map(job => job.user || job.user_name).filter(Boolean))];
+    const uniquePartitions = [...new Set(allJobs.map(job => job.partition).filter(Boolean))];
+    const uniqueStatuses = [...new Set(allJobs.map(job => job.status || job.state || job.job_state).filter(Boolean))];
+
     return (
         <Box p={6}>
             <VStack align="stretch" spacing={6}>
                 <Box>
-                    <Heading size="lg" mb={2}>Slurm Cluster Dashboard</Heading>
+                    <Heading size="lg" mb={2}>Slurm Job Management</Heading>
                     <Text color="gray.600">
-                        Monitor and manage your Milabench jobs on the Slurm cluster
+                        Monitor, submit, and manage your Slurm jobs
                     </Text>
                 </Box>
 
-                {/* Cluster Statistics */}
+                {/* Statistics */}
                 <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={6}>
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                         <CardBody>
                             <Stat>
                                 <StatLabel>Total Jobs</StatLabel>
-                                <StatNumber>{allJobs.length}</StatNumber>
-                                <StatHelpText>
-                                    <StatArrow type="increase" />
-                                    23.36%
-                                </StatHelpText>
+                                <StatNumber>{filteredJobs.length}</StatNumber>
+                                <StatHelpText>Filtered results</StatHelpText>
                             </Stat>
                         </CardBody>
                     </Card>
@@ -505,30 +541,95 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             <Stat>
                                 <StatLabel>Completed Jobs</StatLabel>
                                 <StatNumber color="blue.500">{completedJobs.length}</StatNumber>
-                                <StatHelpText>Last 24 hours</StatHelpText>
+                                <StatHelpText>Finished jobs</StatHelpText>
                             </Stat>
                         </CardBody>
                     </Card>
                 </Grid>
 
-                {/* Action Buttons */}
-                <HStack spacing={4}>
-                    <Button
-                        leftIcon={<AddIcon />}
-                        colorScheme="blue"
-                        onClick={onOpen}
-                    >
-                        Submit New Job
-                    </Button>
-                    <Button
-                        leftIcon={<RepeatIcon />}
-                        variant="outline"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] })}
-                        isLoading={jobsLoading}
-                    >
-                        Refresh Jobs
-                    </Button>
-                </HStack>
+                {/* Filters and Actions */}
+                <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
+                    <CardHeader>
+                        <Flex align="center">
+                            <Heading size="md">Filters & Actions</Heading>
+                            <Spacer />
+                            <HStack spacing={4}>
+                                <Button
+                                    leftIcon={<AddIcon />}
+                                    colorScheme="blue"
+                                    onClick={onOpen}
+                                >
+                                    Submit New Job
+                                </Button>
+                                <Button
+                                    leftIcon={<RepeatIcon />}
+                                    variant="outline"
+                                    onClick={() => queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] })}
+                                    isLoading={jobsLoading}
+                                >
+                                    Refresh
+                                </Button>
+                            </HStack>
+                        </Flex>
+                    </CardHeader>
+                    <CardBody>
+                        <VStack align="stretch" spacing={4}>
+                            {/* Search */}
+                            <HStack>
+                                <Box flex={1}>
+                                    <Input
+                                        placeholder="Search jobs by ID, name, user, or partition..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        leftIcon={<SearchIcon />}
+                                    />
+                                </Box>
+                            </HStack>
+
+                            {/* Filters */}
+                            <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
+                                <Box>
+                                    <Text fontWeight="bold" mb={2}>Status</Text>
+                                    <CheckboxGroup value={filterStatus} onChange={setFilterStatus}>
+                                        <Stack spacing={2}>
+                                            {uniqueStatuses.map(status => (
+                                                <Checkbox key={status} value={status.toLowerCase()}>
+                                                    {status}
+                                                </Checkbox>
+                                            ))}
+                                        </Stack>
+                                    </CheckboxGroup>
+                                </Box>
+
+                                <Box>
+                                    <Text fontWeight="bold" mb={2}>User</Text>
+                                    <Select
+                                        placeholder="All users"
+                                        value={filterUser}
+                                        onChange={(e) => setFilterUser(e.target.value)}
+                                    >
+                                        {uniqueUsers.map(user => (
+                                            <option key={user} value={user}>{user}</option>
+                                        ))}
+                                    </Select>
+                                </Box>
+
+                                <Box>
+                                    <Text fontWeight="bold" mb={2}>Partition</Text>
+                                    <Select
+                                        placeholder="All partitions"
+                                        value={filterPartition}
+                                        onChange={(e) => setFilterPartition(e.target.value)}
+                                    >
+                                        {uniquePartitions.map(partition => (
+                                            <option key={partition} value={partition}>{partition}</option>
+                                        ))}
+                                    </Select>
+                                </Box>
+                            </Grid>
+                        </VStack>
+                    </CardBody>
+                </Card>
 
                 {/* Jobs Table */}
                 <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
@@ -564,7 +665,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         </Tr>
                                     </Thead>
                                     <Tbody>
-                                        {allJobs.map((job) => (
+                                        {filteredJobs.map((job) => (
                                             <Tr key={job.job_id}>
                                                 <Td>
                                                     <Text fontWeight="bold">{job.job_id}</Text>
@@ -597,7 +698,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                         {(job.status?.toLowerCase() === 'running' ||
                                                             job.status?.toLowerCase() === 'pending' ||
                                                             job.state?.toLowerCase() === 'running' ||
-                                                            job.state?.toLowerCase() === 'pending') && (
+                                                            job.state?.toLowerCase() === 'pending' ||
+                                                            job.job_state?.toLowerCase() === 'running' ||
+                                                            job.job_state?.toLowerCase() === 'pending') && (
                                                                 <Tooltip label="Cancel Job">
                                                                     <IconButton
                                                                         aria-label="Cancel job"
@@ -615,9 +718,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         ))}
                                     </Tbody>
                                 </Table>
-                                {allJobs.length === 0 && (
+                                {filteredJobs.length === 0 && (
                                     <Box textAlign="center" py={8}>
-                                        <Text color="gray.500">No jobs found</Text>
+                                        <Text color="gray.500">No jobs found matching your filters</Text>
                                     </Box>
                                 )}
                             </Box>
@@ -626,7 +729,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Card>
 
                 {/* Job Details Modal */}
-                <Modal isOpen={isOpen} onClose={onClose} size="6xl">
+                <Modal isOpen={isOpen && !!selectedJob} onClose={onClose} size="6xl">
                     <ModalOverlay />
                     <ModalContent>
                         <ModalHeader>
@@ -693,7 +796,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     );
 };
 
-// Job Details Tabs Component
+// Job Details Tabs Component (reused from Dashboard)
 const JobDetailsTabs: React.FC<{ job: SlurmJob }> = ({ job }) => {
     const [activeTab, setActiveTab] = useState(0);
 
@@ -731,8 +834,8 @@ const JobDetailsTabs: React.FC<{ job: SlurmJob }> = ({ job }) => {
                             </Box>
                             <Box>
                                 <Text fontWeight="bold">Status</Text>
-                                <Badge colorScheme={getStatusColor(job.status || job.state || '')}>
-                                    {job.status || job.state || 'Unknown'}
+                                <Badge colorScheme={getStatusColor(job.status || job.state || job.job_state || '')}>
+                                    {job.status || job.state || job.job_state || 'Unknown'}
                                 </Badge>
                             </Box>
                             <Box>
@@ -859,20 +962,20 @@ const JobDetailsTabs: React.FC<{ job: SlurmJob }> = ({ job }) => {
     );
 };
 
-// Job Submission Form Component
+// Job Submission Form Component (reused from Dashboard)
 const JobSubmissionForm: React.FC<{
     form: SlurmJobSubmitRequest;
     setForm: (form: SlurmJobSubmitRequest) => void;
     template?: string;
-    profiles: SlurmProfile[];
+    profiles?: SlurmProfile[];
     selectedProfile: string;
     onProfileSelect: (profileName: string) => void;
     newProfileName: string;
     setNewProfileName: (name: string) => void;
     newProfileDescription: string;
-    setNewProfileDescription: (description: string) => void;
+    setNewProfileDescription: (desc: string) => void;
 }> = ({ form, setForm, template, profiles, selectedProfile, onProfileSelect, newProfileName, setNewProfileName, newProfileDescription, setNewProfileDescription }) => {
-    const selectedProfileData = profiles.find(p => p.name === selectedProfile);
+    const selectedProfileData = profiles?.find(p => p.name === selectedProfile);
 
     return (
         <VStack align="stretch" spacing={4}>
@@ -884,7 +987,7 @@ const JobSubmissionForm: React.FC<{
                     onChange={(e) => onProfileSelect(e.target.value)}
                     placeholder="Select a profile"
                 >
-                    {profiles.map((profile) => (
+                    {profiles?.map((profile) => (
                         <option key={profile.name} value={profile.name}>
                             {profile.name} - {profile.description}
                         </option>
@@ -925,26 +1028,6 @@ const JobSubmissionForm: React.FC<{
                             {selectedProfileData.parsed_args.time_limit && (
                                 <Text fontSize="sm">
                                     <strong>Time Limit:</strong> {selectedProfileData.parsed_args.time_limit}
-                                </Text>
-                            )}
-                            {selectedProfileData.parsed_args.ntasks_per_node && (
-                                <Text fontSize="sm">
-                                    <strong>Tasks per Node:</strong> {selectedProfileData.parsed_args.ntasks_per_node}
-                                </Text>
-                            )}
-                            {selectedProfileData.parsed_args.exclusive && (
-                                <Text fontSize="sm">
-                                    <strong>Exclusive:</strong> Yes
-                                </Text>
-                            )}
-                            {selectedProfileData.parsed_args.export && (
-                                <Text fontSize="sm">
-                                    <strong>Export:</strong> {selectedProfileData.parsed_args.export}
-                                </Text>
-                            )}
-                            {selectedProfileData.parsed_args.nodelist && (
-                                <Text fontSize="sm">
-                                    <strong>Node List:</strong> {selectedProfileData.parsed_args.nodelist}
                                 </Text>
                             )}
                         </VStack>

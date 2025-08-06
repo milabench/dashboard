@@ -28,6 +28,13 @@ const navItems: NavItem[] = [
     { label: 'Dashboard', path: '/' },
     { label: 'Latest Executions', path: '/executions' },
     {
+        label: 'Slurm',
+        routes: [
+            { label: 'Cluster Dashboard', path: '/' },
+            { label: 'Job Management', path: '/slurm/jobs' },
+        ]
+    },
+    {
         label: 'Search',
         routes: [
             { label: 'Pivot View', path: '/pivot' },

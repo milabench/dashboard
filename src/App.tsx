@@ -10,6 +10,7 @@ import { Profile } from './components/views/Profile';
 import Scaling from './components/views/Scaling';
 import GroupedView from './components/views/GroupedView';
 import SavedQueriesView from './components/views/SavedQueriesView';
+import { SlurmJobsView } from './components/views/SlurmJobs';
 
 import { DashboardView } from './components/views/Dashboard';
 
@@ -32,6 +33,7 @@ function App() {
                 <Route path="/grouped" element={<GroupedView />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
+                <Route path="/slurm/jobs" element={<SlurmJobsView />} />
               </Routes>
             </Layout>
           </Router>

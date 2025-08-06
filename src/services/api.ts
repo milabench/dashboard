@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobData, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmScriptGenerationRequest, SlurmScriptGenerationResponse } from './types';
 
 
 export interface ProfileCopyRequest {
@@ -207,6 +207,114 @@ export const exploreExecutions = async (filters?: ExploreFilters[]): Promise<any
     try {
         const params = filters ? { filters: btoa(JSON.stringify(filters)) } : {};
         const response = await api.get('/exec/explore', { params });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+// Slurm-related API functions
+export const getSlurmJobs = async (): Promise<SlurmJobsResponse> => {
+    try {
+        const response = await api.get('/slurm/jobs');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const submitSlurmJob = async (request: SlurmJobSubmitRequest): Promise<SlurmJobSubmitResponse> => {
+    try {
+        const response = await api.post('/slurm/submit', request);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const cancelSlurmJob = async (jobId: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+        const response = await api.post(`/slurm/cancel/${jobId}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobLogs = async (jobId: string): Promise<SlurmJobLogs> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jobId}/logs`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobData = async (jobId: string): Promise<SlurmJobData> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jobId}/data`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmClusterInfo = async (): Promise<SlurmClusterInfo> => {
+    try {
+        const response = await api.get('/slurm/cluster');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmTemplate = async (): Promise<SlurmTemplate> => {
+    try {
+        const response = await api.get('/slurm/template');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmProfiles = async (): Promise<SlurmProfile[]> => {
+    try {
+        const response = await api.get('/slurm/profiles');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const generateSlurmScript = async (request: SlurmScriptGenerationRequest): Promise<SlurmScriptGenerationResponse> => {
+    try {
+        const response = await api.post('/slurm/generate-script', request);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const saveSlurmProfile = async (request: {
+    name: string;
+    description?: string;
+    sbatch_args: string[];
+}): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+        const response = await api.post('/slurm/save-profile', request);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const submitSlurmJobWithArgs = async (request: {
+    script: string;
+    job_name?: string;
+    sbatch_args: string[];
+}): Promise<SlurmJobSubmitResponse> => {
+    try {
+        const response = await api.post('/slurm/submit-with-args', request);
         return response.data;
     } catch (error) {
         return handleError(error);
