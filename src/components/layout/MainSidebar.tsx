@@ -9,20 +9,6 @@ interface NavItem {
     routes?: NavItem[];
 }
 
-// const navItems: NavItem[] = [
-//     { label: 'Dashboard', path: '/' },
-//     { label: 'Executions', path: '/executions' },
-//     // { label: 'Metrics', path: '/metrics' },
-//     // { label: 'Summary', path: '/summary' },
-//     { label: 'Pivot View', path: '/pivot' },
-//     { label: 'Explorer', path: '/explorer' },
-//     { label: 'Profiles', path: '/profile' },
-//     { label: 'Scaling', path: '/scaling' },
-//     { label: 'Grouped View', path: '/grouped' },
-//     { label: 'Saved Queries', path: '/saved-queries' },
-// ];
-
-
 
 const navItems: NavItem[] = [
     { label: 'Dashboard', path: '/' },
@@ -31,7 +17,6 @@ const navItems: NavItem[] = [
         label: 'Slurm',
         routes: [
             { label: 'Cluster Dashboard', path: '/' },
-            { label: 'Job Management', path: '/slurm/jobs' },
         ]
     },
     {

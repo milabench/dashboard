@@ -104,6 +104,7 @@ export interface Weight {
 // Slurm-related types
 export interface SlurmJob {
     job_id: string;
+    jr_job_id?: string | null;
     partition?: string;
     name?: string;
     job_name?: string;
@@ -113,7 +114,11 @@ export interface SlurmJob {
     state?: string;
     job_state?: string;
     time?: string;
-    time_limit?: string;
+    time_limit?: {
+        number: number,
+        set: boolean,
+        infinite: boolean
+    };
     elapsed?: string;
     nodes?: string;
     nodelist?: string;
@@ -132,6 +137,8 @@ export interface SlurmJobsResponse {
 export interface SlurmJobSubmitRequest {
     script: string;
     job_name?: string;
+    sbatch_args?: string[];
+    // Individual parameters for backward compatibility
     partition?: string;
     nodes?: number;
     ntasks?: number;
@@ -210,30 +217,7 @@ export interface SlurmProfile {
     };
 }
 
-export interface SlurmScriptGenerationRequest {
-    profile: string;
-    script?: string;
-    job_name?: string;
-}
 
-export interface SlurmScriptGenerationResponse {
-    script: string;
-    profile: string;
-    sbatch_args: string[];
-    parsed_args: {
-        partition?: string;
-        nodes?: number;
-        ntasks?: number;
-        cpus_per_task?: number;
-        mem?: string;
-        time_limit?: string;
-        gpus_per_task?: string;
-        ntasks_per_node?: number;
-        exclusive?: boolean;
-        export?: string;
-        nodelist?: string;
-    };
-}
 
 export interface SlurmProfileSaveRequest {
     name: string;
@@ -241,8 +225,4 @@ export interface SlurmProfileSaveRequest {
     sbatch_args: string[];
 }
 
-export interface SlurmJobSubmitWithArgsRequest {
-    script: string;
-    job_name?: string;
-    sbatch_args: string[];
-}
+
