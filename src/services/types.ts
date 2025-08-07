@@ -103,7 +103,7 @@ export interface Weight {
 
 // Slurm-related types
 export interface SlurmJob {
-    job_id: string;
+    job_id: string | null;
     jr_job_id?: string | null;
     partition?: string;
     name?: string;

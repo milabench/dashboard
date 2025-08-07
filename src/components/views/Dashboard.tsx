@@ -82,10 +82,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import {
     getSlurmJobs,
+    getSlurmPersistedJobs,
     submitSlurmJob,
     cancelSlurmJob,
     getSlurmClusterInfo,
-    getSlurmTemplate,
     getSlurmTemplates,
     getSlurmTemplateContent,
     getSlurmProfiles,
@@ -149,9 +149,16 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const borderColor = useColorModeValue('gray.200', 'gray.700');
 
     // Queries
-    const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
+    const { data: activeJobsData, isLoading: activeJobsLoading, error: activeJobsError } = useQuery({
         queryKey: ['slurm-jobs'],
         queryFn: getSlurmJobs,
+        refetchOnWindowFocus: false,
+        staleTime: 30000, // Consider data fresh for 30 seconds
+    });
+
+    const { data: persistedJobsData, isLoading: persistedJobsLoading, error: persistedJobsError } = useQuery({
+        queryKey: ['slurm-persisted-jobs'],
+        queryFn: getSlurmPersistedJobs,
         refetchOnWindowFocus: false,
         staleTime: 30000, // Consider data fresh for 30 seconds
     });
@@ -164,12 +171,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         staleTime: 600000, // Consider data fresh for 10 minutes
     });
 
-    const { data: template } = useQuery({
-        queryKey: ['slurm-template'],
-        queryFn: getSlurmTemplate,
-        refetchOnWindowFocus: false,
-        staleTime: 300000, // Consider data fresh for 5 minutes
-    });
+
 
     const { data: profiles } = useQuery({
         queryKey: ['slurm-profiles'],
@@ -178,6 +180,19 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         staleTime: 300000, // Consider data fresh for 5 minutes
     });
 
+    // Separate active jobs and persisted jobs
+    const activeJobs = activeJobsData || [];
+    const persistedJobIds = persistedJobsData || [];
+
+    const runningJobs = activeJobs.filter((job: SlurmJob) =>
+        job.job_state?.[0]?.toLowerCase() === 'running'
+    );
+    const pendingJobs = activeJobs.filter((job: SlurmJob) =>
+        job.job_state?.[0]?.toLowerCase() === 'pending'
+    );
+    const completedJobs = activeJobs.filter((job: SlurmJob) =>
+        job.job_state?.[0]?.toLowerCase() === 'completed'
+    );
 
 
     const cancelJobMutation = useMutation({
@@ -191,6 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 isClosable: true,
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
         },
         onError: (error: any) => {
             toast({
@@ -205,7 +221,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     // Job submission form state
     const [submitForm, setSubmitForm] = useState<SlurmJobSubmitRequest>({
-        script: template?.template || '',
+        script: '',
         job_name: 'milabench_job',
         partition: '',
         nodes: 1,
@@ -303,6 +319,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 isClosable: true,
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
             onClose();
         },
         onError: (error: any) => {
@@ -400,7 +417,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     const handleViewJobDetails = (job: SlurmJob) => {
         const jrJobId = typeof job.jr_job_id === 'string' ? job.jr_job_id : 'unknown';
-        navigate(`/jobrunner/${job.job_id}/${jrJobId}`);
+        const jobId = job.job_id || 'unknown';
+        navigate(`/jobrunner/${jobId}/${jrJobId}`);
     };
 
     const handleSaveProfile = () => {
@@ -490,18 +508,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         });
     };
 
-    const allJobs = jobsData || [];
-
-    const runningJobs = allJobs.filter((job: SlurmJob) =>
-        job.job_state?.[0]?.toLowerCase() === 'running'
-    );
-    const pendingJobs = allJobs.filter((job: SlurmJob) =>
-        job.job_state?.[0]?.toLowerCase() === 'pending'
-    );
-    const completedJobs = allJobs.filter((job: SlurmJob) =>
-        job.job_state?.[0]?.toLowerCase() === 'completed'
-    );
-
     return (
         <Box p={6}>
             <VStack align="stretch" spacing={6}>
@@ -517,8 +523,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                         <CardBody>
                             <Stat>
-                                <StatLabel>Total Jobs</StatLabel>
-                                <StatNumber>{allJobs.length}</StatNumber>
+                                <StatLabel>Active Jobs</StatLabel>
+                                <StatNumber>{activeJobs.length}</StatNumber>
                                 <StatHelpText>
                                     <StatArrow type="increase" />
                                     23.36%
@@ -550,9 +556,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                         <CardBody>
                             <Stat>
-                                <StatLabel>Completed Jobs</StatLabel>
-                                <StatNumber color="blue.500">{completedJobs.length}</StatNumber>
-                                <StatHelpText>Last 24 hours</StatHelpText>
+                                <StatLabel>Persisted Jobs</StatLabel>
+                                <StatNumber color="blue.500">{persistedJobIds.length}</StatNumber>
+                                <StatHelpText>Available outputs</StatHelpText>
                             </Stat>
                         </CardBody>
                     </Card>
@@ -570,31 +576,34 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                     <Button
                         leftIcon={<RepeatIcon />}
                         variant="outline"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] })}
-                        isLoading={jobsLoading}
+                        onClick={() => {
+                            queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+                            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
+                        }}
+                        isLoading={activeJobsLoading || persistedJobsLoading}
                     >
                         Refresh Jobs
                     </Button>
                 </HStack>
 
-                {/* Jobs Table */}
+                {/* Active Jobs Table */}
                 <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                     <CardHeader>
-                        <Heading size="md">Job Queue</Heading>
+                        <Heading size="md">Active Jobs</Heading>
                     </CardHeader>
                     <CardBody>
-                        {jobsError ? (
+                        {(activeJobsError) ? (
                             <Alert status="error">
                                 <AlertIcon />
-                                <AlertTitle>Error loading jobs!</AlertTitle>
+                                <AlertTitle>Error loading active jobs!</AlertTitle>
                                 <AlertDescription>
-                                    {(jobsError as any)?.message || 'Failed to load jobs'}
+                                    {(activeJobsError as any)?.message || 'Failed to load active jobs'}
                                 </AlertDescription>
                             </Alert>
-                        ) : jobsLoading ? (
+                        ) : (activeJobsLoading) ? (
                             <Box textAlign="center" py={8}>
                                 <Spinner size="lg" />
-                                <Text mt={4}>Loading jobs...</Text>
+                                <Text mt={4}>Loading active jobs...</Text>
                             </Box>
                         ) : (
                             <Box overflowX="auto">
@@ -612,7 +621,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         </Tr>
                                     </Thead>
                                     <Tbody>
-                                        {allJobs.map((job) => (
+                                        {activeJobs.map((job: SlurmJob) => (
                                             <Tr key={job.job_id}>
                                                 <Td>
                                                     <Text fontWeight="bold">{job.job_id}</Text>
@@ -663,7 +672,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                         size="sm"
                                                                         variant="ghost"
                                                                         colorScheme="red"
-                                                                        onClick={() => handleCancelJob(job.job_id)}
+                                                                        onClick={() => job.job_id && handleCancelJob(job.job_id)}
                                                                     />
                                                                 </Tooltip>
                                                             )}
@@ -673,9 +682,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         ))}
                                     </Tbody>
                                 </Table>
-                                {allJobs.length === 0 && (
+                                {activeJobs.length === 0 && (
                                     <Box textAlign="center" py={8}>
-                                        <Text color="gray.500">No jobs found</Text>
+                                        <Text color="gray.500">No active jobs found</Text>
                                     </Box>
                                 )}
                             </Box>
@@ -683,6 +692,159 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                     </CardBody>
                 </Card>
 
+                {/* Persisted Jobs Table */}
+                <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
+                    <CardHeader>
+                        <Heading size="md">Persisted Jobs</Heading>
+                    </CardHeader>
+                    <CardBody>
+                        {(persistedJobsError) ? (
+                            <Alert status="error">
+                                <AlertIcon />
+                                <AlertTitle>Error loading persisted jobs!</AlertTitle>
+                                <AlertDescription>
+                                    {(persistedJobsError as any)?.message || 'Failed to load persisted jobs'}
+                                </AlertDescription>
+                            </Alert>
+                        ) : (persistedJobsLoading) ? (
+                            <Box textAlign="center" py={8}>
+                                <Spinner size="lg" />
+                                <Text mt={4}>Loading persisted jobs...</Text>
+                            </Box>
+                        ) : (
+                            <Box overflowX="auto">
+                                <Table variant="simple">
+                                    <Thead>
+                                        <Tr>
+                                            <Th>Job ID</Th>
+                                            <Th>JR Job ID</Th>
+                                            <Th>Name</Th>
+                                            <Th>Status</Th>
+                                            <Th>Partition</Th>
+                                            <Th>User</Th>
+                                            <Th>Time</Th>
+                                            <Th>Actions</Th>
+                                        </Tr>
+                                    </Thead>
+                                    <Tbody>
+                                        {persistedJobIds.map((jrJobId: string) => {
+                                            const job = activeJobs.find(j => j.jr_job_id === jrJobId);
+                                            if (!job) {
+                                                return (
+                                                    <Tr key={`persisted-${jrJobId}`}>
+                                                        <Td>
+                                                            <Text fontWeight="bold">-</Text>
+                                                        </Td>
+                                                        <Td>
+                                                            <Text fontFamily="mono" fontSize="sm">
+                                                                {jrJobId}
+                                                            </Text>
+                                                        </Td>
+                                                        <Td>
+                                                            <Text>Persisted Job</Text>
+                                                        </Td>
+                                                        <Td>
+                                                            <Badge colorScheme="gray">COMPLETED</Badge>
+                                                        </Td>
+                                                        <Td>N/A</Td>
+                                                        <Td>N/A</Td>
+                                                        <Td>N/A</Td>
+                                                        <Td>
+                                                            <HStack spacing={2}>
+                                                                <Tooltip label="View Details">
+                                                                    <IconButton
+                                                                        aria-label="View job details"
+                                                                        icon={<ViewIcon />}
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleViewJobDetails({
+                                                                            job_id: null,
+                                                                            jr_job_id: jrJobId,
+                                                                            name: 'Persisted Job',
+                                                                            job_state: 'COMPLETED',
+                                                                            partition: 'N/A',
+                                                                            user_name: 'N/A',
+                                                                            time_limit: { number: 0, set: false, infinite: false },
+                                                                            nodes: 'N/A'
+                                                                        })}
+                                                                    />
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Td>
+                                                    </Tr>
+                                                );
+                                            }
+                                            return (
+                                                <Tr key={job.job_id}>
+                                                    <Td>
+                                                        <Text fontWeight="bold">{job.job_id}</Text>
+                                                    </Td>
+                                                    <Td>
+                                                        <Text fontFamily="mono" fontSize="sm">
+                                                            {job.jr_job_id}
+                                                        </Text>
+                                                    </Td>
+                                                    <Td>
+                                                        <Text>{job.name || 'N/A'}</Text>
+                                                    </Td>
+                                                    <Td>
+                                                        <HStack>
+                                                            {getStatusIcon(job.job_state?.[0] || '')}
+                                                            <Badge colorScheme={getStatusColor(job.job_state?.[0] || '')}>
+                                                                {job.job_state?.[0] || 'Unknown'}
+                                                            </Badge>
+                                                        </HStack>
+                                                    </Td>
+                                                    <Td>{job.partition || 'N/A'}</Td>
+                                                    <Td>{job.user_name || 'N/A'}</Td>
+                                                    <Td>
+                                                        {typeof job.time_limit === 'string'
+                                                            ? job.time_limit
+                                                            : job.time_limit?.number
+                                                                ? `${job.time_limit.number}min`
+                                                                : 'N/A'
+                                                        }
+                                                    </Td>
+                                                    <Td>
+                                                        <HStack spacing={2}>
+                                                            <Tooltip label="View Details">
+                                                                <IconButton
+                                                                    aria-label="View job details"
+                                                                    icon={<ViewIcon />}
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => handleViewJobDetails(job)}
+                                                                />
+                                                            </Tooltip>
+                                                            {(job.job_state?.[0]?.toLowerCase() === 'running' ||
+                                                                job.job_state?.[0]?.toLowerCase() === 'pending') && (
+                                                                    <Tooltip label="Cancel Job">
+                                                                        <IconButton
+                                                                            aria-label="Cancel job"
+                                                                            icon={<DeleteIcon />}
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            colorScheme="red"
+                                                                            onClick={() => job.job_id && handleCancelJob(job.job_id)}
+                                                                        />
+                                                                    </Tooltip>
+                                                                )}
+                                                        </HStack>
+                                                    </Td>
+                                                </Tr>
+                                            );
+                                        })}
+                                    </Tbody>
+                                </Table>
+                                {persistedJobIds.length === 0 && (
+                                    <Box textAlign="center" py={8}>
+                                        <Text color="gray.500">No persisted jobs found</Text>
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+                    </CardBody>
+                </Card>
 
 
                 {/* Job Submission Modal */}
@@ -695,7 +857,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             <JobSubmissionForm
                                 form={submitForm}
                                 setForm={setSubmitForm}
-                                template={template?.template}
+                                template=""
                                 templates={templateNames}
                                 profiles={profiles || []}
                                 selectedProfile={selectedProfile}

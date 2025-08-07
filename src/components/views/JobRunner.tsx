@@ -127,9 +127,9 @@ export const JobRunnerView: React.FC = () => {
 
     // Get job info
     const { data: jobInfo, isLoading: infoLoading, error: infoError } = useQuery({
-        queryKey: ['slurm-job-info', slurmJobId],
-        queryFn: () => getSlurmJobInfo(slurmJobId!),
-        enabled: !!slurmJobId,
+        queryKey: ['slurm-job-info', jrJobId, slurmJobId],
+        queryFn: () => getSlurmJobInfo(jrJobId!, slurmJobId),
+        enabled: !!jrJobId,
     });
 
     // Get job stdout

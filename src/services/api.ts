@@ -223,6 +223,15 @@ export const getSlurmJobs = async (): Promise<SlurmJob[]> => {
     }
 };
 
+export const getSlurmPersistedJobs = async (): Promise<string[]> => {
+    try {
+        const response = await api.get('/slurm/jobs/persited');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 
 export const cancelSlurmJob = async (jobId: string): Promise<{ success: boolean; message?: string; error?: string }> => {
     try {
@@ -233,27 +242,30 @@ export const cancelSlurmJob = async (jobId: string): Promise<{ success: boolean;
     }
 };
 
-export const getSlurmJobInfo = async (jobId: string): Promise<any> => {
+export const getSlurmJobInfo = async (jrJobId: string, jobId?: string): Promise<any> => {
     try {
-        const response = await api.get(`/slurm/jobs/${jobId}/info`);
+        const url = jobId
+            ? `/slurm/jobs/${jrJobId}/info/${jobId}`
+            : `/slurm/jobs/${jrJobId}/info`;
+        const response = await api.get(url);
         return response.data;
     } catch (error) {
         return handleError(error);
     }
 };
 
-export const getSlurmJobStdout = async (jobId: string): Promise<string> => {
+export const getSlurmJobStdout = async (jrJobId: string): Promise<string> => {
     try {
-        const response = await api.get(`/slurm/jobs/${jobId}/stdout`);
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stdout/tail`);
         return response.data;
     } catch (error) {
         return handleError(error);
     }
 };
 
-export const getSlurmJobStderr = async (jobId: string): Promise<string> => {
+export const getSlurmJobStderr = async (jrJobId: string): Promise<string> => {
     try {
-        const response = await api.get(`/slurm/jobs/${jobId}/stderr`);
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stderr/tail`);
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -269,14 +281,7 @@ export const getSlurmClusterInfo = async (): Promise<SlurmClusterInfo> => {
     }
 };
 
-export const getSlurmTemplate = async (): Promise<SlurmTemplate> => {
-    try {
-        const response = await api.get('/slurm/template');
-        return response.data;
-    } catch (error) {
-        return handleError(error);
-    }
-};
+
 
 export const getSlurmTemplates = async (): Promise<string[]> => {
     try {
