@@ -48,6 +48,7 @@ import {
     WarningIcon,
     TimeIcon,
     InfoIcon,
+    ExternalLinkIcon,
 } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -191,6 +192,14 @@ export const JobRunnerView: React.FC = () => {
                 <HStack>
                     <Button leftIcon={<ArrowBackIcon />} onClick={handleBack} variant="ghost">
                         Back to Dashboard
+                    </Button>
+                    <Button
+                        leftIcon={<ExternalLinkIcon />}
+                        onClick={() => navigate(`/joblogs/${slurmJobId}/${jrJobId}`)}
+                        variant="outline"
+                        colorScheme="blue"
+                    >
+                        View Logs
                     </Button>
                 </HStack>
 

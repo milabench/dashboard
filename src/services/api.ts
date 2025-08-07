@@ -272,6 +272,33 @@ export const getSlurmJobStderr = async (jrJobId: string): Promise<string> => {
     }
 };
 
+export const getSlurmJobStdoutFull = async (jrJobId: string): Promise<string> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stdout`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobStderrFull = async (jrJobId: string): Promise<string> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stderr`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobStatus = async (jobId: string): Promise<SlurmJob[]> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jobId}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export const getSlurmClusterInfo = async (): Promise<SlurmClusterInfo> => {
     try {
         const response = await api.get('/slurm/cluster');

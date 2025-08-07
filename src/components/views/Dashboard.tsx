@@ -76,7 +76,8 @@ import {
     InfoIcon,
     CheckCircleIcon,
     WarningIcon,
-    TimeIcon
+    TimeIcon,
+    ExternalLinkIcon
 } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MonacoEditor } from '../shared/MonacoEditor';
@@ -663,6 +664,15 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                 onClick={() => handleViewJobDetails(job)}
                                                             />
                                                         </Tooltip>
+                                                        <Tooltip label="View Logs">
+                                                            <IconButton
+                                                                aria-label="View job logs"
+                                                                icon={<ExternalLinkIcon />}
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => navigate(`/joblogs/${job.job_id}/${job.jr_job_id}`)}
+                                                            />
+                                                        </Tooltip>
                                                         {(job.job_state?.[0]?.toLowerCase() === 'running' ||
                                                             job.job_state?.[0]?.toLowerCase() === 'pending') && (
                                                                 <Tooltip label="Cancel Job">
@@ -767,6 +777,15 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                             time_limit: { number: 0, set: false, infinite: false },
                                                                             nodes: 'N/A'
                                                                         })}
+                                                                    />
+                                                                </Tooltip>
+                                                                <Tooltip label="View Logs">
+                                                                    <IconButton
+                                                                        aria-label="View job logs"
+                                                                        icon={<ExternalLinkIcon />}
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        onClick={() => navigate(`/joblogs/-/${jrJobId}`)}
                                                                     />
                                                                 </Tooltip>
                                                             </HStack>
