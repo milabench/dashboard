@@ -18,14 +18,24 @@ import {
     AlertDescription,
     useColorModeValue,
     Badge,
-    Divider,
     Code,
     Flex,
-    Spacer
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
+    Input,
+    FormControl,
+    FormLabel,
+    FormErrorMessage
 } from '@chakra-ui/react';
-import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon } from '@chakra-ui/icons';
+import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
 
 interface JobLogsViewProps {
@@ -75,18 +85,114 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     // Cancel state
     const [isCancelling, setIsCancelling] = useState(false);
 
+    // Save job state
+    const [isSaving, setIsSaving] = useState(false);
+    const [commitMessage, setCommitMessage] = useState('');
+    const [commitMessageError, setCommitMessageError] = useState('');
+    const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
+
     // Helper function to check if job is in finished state
     const isJobFinished = (jobStatus: SlurmJob[] | undefined) => {
         if (!jobStatus || jobStatus.length === 0) return false;
-        const status = jobStatus[0].job_state?.[0]?.toLowerCase();
-        return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'cd' || status === 'f' || status === 'ca';
+        const jobState = jobStatus[0].job_state;
+        let status: string | undefined;
+
+        if (Array.isArray(jobState)) {
+            status = jobState[0];
+        } else if (typeof jobState === 'string') {
+            status = jobState;
+        }
+
+        if (!status) return false;
+        const lowerStatus = status.toLowerCase();
+        return lowerStatus === 'completed' || lowerStatus === 'failed' || lowerStatus === 'cancelled' || lowerStatus === 'cd' || lowerStatus === 'f' || lowerStatus === 'ca';
     };
 
     // Helper function to check if job can be cancelled (only running or pending jobs)
     const canCancelJob = (jobStatus: SlurmJob[] | undefined) => {
         if (!jobStatus || jobStatus.length === 0) return false;
-        const status = jobStatus[0].job_state?.[0]?.toLowerCase();
-        return status === 'running' || status === 'pending' || status === 'r' || status === 'pd';
+        const jobState = jobStatus[0].job_state;
+        let status: string | undefined;
+
+        if (Array.isArray(jobState)) {
+            status = jobState[0];
+        } else if (typeof jobState === 'string') {
+            status = jobState;
+        }
+
+        if (!status) return false;
+        const lowerStatus = status.toLowerCase();
+        return lowerStatus === 'running' || lowerStatus === 'pending' || lowerStatus === 'r' || lowerStatus === 'pd';
+    };
+
+    // Helper function to get job status string
+    const getJobStatusString = (jobStatus: SlurmJob[] | undefined) => {
+        if (!jobStatus || jobStatus.length === 0) return 'Unknown';
+        const jobState = jobStatus[0].job_state;
+
+        if (Array.isArray(jobState)) {
+            return jobState[0] || 'Unknown';
+        } else if (typeof jobState === 'string') {
+            return jobState;
+        }
+
+        return 'Unknown';
+    };
+
+    // Helper function to get formatted job duration
+    const getJobDuration = (jobStatus: SlurmJob[] | undefined) => {
+        if (!jobStatus || jobStatus.length === 0) return 'Unknown';
+
+        const job = jobStatus[0];
+
+        // If job has explicit elapsed time, use it
+        if (job.elapsed) {
+            return job.elapsed;
+        }
+
+        // Calculate duration from timestamps
+        const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+
+        // Check if job has started
+        if (job.start_time?.set && job.start_time.number > 0) {
+            const startTime = job.start_time.number;
+            let endTime = currentTime;
+
+            // Check if job is not running, then use end_time if available
+            const jobState = Array.isArray(job.job_state) ? job.job_state[0] : job.job_state;
+            const isRunning = jobState?.toLowerCase() === 'running' || jobState?.toLowerCase() === 'r';
+
+            if (!isRunning && job.end_time?.set && job.end_time.number > 0) {
+                endTime = job.end_time.number;
+            }
+
+            const durationSeconds = endTime - startTime;
+
+            // Format duration as HH:MM:SS or DD-HH:MM:SS
+            const days = Math.floor(durationSeconds / 86400);
+            const hours = Math.floor((durationSeconds % 86400) / 3600);
+            const minutes = Math.floor((durationSeconds % 3600) / 60);
+            const seconds = durationSeconds % 60;
+
+            if (days > 0) {
+                return `${days}-${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // Check job state for pending jobs
+        const jobState = Array.isArray(job.job_state) ? job.job_state[0] : job.job_state;
+        if (jobState?.toLowerCase() === 'pending' || jobState?.toLowerCase() === 'pd') {
+            return 'Pending (not started)';
+        }
+
+        // If job has a time field, use it as fallback
+        if (job.time) {
+            return job.time;
+        }
+
+        return 'Not started';
     };
 
     // Get job status with auto-refresh every 30 seconds
@@ -293,6 +399,59 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
     };
 
+    const handleSaveClick = () => {
+        setCommitMessage('');
+        setCommitMessageError('');
+        onSaveModalOpen();
+    };
+
+    const handleSave = async () => {
+        if (!jrJobId) return;
+
+        // Validate commit message
+        if (!commitMessage.trim()) {
+            setCommitMessageError('Commit message is required');
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const result = await saveSlurmJob(jrJobId, commitMessage.trim());
+
+            // Since the API returns an empty object on success, we check for the absence of error
+            if (!result.error) {
+                toast({
+                    title: 'Job Saved Successfully',
+                    description: `Job ${jrJobId} has been saved with commit message: "${commitMessage.trim()}"`,
+                    status: 'success',
+                    duration: 5000,
+                    isClosable: true,
+                });
+
+                onSaveModalClose();
+                setCommitMessage('');
+            } else {
+                toast({
+                    title: 'Save Failed',
+                    description: result.error || 'Failed to save job',
+                    status: 'error',
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Save Failed',
+                description: error.message || 'An unexpected error occurred',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     if (!jrJobId) {
         return (
             <Box p={6}>
@@ -324,8 +483,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                 </Text>
                             )}
                             {jobStatus && jobStatus.length > 0 && (
-                                <Badge colorScheme={getStatusColor(jobStatus[0].job_state?.[0] || '')}>
-                                    {jobStatus[0].job_state?.[0] || 'Unknown'}
+                                <Badge colorScheme={getStatusColor(getJobStatusString(jobStatus))}>
+                                    {getJobStatusString(jobStatus)}
                                 </Badge>
                             )}
                             {statusLoading && (
@@ -370,6 +529,15 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                 Cancel Job
                             </Button>
                         )}
+                        <Button
+                            leftIcon={<DownloadIcon />}
+                            variant="outline"
+                            colorScheme="purple"
+                            onClick={handleSaveClick}
+                            isLoading={isSaving}
+                        >
+                            Save Job
+                        </Button>
                         <Button
                             leftIcon={<ViewIcon />}
                             variant="outline"
@@ -514,7 +682,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     <CardBody>
                         <VStack align="stretch" spacing={2}>
                             <Text fontSize="sm" color="gray.600">
-                                <strong>Last updated:</strong> {new Date().toLocaleString()}
+                                <strong>Job Duration:</strong> {getJobDuration(jobStatus)}
                             </Text>
                             <Text fontSize="sm" color="gray.600">
                                 <strong>Next refresh:</strong> {isJobFinished(jobStatus) ? "Disabled (job finished)" : `${countdown} seconds`}
@@ -529,13 +697,48 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             )}
                             {jobStatus && jobStatus.length > 0 && (
                                 <Text fontSize="sm" color="gray.600">
-                                    <strong>Job Status:</strong> {jobStatus[0].job_state?.[0] || 'Unknown'}
+                                    <strong>Job Status:</strong> {getJobStatusString(jobStatus)}
                                 </Text>
                             )}
                         </VStack>
                     </CardBody>
                 </Card>
             </VStack>
+
+            {/* Save Job Modal */}
+            <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Save Job</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack align="stretch" spacing={4}>
+                            <FormControl isInvalid={!!commitMessageError}>
+                                <FormLabel>Commit Message</FormLabel>
+                                <Input
+                                    value={commitMessage}
+                                    onChange={(e) => setCommitMessage(e.target.value)}
+                                    placeholder="Enter a commit message for this job"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !isSaving && commitMessage.trim()) {
+                                            handleSave();
+                                        }
+                                    }}
+                                />
+                                <FormErrorMessage>{commitMessageError}</FormErrorMessage>
+                            </FormControl>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="outline" mr={3} onClick={onSaveModalClose}>
+                            Cancel
+                        </Button>
+                        <Button colorScheme="blue" onClick={handleSave} isLoading={isSaving}>
+                            Save Job
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 };

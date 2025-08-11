@@ -112,7 +112,7 @@ export interface SlurmJob {
     user_name?: string;
     status?: string;
     state?: string;
-    job_state?: string;
+    job_state?: string[];
     time?: string;
     time_limit?: {
         number: number,
@@ -127,6 +127,21 @@ export interface SlurmJob {
     alloccpus?: string;
     exit_code?: string;
     raw_line?: string;
+    start_time?: {
+        number: number;
+        set: boolean;
+        infinite: boolean;
+    };
+    end_time?: {
+        number: number;
+        set: boolean;
+        infinite: boolean;
+    };
+    submit_time?: {
+        number: number;
+        set: boolean;
+        infinite: boolean;
+    };
 }
 
 export interface SlurmJobsResponse {

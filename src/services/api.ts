@@ -397,3 +397,12 @@ export const rerunSlurmJob = async (jrJobId: string): Promise<SlurmJobSubmitResp
         return handleError(error);
     }
 };
+
+export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ success?: boolean; error?: string }> => {
+    try {
+        const response = await api.get(`/slurm/job/save/${jrJobId}/${encodeURIComponent(message)}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};

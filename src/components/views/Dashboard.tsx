@@ -867,9 +867,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
 
                 {/* Job Submission Modal */}
-                <Modal isOpen={isOpen} onClose={onClose} size="full">
+                <Modal isOpen={isOpen} onClose={onClose} >
                     <ModalOverlay />
-                    <ModalContent maxW="90vw" w="90vw">
+                    <ModalContent maxW="80vw" w="80vw" style={{margin: "5px"}}> 
                         <ModalHeader>Submit New Job</ModalHeader>
                         <ModalCloseButton />
                         <ModalBody>
@@ -932,8 +932,8 @@ const JobSubmissionForm: React.FC<{
 }> = ({ form, setForm, template, templates, profiles, selectedProfile, onProfileSelect, selectedTemplate, onTemplateSelect, onSaveProfile, saveProfileMutation, onSaveTemplate, saveTemplateMutation }) => {
 
     return (
-        <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container" >
-            <VStack align="stretch" className="column-1 slurm-options" flex={1}>
+        <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
+            <VStack align="stretch" className="column-1 slurm-options">
                 <FormControl>
                     <FormLabel>Slurm Profile</FormLabel>
                     <HStack spacing={3}>
@@ -1105,7 +1105,7 @@ const JobSubmissionForm: React.FC<{
                 </FormControl>
                 <Spacer />
             </VStack>
-            <VStack align="stretch" className="column-2 slurm-script" flex={1}>
+            <VStack align="stretch" className="column-2 slurm-script" >
                 <FormControl>
                     <FormLabel>Script Template</FormLabel>
                     <HStack spacing={3}>
@@ -1142,6 +1142,7 @@ const JobSubmissionForm: React.FC<{
                 <FormControl>
                     <FormLabel>Script</FormLabel>
                     <MonacoEditor
+                        height="calc(100vh - 20em)"
                         value={form.script}
                         onChange={(value) => setForm({ ...form, script: value })}
                     />
