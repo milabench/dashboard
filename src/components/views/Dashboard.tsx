@@ -771,7 +771,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                             job_id: null,
                                                                             jr_job_id: jrJobId,
                                                                             name: 'Persisted Job',
-                                                                            job_state: 'COMPLETED',
+                                                                            job_state: ['COMPLETED'],
                                                                             partition: 'N/A',
                                                                             user_name: 'N/A',
                                                                             time_limit: { number: 0, set: false, infinite: false },
@@ -869,7 +869,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 {/* Job Submission Modal */}
                 <Modal isOpen={isOpen} onClose={onClose} >
                     <ModalOverlay />
-                    <ModalContent maxW="80vw" w="80vw" style={{margin: "5px"}}> 
+                    <ModalContent maxW="80vw" w="80vw" style={{ margin: "5px" }}>
                         <ModalHeader>Submit New Job</ModalHeader>
                         <ModalCloseButton />
                         <ModalBody>
@@ -934,215 +934,258 @@ const JobSubmissionForm: React.FC<{
     return (
         <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
             <VStack align="stretch" className="column-1 slurm-options">
-                <FormControl>
-                    <FormLabel>Slurm Profile</FormLabel>
-                    <HStack spacing={3}>
-                        <Input
-                            value={selectedProfile}
-                            onChange={(e) => onProfileSelect(e.target.value)}
-                            placeholder="Select a profile or enter custom name"
-                            list="profile-list"
-                            flex={1}
-                        />
-                        <Button
-                            variant="outline"
-                            onClick={onSaveProfile}
-                            isLoading={saveProfileMutation.isPending}
-                            size="md"
-                        >
-                            Save Profile
-                        </Button>
+                <FormControl paddingBottom="10px">
+                    <HStack spacing={3} align="center">
+                        <FormLabel minW="120px" mb={0}>Slurm Profile</FormLabel>
+                        <VStack align="stretch" flex={1} spacing={2}>
+                            <HStack spacing={3}>
+                                <Input
+                                    value={selectedProfile}
+                                    onChange={(e) => onProfileSelect(e.target.value)}
+                                    placeholder="Select a profile or enter custom name"
+                                    list="profile-list"
+                                    flex={1}
+                                />
+                                <Button
+                                    variant="outline"
+                                    onClick={onSaveProfile}
+                                    isLoading={saveProfileMutation.isPending}
+                                    size="md"
+                                >
+                                    Save Profile
+                                </Button>
+                            </HStack>
+                            <datalist id="profile-list">
+                                {profiles.map((profile) => (
+                                    <option key={profile.name} value={profile.name}>
+                                        {profile.name} - {profile.description}
+                                    </option>
+                                ))}
+                            </datalist>
+                            
+                        </VStack>
                     </HStack>
-                    <datalist id="profile-list">
-                        {profiles.map((profile) => (
-                            <option key={profile.name} value={profile.name}>
-                                {profile.name} - {profile.description}
-                            </option>
-                        ))}
-                    </datalist>
-                    <Text fontSize="sm" color="gray.600" mt={1}>
+                    <Text fontSize="sm" color="gray.600">
                         Select an existing profile or enter a new name to create a new profile
                     </Text>
                 </FormControl>
 
                 <FormControl>
-                    <FormLabel>Job Name</FormLabel>
-                    <Input
-                        value={form.job_name}
-                        onChange={(e) => setForm({ ...form, job_name: e.target.value })}
-                        placeholder="milabench_job"
-                    />
+                    <HStack spacing={3} align="center">
+                        <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
+                        <Input
+                            value={form.job_name}
+                            onChange={(e) => setForm({ ...form, job_name: e.target.value })}
+                            placeholder="milabench_job"
+                            flex={1}
+                        />
+                    </HStack>
                 </FormControl>
 
                 <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                     <FormControl>
-                        <FormLabel>Partition</FormLabel>
-                        <Input
-                            value={form.partition}
-                            onChange={(e) => setForm({ ...form, partition: e.target.value })}
-                            placeholder="Leave empty for default"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Partition</FormLabel>
+                            <Input
+                                value={form.partition}
+                                onChange={(e) => setForm({ ...form, partition: e.target.value })}
+                                placeholder="Leave empty for default"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Nodes</FormLabel>
-                        <NumberInput
-                            value={form.nodes}
-                            onChange={(_, value) => setForm({ ...form, nodes: value })}
-                            min={1}
-                            max={100}
-                        >
-                            <NumberInputField />
-                            <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                            </NumberInputStepper>
-                        </NumberInput>
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
+                            <NumberInput
+                                value={form.nodes}
+                                onChange={(_, value) => setForm({ ...form, nodes: value })}
+                                min={1}
+                                max={100}
+                                flex={1}
+                            >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                    <NumberIncrementStepper />
+                                    <NumberDecrementStepper />
+                                </NumberInputStepper>
+                            </NumberInput>
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Tasks</FormLabel>
-                        <NumberInput
-                            value={form.ntasks}
-                            onChange={(_, value) => setForm({ ...form, ntasks: value })}
-                            min={1}
-                            max={100}
-                        >
-                            <NumberInputField />
-                            <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                            </NumberInputStepper>
-                        </NumberInput>
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
+                            <NumberInput
+                                value={form.ntasks}
+                                onChange={(_, value) => setForm({ ...form, ntasks: value })}
+                                min={1}
+                                max={100}
+                                flex={1}
+                            >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                    <NumberIncrementStepper />
+                                    <NumberDecrementStepper />
+                                </NumberInputStepper>
+                            </NumberInput>
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>CPUs per Task</FormLabel>
-                        <NumberInput
-                            value={form.cpus_per_task}
-                            onChange={(_, value) => setForm({ ...form, cpus_per_task: value })}
-                            min={1}
-                            max={64}
-                        >
-                            <NumberInputField />
-                            <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                            </NumberInputStepper>
-                        </NumberInput>
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
+                            <NumberInput
+                                value={form.cpus_per_task}
+                                onChange={(_, value) => setForm({ ...form, cpus_per_task: value })}
+                                min={1}
+                                max={64}
+                                flex={1}
+                            >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                    <NumberIncrementStepper />
+                                    <NumberDecrementStepper />
+                                </NumberInputStepper>
+                            </NumberInput>
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>GPUs per Task</FormLabel>
-                        <Input
-                            value={form.gpus_per_task}
-                            onChange={(e) => setForm({ ...form, gpus_per_task: e.target.value })}
-                            placeholder="1"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
+                            <Input
+                                value={form.gpus_per_task}
+                                onChange={(e) => setForm({ ...form, gpus_per_task: e.target.value })}
+                                placeholder="1"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Tasks per Node</FormLabel>
-                        <NumberInput
-                            value={form.ntasks_per_node}
-                            onChange={(_, value) => setForm({ ...form, ntasks_per_node: value })}
-                            min={1}
-                            max={100}
-                        >
-                            <NumberInputField />
-                            <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                            </NumberInputStepper>
-                        </NumberInput>
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
+                            <NumberInput
+                                value={form.ntasks_per_node}
+                                onChange={(_, value) => setForm({ ...form, ntasks_per_node: value })}
+                                min={1}
+                                max={100}
+                                flex={1}
+                            >
+                                <NumberInputField />
+                                <NumberInputStepper>
+                                    <NumberIncrementStepper />
+                                    <NumberDecrementStepper />
+                                </NumberInputStepper>
+                            </NumberInput>
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Memory</FormLabel>
-                        <Input
-                            value={form.mem}
-                            onChange={(e) => setForm({ ...form, mem: e.target.value })}
-                            placeholder="8G"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Memory</FormLabel>
+                            <Input
+                                value={form.mem}
+                                onChange={(e) => setForm({ ...form, mem: e.target.value })}
+                                placeholder="8G"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Time Limit</FormLabel>
-                        <Input
-                            value={form.time_limit}
-                            onChange={(e) => setForm({ ...form, time_limit: e.target.value })}
-                            placeholder="02:00:00"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
+                            <Input
+                                value={form.time_limit}
+                                onChange={(e) => setForm({ ...form, time_limit: e.target.value })}
+                                placeholder="02:00:00"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Export</FormLabel>
-                        <Input
-                            value={form.export}
-                            onChange={(e) => setForm({ ...form, export: e.target.value })}
-                            placeholder="ALL"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Export</FormLabel>
+                            <Input
+                                value={form.export}
+                                onChange={(e) => setForm({ ...form, export: e.target.value })}
+                                placeholder="ALL"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
 
                     <FormControl>
-                        <FormLabel>Node List</FormLabel>
-                        <Input
-                            value={form.nodelist}
-                            onChange={(e) => setForm({ ...form, nodelist: e.target.value })}
-                            placeholder="e.g., cn-d[003-004]"
-                        />
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Node List</FormLabel>
+                            <Input
+                                value={form.nodelist}
+                                onChange={(e) => setForm({ ...form, nodelist: e.target.value })}
+                                placeholder="e.g., cn-d[003-004]"
+                                flex={1}
+                            />
+                        </HStack>
                     </FormControl>
                 </Grid>
 
                 <FormControl>
-                    <FormLabel>Exclusive</FormLabel>
-                    <Checkbox
-                        isChecked={form.exclusive}
-                        onChange={(e) => setForm({ ...form, exclusive: e.target.checked })}
-                    >
-                        Request exclusive access to nodes
-                    </Checkbox>
+                    <HStack spacing={3} align="center">
+                        <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
+                        <Checkbox
+                            isChecked={form.exclusive}
+                            onChange={(e) => setForm({ ...form, exclusive: e.target.checked })}
+                        >
+                            Request exclusive access to nodes
+                        </Checkbox>
+                    </HStack>
                 </FormControl>
                 <Spacer />
             </VStack>
             <VStack align="stretch" className="column-2 slurm-script" >
-                <FormControl>
-                    <FormLabel>Script Template</FormLabel>
-                    <HStack spacing={3}>
-                        <Input
-                            value={selectedTemplate}
-                            onChange={(e) => onTemplateSelect(e.target.value)}
-                            placeholder="Select a template or enter custom name"
-                            list="template-list"
-                            flex={1}
-                        />
-                        <Button
-                            variant="outline"
-                            onClick={onSaveTemplate}
-                            isLoading={saveTemplateMutation.isPending}
-                            size="md"
-                        >
-                            Save Template
-                        </Button>
+                <FormControl paddingBottom="10px">
+                    <HStack spacing={3} align="center">
+                        <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
+                        <VStack align="stretch" flex={1} spacing={2}>
+                            <HStack spacing={3}>
+                                <Input
+                                    value={selectedTemplate}
+                                    onChange={(e) => onTemplateSelect(e.target.value)}
+                                    placeholder="Select a template or enter custom name"
+                                    list="template-list"
+                                    flex={1}
+                                />
+                                <Button
+                                    variant="outline"
+                                    onClick={onSaveTemplate}
+                                    isLoading={saveTemplateMutation.isPending}
+                                    size="md"
+                                >
+                                    Save Template
+                                </Button>
+                            </HStack>
+                            <datalist id="template-list">
+                                {templates?.map((templateName) => (
+                                    <option key={templateName} value={templateName}>
+                                        {templateName}
+                                    </option>
+                                ))}
+                            </datalist>
+                        </VStack>
                     </HStack>
-                    <datalist id="template-list">
-                        {templates?.map((templateName) => (
-                            <option key={templateName} value={templateName}>
-                                {templateName}
-                            </option>
-                        ))}
-                    </datalist>
                     {selectedTemplate && (
-                        <Text fontSize="sm" color="gray.600" mt={1}>
+                        <Text fontSize="sm" color="gray.600">
                             Template loaded: {selectedTemplate}
                         </Text>
                     )}
                 </FormControl>
 
                 <FormControl>
-                    <FormLabel>Script</FormLabel>
                     <MonacoEditor
-                        height="calc(100vh - 20em)"
+                        height="calc(100vh - 17em)"
                         value={form.script}
                         onChange={(value) => setForm({ ...form, script: value })}
                     />
