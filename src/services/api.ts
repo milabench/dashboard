@@ -388,3 +388,12 @@ export const submitSlurmJob = async (request: {
         return handleError(error);
     }
 };
+
+export const rerunSlurmJob = async (jrJobId: string): Promise<SlurmJobSubmitResponse> => {
+    try {
+        const response = await api.get(`/slurm/rerun/${jrJobId}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};

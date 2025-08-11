@@ -23,9 +23,9 @@ import {
     Flex,
     Spacer
 } from '@chakra-ui/react';
-import { ArrowBackIcon, RepeatIcon, ViewIcon } from '@chakra-ui/icons';
+import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
 
 interface JobLogsViewProps {
@@ -69,11 +69,24 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [countdown, setCountdown] = useState(30);
     const REFRESH_INTERVAL = 30000; // 30 seconds in milliseconds
 
+    // Rerun state
+    const [isRerunning, setIsRerunning] = useState(false);
+
+    // Cancel state
+    const [isCancelling, setIsCancelling] = useState(false);
+
     // Helper function to check if job is in finished state
     const isJobFinished = (jobStatus: SlurmJob[] | undefined) => {
         if (!jobStatus || jobStatus.length === 0) return false;
         const status = jobStatus[0].job_state?.[0]?.toLowerCase();
         return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'cd' || status === 'f' || status === 'ca';
+    };
+
+    // Helper function to check if job can be cancelled (only running or pending jobs)
+    const canCancelJob = (jobStatus: SlurmJob[] | undefined) => {
+        if (!jobStatus || jobStatus.length === 0) return false;
+        const status = jobStatus[0].job_state?.[0]?.toLowerCase();
+        return status === 'running' || status === 'pending' || status === 'r' || status === 'pd';
     };
 
     // Get job status with auto-refresh every 30 seconds
@@ -187,6 +200,99 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         });
     };
 
+    const handleRerun = async () => {
+        if (!jrJobId) return;
+
+        setIsRerunning(true);
+        try {
+            const result = await rerunSlurmJob(jrJobId);
+
+            if (result.success) {
+                toast({
+                    title: 'Job Rerun Successfully',
+                    description: `New job submitted with ID: ${result.job_id}. Job runner ID: ${result.jr_job_id}`,
+                    status: 'success',
+                    duration: 5000,
+                    isClosable: true,
+                });
+
+                // Navigate to the new job logs after a short delay
+                setTimeout(() => {
+                    navigate(`/joblogs/${result.job_id || '-'}/${result.jr_job_id || jrJobId}`);
+                }, 2000);
+            } else {
+                toast({
+                    title: 'Rerun Failed',
+                    description: result.error || 'Failed to rerun job',
+                    status: 'error',
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Rerun Failed',
+                description: error.message || 'An unexpected error occurred',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsRerunning(false);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!slurmJobId || slurmJobId === '-') {
+            toast({
+                title: 'Cannot Cancel Job',
+                description: 'No Slurm job ID available for cancellation',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        setIsCancelling(true);
+        try {
+            const result = await cancelSlurmJob(slurmJobId);
+
+            if (result.success) {
+                toast({
+                    title: 'Job Cancelled Successfully',
+                    description: result.message || `Job ${slurmJobId} has been cancelled`,
+                    status: 'success',
+                    duration: 5000,
+                    isClosable: true,
+                });
+
+                // Refresh status to show updated state
+                if (slurmJobId && slurmJobId !== '-') {
+                    refetchStatus();
+                }
+            } else {
+                toast({
+                    title: 'Cancel Failed',
+                    description: result.error || 'Failed to cancel job',
+                    status: 'error',
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        } catch (error: any) {
+            toast({
+                title: 'Cancel Failed',
+                description: error.message || 'An unexpected error occurred',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     if (!jrJobId) {
         return (
             <Box p={6}>
@@ -244,6 +350,26 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                         >
                             Refresh Now
                         </Button>
+                        <Button
+                            leftIcon={<RepeatIcon />}
+                            variant="outline"
+                            colorScheme="green"
+                            onClick={handleRerun}
+                            isLoading={isRerunning}
+                        >
+                            Rerun Job
+                        </Button>
+                        {canCancelJob(jobStatus) && (
+                            <Button
+                                leftIcon={<CloseIcon />}
+                                variant="outline"
+                                colorScheme="red"
+                                onClick={handleCancel}
+                                isLoading={isCancelling}
+                            >
+                                Cancel Job
+                            </Button>
+                        )}
                         <Button
                             leftIcon={<ViewIcon />}
                             variant="outline"

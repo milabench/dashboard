@@ -155,6 +155,7 @@ export interface SlurmJobSubmitRequest {
 export interface SlurmJobSubmitResponse {
     success: boolean;
     job_id?: string;
+    jr_job_id?: string;
     message?: string;
     error?: string;
 }
