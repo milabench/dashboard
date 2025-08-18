@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     Heading,
@@ -85,6 +86,8 @@ const ensureFieldFormat = (field: string) => {
 };
 
 export const ExplorerView = () => {
+    usePageTitle('Explorer');
+
     const toast = useToast();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();

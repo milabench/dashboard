@@ -153,6 +153,8 @@ export interface SlurmJobSubmitRequest {
     script: string;
     job_name?: string;
     sbatch_args?: string[];
+    // Script arguments extracted from export statements
+    script_args?: Record<string, string>;
     // Individual parameters for backward compatibility
     partition?: string;
     nodes?: number;
@@ -165,6 +167,7 @@ export interface SlurmJobSubmitRequest {
     exclusive?: boolean;
     export?: string;
     nodelist?: string;
+    dependency?: [string, string][]
 }
 
 export interface SlurmJobSubmitResponse {
@@ -219,6 +222,7 @@ export interface SlurmProfile {
     description: string;
     sbatch_args: string[];
     parsed_args: {
+        job_name?: string;
         partition?: string;
         nodes?: number;
         ntasks?: number;

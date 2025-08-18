@@ -1,5 +1,6 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     Heading,
@@ -64,6 +65,8 @@ const copyCurrentURL = (toast: any) => {
  */
 export const ExecutionReport = () => {
     const { id } = useParams<{ id: string }>();
+    usePageTitle(`Execution Report - ${id || 'Unknown'}`);
+
     const toast = useToast();
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedPack, setSelectedPack] = useState<Pack | null>(null);

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     Button,
@@ -29,6 +30,8 @@ import { getProfileList, getProfileDetails, saveProfile, copyProfile } from '../
 import Cookies from 'js-cookie';
 
 export const Profile: React.FC = () => {
+    usePageTitle('Profiles');
+
     const [profiles, setProfiles] = useState<string[]>([]);
     const [selectedProfile, setSelectedProfile] = useState<string>('');
     const [scoreProfile, setScoreProfile] = useState<string>('');

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     VStack,
@@ -40,6 +41,8 @@ interface SavedQuery {
 }
 
 const SavedQueriesView: React.FC = () => {
+    usePageTitle('Saved Queries');
+
     const toast = useToast();
     const navigate = useNavigate();
     const queryClient = useQueryClient();

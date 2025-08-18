@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     Heading,
@@ -35,7 +36,7 @@ import {
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
 
 interface JobLogsViewProps {
@@ -66,6 +67,8 @@ const getStatusColor = (status: string) => {
 
 export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const { slurmJobId, jrJobId } = useParams<{ slurmJobId: string; jrJobId: string }>();
+    usePageTitle(`Job Logs - ${slurmJobId || 'Unknown'}`);
+
     const navigate = useNavigate();
     const toast = useToast();
     const bgColor = useColorModeValue('white', 'gray.800');
@@ -78,6 +81,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     // Countdown timer state
     const [countdown, setCountdown] = useState(30);
     const REFRESH_INTERVAL = 30000; // 30 seconds in milliseconds
+
+    // State to control whether status polling should continue
+    const [shouldPollStatus, setShouldPollStatus] = useState(true);
 
     // Rerun state
     const [isRerunning, setIsRerunning] = useState(false);
@@ -140,7 +146,56 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to get formatted job duration
-    const getJobDuration = (jobStatus: SlurmJob[] | undefined) => {
+    const getJobDuration = (jobStatus: SlurmJob[] | undefined, jobInfo?: any) => {
+        // First, try to get duration from job info when available (for finished jobs or unknown slurm IDs)
+        if (jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')) {
+            // Calculate from job info timestamps if available
+            if (jobInfo.start_time?.set && jobInfo.start_time?.number &&
+                jobInfo.end_time?.set && jobInfo.end_time?.number) {
+
+                const startTime = jobInfo.start_time.number;
+                const endTime = jobInfo.end_time.number;
+
+                if (endTime > startTime) {
+                    const durationSeconds = endTime - startTime;
+
+                    // Format duration as HH:MM:SS or DD-HH:MM:SS
+                    const days = Math.floor(durationSeconds / 86400);
+                    const hours = Math.floor((durationSeconds % 86400) / 3600);
+                    const minutes = Math.floor((durationSeconds % 3600) / 60);
+                    const seconds = durationSeconds % 60;
+
+                    if (days > 0) {
+                        return `${days}-${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    } else {
+                        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                }
+            }
+
+            // For running jobs with only start time, calculate elapsed time
+            if (jobInfo.start_time?.set && jobInfo.start_time?.number &&
+                jobInfo.job_state?.includes('RUNNING')) {
+
+                const startTime = jobInfo.start_time.number;
+                const currentTime = Math.floor(Date.now() / 1000);
+                const durationSeconds = currentTime - startTime;
+
+                // Format duration as HH:MM:SS or DD-HH:MM:SS
+                const days = Math.floor(durationSeconds / 86400);
+                const hours = Math.floor((durationSeconds % 86400) / 3600);
+                const minutes = Math.floor((durationSeconds % 3600) / 60);
+                const seconds = durationSeconds % 60;
+
+                if (days > 0) {
+                    return `${days}-${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                } else {
+                    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }
+        }
+
+        // Fallback to original logic using job status
         if (!jobStatus || jobStatus.length === 0) return 'Unknown';
 
         const job = jobStatus[0];
@@ -204,10 +259,52 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     } = useQuery({
         queryKey: ['slurm-job-status', slurmJobId],
         queryFn: () => getSlurmJobStatus(slurmJobId!),
-        enabled: !!slurmJobId && slurmJobId !== '-',
-        refetchInterval: 30000, // Refresh every 30 seconds
+        enabled: !!slurmJobId && slurmJobId !== '-' && shouldPollStatus,
+        refetchInterval: shouldPollStatus ? 30000 : false, // Stop refresh when shouldPollStatus is false
         refetchIntervalInBackground: true,
     });
+
+    // Get job info (detailed information) - useful for finished jobs or when slurm job ID is unknown
+    const {
+        data: jobInfo,
+        isLoading: jobInfoLoading,
+        error: jobInfoError
+    } = useQuery({
+        queryKey: ['slurm-job-info', jrJobId, slurmJobId],
+        queryFn: () => getSlurmJobInfo(jrJobId!, slurmJobId !== '-' ? slurmJobId : undefined),
+        enabled: !!jrJobId && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-'),
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes since this is detailed info that doesn't change often
+    });
+
+    // Effect to control status polling based on job state and errors
+    useEffect(() => {
+        // Stop polling if job is finished
+        if (jobStatus && isJobFinished(jobStatus)) {
+            setShouldPollStatus(false);
+            return;
+        }
+
+        // Stop polling if we get a 404 error (job no longer in queue)
+        if (statusError && (statusError as any).status === 404) {
+            setShouldPollStatus(false);
+            return;
+        }
+
+        // Resume polling if we had stopped but conditions change
+        if (!shouldPollStatus && jobStatus && !isJobFinished(jobStatus) && (!statusError || (statusError as any).status !== 404)) {
+            setShouldPollStatus(true);
+        }
+    }, [jobStatus, statusError, shouldPollStatus]);
+
+    // Effect to disable polling when slurm job ID is not available
+    useEffect(() => {
+        if (!slurmJobId || slurmJobId === '-') {
+            setShouldPollStatus(false);
+        } else if (!shouldPollStatus && (!jobStatus || !isJobFinished(jobStatus)) && (!statusError || (statusError as any).status !== 404)) {
+            // Re-enable polling if slurm job ID becomes available and other conditions are met
+            setShouldPollStatus(true);
+        }
+    }, [slurmJobId, jobStatus, statusError, shouldPollStatus]);
 
     // Get job stdout with auto-refresh every 30 seconds
     const {
@@ -256,8 +353,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     // Countdown timer effect
     useEffect(() => {
-        // Stop countdown if job is finished
-        if (isJobFinished(jobStatus)) {
+        // Stop countdown if polling is disabled
+        if (!shouldPollStatus) {
             setCountdown(0);
             return;
         }
@@ -272,7 +369,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [jobStatus]);
+    }, [shouldPollStatus]);
 
     // Effect to perform final refresh when job finishes
     useEffect(() => {
@@ -554,14 +651,22 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 </HStack>
 
                 {/* Auto-refresh indicator */}
-                <Alert status={isJobFinished(jobStatus) ? "warning" : "info"}>
+                <Alert status={!shouldPollStatus ? "warning" : "info"}>
                     <AlertIcon />
                     <AlertTitle>
-                        {isJobFinished(jobStatus) ? "Auto-refresh disabled" : "Auto-refresh enabled"}
+                        {!shouldPollStatus ? "Auto-refresh disabled" : "Auto-refresh enabled"}
                     </AlertTitle>
                     <AlertDescription>
-                        {isJobFinished(jobStatus) ? (
-                            "Job is in finished state. Auto-refresh has been disabled to save resources. Click 'Refresh Now' to update manually."
+                        {!shouldPollStatus ? (
+                            <>
+                                {!slurmJobId || slurmJobId === '-' ? (
+                                    "No Slurm job ID available. Auto-refresh has been disabled. Click 'Refresh Now' to update manually."
+                                ) : isJobFinished(jobStatus) ? (
+                                    "Job is in finished state. Auto-refresh has been disabled to save resources. Click 'Refresh Now' to update manually."
+                                ) : (
+                                    "Auto-refresh has been disabled (job no longer in queue). Click 'Refresh Now' to update manually."
+                                )}
+                            </>
                         ) : (
                             <>
                                 Logs are automatically refreshed every 30 seconds. Next refresh in <strong>{countdown}</strong> seconds. Click "Refresh Now" to update immediately.
@@ -682,10 +787,23 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     <CardBody>
                         <VStack align="stretch" spacing={2}>
                             <Text fontSize="sm" color="gray.600">
-                                <strong>Job Duration:</strong> {getJobDuration(jobStatus)}
+                                <strong>Job Duration:</strong> {
+                                    jobInfoLoading && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')
+                                        ? <><Spinner size="xs" mr={1} />Loading...</>
+                                        : getJobDuration(jobStatus, jobInfo)
+                                }
+                                {jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-') &&
+                                    <Text as="span" fontSize="xs" color="gray.500" ml={2}>(from job info)</Text>
+                                }
                             </Text>
                             <Text fontSize="sm" color="gray.600">
-                                <strong>Next refresh:</strong> {isJobFinished(jobStatus) ? "Disabled (job finished)" : `${countdown} seconds`}
+                                <strong>Next refresh:</strong> {
+                                    !shouldPollStatus ? (
+                                        !slurmJobId || slurmJobId === '-' ? "Disabled (no Slurm job ID)" :
+                                            isJobFinished(jobStatus) ? "Disabled (job finished)" :
+                                                "Disabled"
+                                    ) : `${countdown} seconds`
+                                }
                             </Text>
                             <Text fontSize="sm" color="gray.600">
                                 <strong>JR Job ID:</strong> {jrJobId}

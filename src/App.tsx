@@ -11,7 +11,7 @@ import Scaling from './components/views/Scaling';
 import GroupedView from './components/views/GroupedView';
 import SavedQueriesView from './components/views/SavedQueriesView';
 import { DashboardView } from './components/views/Dashboard';
-import { JobRunnerView } from './components/views/JobRunner';
+import { JobDetailsView } from './components/views/JobDetails';
 import { JobLogsView } from './components/views/JobLogs';
 
 const queryClient = new QueryClient();
@@ -25,7 +25,7 @@ function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<DashboardView />} />
-                <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobRunnerView />} />
+                <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
                 <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />

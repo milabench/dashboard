@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     Heading,
@@ -108,8 +109,9 @@ const formatTimeLimit = (timeLimit: string | { number: number; set: boolean; inf
     return 'N/A';
 };
 
-export const JobRunnerView: React.FC = () => {
+export const JobDetailsView: React.FC = () => {
     const { slurmJobId, jrJobId } = useParams<{ slurmJobId: string; jrJobId: string }>();
+
     const navigate = useNavigate();
     const toast = useToast();
     const bgColor = useColorModeValue('white', 'gray.800');
@@ -126,7 +128,7 @@ export const JobRunnerView: React.FC = () => {
     // Find the specific job by slurm job id
     const job = jobsData?.find((j: SlurmJob) => j.job_id === slurmJobId);
 
-    // Get job info
+    // Get job info (automatically handles cache for persisted jobs)
     const { data: jobInfo, isLoading: infoLoading, error: infoError } = useQuery({
         queryKey: ['slurm-job-info', jrJobId, slurmJobId],
         queryFn: () => getSlurmJobInfo(jrJobId!, slurmJobId),
@@ -151,8 +153,14 @@ export const JobRunnerView: React.FC = () => {
         navigate('/');
     };
 
-    // Show loading only if we're loading jobs AND don't have job info yet
-    if (jobsLoading && !jobInfo) {
+    // Set page title with the best available job ID
+    const displayJobId = jobInfo?.job_id || job?.job_id || slurmJobId || 'Unknown';
+    usePageTitle(`Job Details - ${displayJobId}`);
+
+    // Show loading if we're still loading initial jobs data or job info
+    const isLoading = jobsLoading || (!!jrJobId && infoLoading);
+
+    if (isLoading) {
         return (
             <Box p={6} textAlign="center">
                 <Spinner size="lg" />
@@ -161,11 +169,12 @@ export const JobRunnerView: React.FC = () => {
         );
     }
 
-    // If we have job info, we can display the page even if job is not in the jobs list
+    // Check if we have any displayable information
     const canDisplayJob = job || jobInfo;
+    const hasParameters = slurmJobId || jrJobId; // Fixed: should work if we have either parameter
 
-    // If we can't display the job at all, show an error
-    if (!canDisplayJob && !jobsLoading) {
+    // Only show "Job Not Found" if we have no information AND we've tried all possible sources
+    if (!canDisplayJob && !hasParameters) {
         return (
             <Box p={6}>
                 <VStack align="stretch" spacing={6}>
@@ -178,7 +187,7 @@ export const JobRunnerView: React.FC = () => {
                         <AlertIcon />
                         <AlertTitle>Job Not Found</AlertTitle>
                         <AlertDescription>
-                            Job with ID {slurmJobId} was not found in the active jobs list and detailed information could not be retrieved.
+                            Job with ID {slurmJobId} was not found and no additional parameters are available to retrieve detailed information.
                         </AlertDescription>
                     </Alert>
                 </VStack>
@@ -193,14 +202,16 @@ export const JobRunnerView: React.FC = () => {
                     <Button leftIcon={<ArrowBackIcon />} onClick={handleBack} variant="ghost">
                         Back to Dashboard
                     </Button>
-                    <Button
-                        leftIcon={<ExternalLinkIcon />}
-                        onClick={() => navigate(`/joblogs/${slurmJobId}/${jrJobId}`)}
-                        variant="outline"
-                        colorScheme="blue"
-                    >
-                        View Logs
-                    </Button>
+                    {jrJobId && (
+                        <Button
+                            leftIcon={<ExternalLinkIcon />}
+                            onClick={() => navigate(`/joblogs/${slurmJobId}/${jrJobId}`)}
+                            variant="outline"
+                            colorScheme="blue"
+                        >
+                            View Logs
+                        </Button>
+                    )}
                 </HStack>
 
                 <Box>
@@ -209,6 +220,17 @@ export const JobRunnerView: React.FC = () => {
                         Slurm Job ID: {slurmJobId} | JR Job ID: {jrJobId}
                     </Text>
                 </Box>
+
+                {/* Show informational message for persisted jobs */}
+                {!job && jobInfo && (
+                    <Alert status="info">
+                        <AlertIcon />
+                        <AlertTitle>Persisted Job</AlertTitle>
+                        <AlertDescription>
+                            This job is no longer active but stored information is being displayed.
+                        </AlertDescription>
+                    </Alert>
+                )}
 
                 {/* Show warnings for failed API calls */}
                 {(jobsError || infoError) && (

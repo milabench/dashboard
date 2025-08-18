@@ -368,6 +368,7 @@ export const submitSlurmJob = async (request: {
     script: string;
     job_name?: string;
     sbatch_args?: string[];
+    script_args?: Record<string, string>;
     // Individual parameters for backward compatibility
     partition?: string;
     nodes?: number;
@@ -380,6 +381,7 @@ export const submitSlurmJob = async (request: {
     exclusive?: boolean;
     export?: string;
     nodelist?: string;
+    dependency?: [string, string][];
 }): Promise<SlurmJobSubmitResponse> => {
     try {
         const response = await api.post('/slurm/submit', request);

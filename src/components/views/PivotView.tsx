@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
     VStack,
@@ -52,6 +53,8 @@ interface EditableFilter {
 }
 
 export const PivotView = () => {
+    usePageTitle('Pivot View');
+
     const toast = useToast();
     const { isOpen, onOpen, onClose } = useDisclosure();
     const [searchParams, setSearchParams] = useSearchParams();

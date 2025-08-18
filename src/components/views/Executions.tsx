@@ -7,12 +7,15 @@ import type { Execution } from '../../services/types';
 import { DataTable } from '../common/Table';
 import { Loading } from '../common/Loading';
 import type { Column } from '../common/Table';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
 };
 
 export const Executions = () => {
+    usePageTitle('Latest Executions');
+
     const toast = useToast();
     const navigate = useNavigate();
     const { data: executions, isLoading, error } = useQuery<Execution[]>({

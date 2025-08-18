@@ -81,6 +81,7 @@ import {
 } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { MonacoEditor } from '../shared/MonacoEditor';
+import { JobSubmissionForm } from './JobSubmit';
 import {
     getSlurmJobs,
     getSlurmPersistedJobs,
@@ -94,6 +95,7 @@ import {
     saveSlurmTemplate,
 } from '../../services/api';
 import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile } from '../../services/types';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 interface DashboardViewProps {
     // Add props as needed
@@ -141,6 +143,8 @@ const getStatusIcon = (status: string) => {
 };
 
 export const DashboardView: React.FC<DashboardViewProps> = () => {
+    usePageTitle('Dashboard');
+
     const toast = useToast();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -224,6 +228,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const [submitForm, setSubmitForm] = useState<SlurmJobSubmitRequest>({
         script: '',
         job_name: 'milabench_job',
+        script_args: {},
         partition: '',
         nodes: 1,
         ntasks: 1,
@@ -371,12 +376,21 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         if (submitForm.nodelist) {
             sbatch_args.push(`-w ${submitForm.nodelist}`);
         }
+        if (submitForm.dependency) {
+            const dep = [];
+            for (const [event, job_id] of submitForm.dependency) {
+                dep.push(`${event}:${job_id}`);
+            }
+            const dependency = dep.join(",");
+            sbatch_args.push(`--dependency=${dependency}`);
+        }
 
         // Use the unified submit endpoint
         submitJobMutation.mutate({
             script: submitForm.script,
             job_name: submitForm.job_name,
-            sbatch_args: sbatch_args
+            sbatch_args: sbatch_args,
+            script_args: submitForm.script_args
         });
     };
 
@@ -388,6 +402,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         if (selectedProfileData) {
             setSubmitForm(prev => ({
                 ...prev,
+                job_name: selectedProfileData.parsed_args.job_name || prev.job_name,
                 partition: selectedProfileData.parsed_args.partition || prev.partition,
                 nodes: selectedProfileData.parsed_args.nodes || prev.nodes,
                 ntasks: selectedProfileData.parsed_args.ntasks || prev.ntasks,
@@ -436,8 +451,12 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         }
 
         // Convert form fields to sbatch arguments
+        // NOTE: Deliberately exclude dependency - dependencies are job-specific and should not be saved in reusable profiles
         const sbatch_args = [];
 
+        if (submitForm.job_name) {
+            sbatch_args.push(`--job-name=${submitForm.job_name}`);
+        }
         if (submitForm.partition) {
             sbatch_args.push(`--partition=${submitForm.partition}`);
         }
@@ -472,10 +491,13 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             sbatch_args.push(`-w ${submitForm.nodelist}`);
         }
 
+        // Explicitly filter out any dependency-related arguments (safety check)
+        const filteredArgs = sbatch_args.filter(arg => !arg.startsWith('--dependency'));
+
         saveProfileMutation.mutate({
             name: profileName,
             description: '',
-            sbatch_args: sbatch_args
+            sbatch_args: filteredArgs
         });
     };
 
@@ -510,8 +532,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     };
 
     return (
-        <Box p={6}>
-            <VStack align="stretch" spacing={6}>
+        <Box p={5} marginLeft="-5px">
+            <VStack align="stretch" spacing={4}>
                 <Box>
                     <Heading size="lg" mb={2}>Slurm Cluster Dashboard</Heading>
                     <Text color="gray.600">
@@ -520,7 +542,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Box>
 
                 {/* Cluster Statistics */}
-                <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={6}>
+                <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={3}>
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                         <CardBody>
                             <Stat>
@@ -566,7 +588,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Grid>
 
                 {/* Action Buttons */}
-                <HStack spacing={4}>
+                <HStack spacing={3}>
                     <Button
                         leftIcon={<AddIcon />}
                         colorScheme="blue"
@@ -887,6 +909,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 saveProfileMutation={saveProfileMutation}
                                 onSaveTemplate={handleSaveTemplate}
                                 saveTemplateMutation={saveTemplateMutation}
+                                activeJobs={activeJobs}
                             />
                         </ModalBody>
                         <ModalFooter>
@@ -909,289 +932,4 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 };
 
 
-
-// Job Submission Form Component
-const JobSubmissionForm: React.FC<{
-    form: SlurmJobSubmitRequest;
-    setForm: (form: SlurmJobSubmitRequest) => void;
-    template?: string;
-    templates?: string[];
-    profiles: SlurmProfile[];
-    selectedProfile: string;
-    onProfileSelect: (profileName: string) => void;
-    selectedTemplate: string;
-    onTemplateSelect: (templateName: string) => void;
-    onSaveProfile: () => void;
-    saveProfileMutation: {
-        isPending: boolean;
-    };
-    onSaveTemplate: () => void;
-    saveTemplateMutation: {
-        isPending: boolean;
-    };
-}> = ({ form, setForm, template, templates, profiles, selectedProfile, onProfileSelect, selectedTemplate, onTemplateSelect, onSaveProfile, saveProfileMutation, onSaveTemplate, saveTemplateMutation }) => {
-
-    return (
-        <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
-            <VStack align="stretch" className="column-1 slurm-options">
-                <FormControl paddingBottom="10px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Slurm Profile</FormLabel>
-                        <VStack align="stretch" flex={1} spacing={2}>
-                            <HStack spacing={3}>
-                                <Input
-                                    value={selectedProfile}
-                                    onChange={(e) => onProfileSelect(e.target.value)}
-                                    placeholder="Select a profile or enter custom name"
-                                    list="profile-list"
-                                    flex={1}
-                                />
-                                <Button
-                                    variant="outline"
-                                    onClick={onSaveProfile}
-                                    isLoading={saveProfileMutation.isPending}
-                                    size="md"
-                                >
-                                    Save Profile
-                                </Button>
-                            </HStack>
-                            <datalist id="profile-list">
-                                {profiles.map((profile) => (
-                                    <option key={profile.name} value={profile.name}>
-                                        {profile.name} - {profile.description}
-                                    </option>
-                                ))}
-                            </datalist>
-                            
-                        </VStack>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                        Select an existing profile or enter a new name to create a new profile
-                    </Text>
-                </FormControl>
-
-                <FormControl>
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
-                        <Input
-                            value={form.job_name}
-                            onChange={(e) => setForm({ ...form, job_name: e.target.value })}
-                            placeholder="milabench_job"
-                            flex={1}
-                        />
-                    </HStack>
-                </FormControl>
-
-                <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Partition</FormLabel>
-                            <Input
-                                value={form.partition}
-                                onChange={(e) => setForm({ ...form, partition: e.target.value })}
-                                placeholder="Leave empty for default"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
-                            <NumberInput
-                                value={form.nodes}
-                                onChange={(_, value) => setForm({ ...form, nodes: value })}
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
-                            <NumberInput
-                                value={form.ntasks}
-                                onChange={(_, value) => setForm({ ...form, ntasks: value })}
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
-                            <NumberInput
-                                value={form.cpus_per_task}
-                                onChange={(_, value) => setForm({ ...form, cpus_per_task: value })}
-                                min={1}
-                                max={64}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
-                            <Input
-                                value={form.gpus_per_task}
-                                onChange={(e) => setForm({ ...form, gpus_per_task: e.target.value })}
-                                placeholder="1"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
-                            <NumberInput
-                                value={form.ntasks_per_node}
-                                onChange={(_, value) => setForm({ ...form, ntasks_per_node: value })}
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Memory</FormLabel>
-                            <Input
-                                value={form.mem}
-                                onChange={(e) => setForm({ ...form, mem: e.target.value })}
-                                placeholder="8G"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
-                            <Input
-                                value={form.time_limit}
-                                onChange={(e) => setForm({ ...form, time_limit: e.target.value })}
-                                placeholder="02:00:00"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Export</FormLabel>
-                            <Input
-                                value={form.export}
-                                onChange={(e) => setForm({ ...form, export: e.target.value })}
-                                placeholder="ALL"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Node List</FormLabel>
-                            <Input
-                                value={form.nodelist}
-                                onChange={(e) => setForm({ ...form, nodelist: e.target.value })}
-                                placeholder="e.g., cn-d[003-004]"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-                </Grid>
-
-                <FormControl>
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
-                        <Checkbox
-                            isChecked={form.exclusive}
-                            onChange={(e) => setForm({ ...form, exclusive: e.target.checked })}
-                        >
-                            Request exclusive access to nodes
-                        </Checkbox>
-                    </HStack>
-                </FormControl>
-                <Spacer />
-            </VStack>
-            <VStack align="stretch" className="column-2 slurm-script" >
-                <FormControl paddingBottom="10px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
-                        <VStack align="stretch" flex={1} spacing={2}>
-                            <HStack spacing={3}>
-                                <Input
-                                    value={selectedTemplate}
-                                    onChange={(e) => onTemplateSelect(e.target.value)}
-                                    placeholder="Select a template or enter custom name"
-                                    list="template-list"
-                                    flex={1}
-                                />
-                                <Button
-                                    variant="outline"
-                                    onClick={onSaveTemplate}
-                                    isLoading={saveTemplateMutation.isPending}
-                                    size="md"
-                                >
-                                    Save Template
-                                </Button>
-                            </HStack>
-                            <datalist id="template-list">
-                                {templates?.map((templateName) => (
-                                    <option key={templateName} value={templateName}>
-                                        {templateName}
-                                    </option>
-                                ))}
-                            </datalist>
-                        </VStack>
-                    </HStack>
-                    {selectedTemplate && (
-                        <Text fontSize="sm" color="gray.600">
-                            Template loaded: {selectedTemplate}
-                        </Text>
-                    )}
-                </FormControl>
-
-                <FormControl>
-                    <MonacoEditor
-                        height="calc(100vh - 17em)"
-                        value={form.script}
-                        onChange={(value) => setForm({ ...form, script: value })}
-                    />
-                </FormControl>
-            </VStack>
-        </Grid>
-    );
-};
 

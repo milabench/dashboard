@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import { Box, Select, FormControl, FormLabel, HStack, Input, VStack, Button, useToast, Text, Heading, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure, Switch, Tooltip } from '@chakra-ui/react';
 import axios from 'axios';
 import { AddIcon, DeleteIcon, CopyIcon, DownloadIcon } from '@chakra-ui/icons';
@@ -12,6 +13,8 @@ interface ExtraField {
 }
 
 const GroupedView: React.FC = () => {
+    usePageTitle('Grouped View');
+
     const [searchParams, setSearchParams] = useSearchParams();
     const toast = useToast();
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);

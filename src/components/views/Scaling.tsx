@@ -6,8 +6,11 @@ import {
     FormControl,
     FormLabel,
 } from '@chakra-ui/react';
+import { usePageTitle } from '../../hooks/usePageTitle';
 
 const Scaling = () => {
+    usePageTitle('Scaling');
+
     const [searchParams, setSearchParams] = useState({ x: 'memory', y: 'perf' });
 
     const xAxis = searchParams.x;
