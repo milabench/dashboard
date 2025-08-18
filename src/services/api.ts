@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobData, SlurmClusterInfo, SlurmTemplate, SlurmProfile } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmClusterInfo, SlurmTemplate, SlurmProfile } from './types';
 
 
 export interface ProfileCopyRequest {
@@ -272,19 +272,75 @@ export const getSlurmJobStderr = async (jrJobId: string): Promise<string> => {
     }
 };
 
-export const getSlurmJobStdoutFull = async (jrJobId: string): Promise<string> => {
+export const getSlurmJobStdoutSize = async (jrJobId: string): Promise<number> => {
     try {
-        const response = await api.get(`/slurm/jobs/${jrJobId}/stdout`);
-        return response.data;
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stdout/size`);
+        const size = typeof response.data === 'object' && response.data.size !== undefined
+            ? response.data.size
+            : typeof response.data === 'number'
+                ? response.data
+                : parseInt(response.data, 10);
+        if (isNaN(size)) {
+            throw new Error('Invalid size response from server');
+        }
+        return size;
     } catch (error) {
         return handleError(error);
     }
 };
 
-export const getSlurmJobStderrFull = async (jrJobId: string): Promise<string> => {
+export const getSlurmJobStderrSize = async (jrJobId: string): Promise<number> => {
     try {
-        const response = await api.get(`/slurm/jobs/${jrJobId}/stderr`);
-        return response.data;
+        const response = await api.get(`/slurm/jobs/${jrJobId}/stderr/size`);
+        const size = typeof response.data === 'object' && response.data.size !== undefined
+            ? response.data.size
+            : typeof response.data === 'number'
+                ? response.data
+                : parseInt(response.data, 10);
+        if (isNaN(size)) {
+            throw new Error('Invalid size response from server');
+        }
+        return size;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobStdoutFull = async (jrJobId: string, start?: number, end?: number): Promise<string> => {
+    try {
+        let url = `/slurm/jobs/${jrJobId}/stdout`;
+        if (start !== undefined && end !== undefined) {
+            url += `/${start}/${end}`;
+        }
+        const response = await api.get<SlurmJobLogResponse>(url);
+
+        // Handle new JSON response format
+        if (typeof response.data === 'object' && 'data' in response.data) {
+            return response.data.data;
+        }
+
+        // Fallback for old string response format
+        return response.data as unknown as string;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobStderrFull = async (jrJobId: string, start?: number, end?: number): Promise<string> => {
+    try {
+        let url = `/slurm/jobs/${jrJobId}/stderr`;
+        if (start !== undefined && end !== undefined) {
+            url += `/${start}/${end}`;
+        }
+        const response = await api.get<SlurmJobLogResponse>(url);
+
+        // Handle new JSON response format
+        if (typeof response.data === 'object' && 'data' in response.data) {
+            return response.data.data;
+        }
+
+        // Fallback for old string response format
+        return response.data as unknown as string;
     } catch (error) {
         return handleError(error);
     }

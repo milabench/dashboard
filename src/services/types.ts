@@ -184,6 +184,11 @@ export interface SlurmJobLogs {
     stderr: string;
 }
 
+export interface SlurmJobLogResponse {
+    data: string;
+    size: number;
+}
+
 export interface SlurmJobData {
     job_id: string;
     work_dir: string;

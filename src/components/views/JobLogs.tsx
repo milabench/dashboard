@@ -36,7 +36,7 @@ import {
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
 
 interface JobLogsViewProps {
@@ -97,6 +97,23 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [commitMessageError, setCommitMessageError] = useState('');
     const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
 
+    // Log truncation state
+    const [stdoutTruncated, setStdoutTruncated] = useState(false);
+    const [stderrTruncated, setStderrTruncated] = useState(false);
+
+    // Log size state for truncated display
+    const [stdoutLogSize, setStdoutLogSize] = useState<number | null>(null);
+    const [stderrLogSize, setStderrLogSize] = useState<number | null>(null);
+
+    // Helper function to format file size
+    const formatFileSize = (bytes: number): string => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
     // Helper function to check if job is in finished state
     const isJobFinished = (jobStatus: SlurmJob[] | undefined) => {
         if (!jobStatus || jobStatus.length === 0) return false;
@@ -149,8 +166,14 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const getJobDuration = (jobStatus: SlurmJob[] | undefined, jobInfo?: any) => {
         // First, try to get duration from job info when available (for finished jobs or unknown slurm IDs)
         if (jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')) {
-            // Calculate from job info timestamps if available
-            if (jobInfo.start_time?.set && jobInfo.start_time?.number &&
+            // Check if job is actually finished (not running) before using end_time
+            const isJobActuallyFinished = jobInfo.job_state &&
+                !jobInfo.job_state.includes('RUNNING') &&
+                !jobInfo.job_state.includes('PENDING');
+
+            // For truly finished jobs, use start_time and end_time
+            if (isJobActuallyFinished &&
+                jobInfo.start_time?.set && jobInfo.start_time?.number &&
                 jobInfo.end_time?.set && jobInfo.end_time?.number) {
 
                 const startTime = jobInfo.start_time.number;
@@ -173,10 +196,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 }
             }
 
-            // For running jobs with only start time, calculate elapsed time
-            if (jobInfo.start_time?.set && jobInfo.start_time?.number &&
-                jobInfo.job_state?.includes('RUNNING')) {
-
+            // For running jobs or jobs without valid end_time, calculate elapsed time from start
+            if (jobInfo.start_time?.set && jobInfo.start_time?.number) {
                 const startTime = jobInfo.start_time.number;
                 const currentTime = Math.floor(Date.now() / 1000);
                 const durationSeconds = currentTime - startTime;
@@ -306,6 +327,57 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
     }, [slurmJobId, jobStatus, statusError, shouldPollStatus]);
 
+    // Custom function to load logs with chunked loading for large files
+    const loadLogsChunked = async (jrJobId: string, logType: 'stdout' | 'stderr'): Promise<string> => {
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+
+        try {
+            // Get log size first
+            const logSize = logType === 'stdout'
+                ? await getSlurmJobStdoutSize(jrJobId)
+                : await getSlurmJobStderrSize(jrJobId);
+
+            // Store log size in state for display
+            if (logType === 'stdout') {
+                setStdoutLogSize(logSize);
+            } else {
+                setStderrLogSize(logSize);
+            }
+
+            // If size is small enough, load normally
+            if (logSize <= MAX_SIZE) {
+                // Reset truncation state for this log type
+                if (logType === 'stdout') {
+                    setStdoutTruncated(false);
+                } else {
+                    setStderrTruncated(false);
+                }
+                return logType === 'stdout'
+                    ? await getSlurmJobStdoutFull(jrJobId)
+                    : await getSlurmJobStderrFull(jrJobId);
+            }
+
+            // For large files, load only the last 5MB to avoid browser performance issues
+            const start = Math.max(0, logSize - MAX_SIZE);
+            const end = logSize * 2;
+
+            // Set truncation state for this log type
+            if (logType === 'stdout') {
+                setStdoutTruncated(true);
+            } else {
+                setStderrTruncated(true);
+            }
+
+            return logType === 'stdout'
+                ? await getSlurmJobStdoutFull(jrJobId, start, end)
+                : await getSlurmJobStderrFull(jrJobId, start, end);
+
+        } catch (error) {
+            throw error;
+        }
+    };
+
     // Get job stdout with auto-refresh every 30 seconds
     const {
         data: stdout,
@@ -314,7 +386,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         refetch: refetchStdout
     } = useQuery({
         queryKey: ['slurm-job-stdout-full', jrJobId],
-        queryFn: () => getSlurmJobStdoutFull(jrJobId!),
+        queryFn: () => loadLogsChunked(jrJobId!, 'stdout'),
         enabled: !!jrJobId,
         refetchInterval: isJobFinished(jobStatus) ? false : 30000, // Disable refresh if job is finished
         refetchIntervalInBackground: true,
@@ -328,7 +400,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         refetch: refetchStderr
     } = useQuery({
         queryKey: ['slurm-job-stderr-full', jrJobId],
-        queryFn: () => getSlurmJobStderrFull(jrJobId!),
+        queryFn: () => loadLogsChunked(jrJobId!, 'stderr'),
         enabled: !!jrJobId,
         refetchInterval: isJobFinished(jobStatus) ? false : 30000, // Disable refresh if job is finished
         refetchIntervalInBackground: true,
@@ -679,12 +751,20 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 <Flex gap={6} direction={{ base: 'column', lg: 'row' }}>
                     {/* STDOUT */}
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
-                        <CardHeader>
+                        <CardHeader paddingBottom="5px">
                             <HStack justify="space-between">
                                 <Heading size="md">Standard Output (stdout)</Heading>
-                                <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
-                                    {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
-                                </Badge>
+
+                                <HStack justify="space-between">
+                                    {stdoutTruncated && stdoutLogSize && (
+                                        <Badge colorScheme="orange">
+                                            Truncated ({formatFileSize(stdoutLogSize)})
+                                        </Badge>
+                                    )}
+                                    <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
+                                        {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
+                                    </Badge>
+                                </HStack>
                             </HStack>
                         </CardHeader>
                         <CardBody>
@@ -703,6 +783,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                 </Box>
                             ) : (
                                 <Box>
+
                                     {stdout ? (
                                         <Code
                                             ref={stdoutRef}
@@ -731,12 +812,20 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
                     {/* STDERR */}
                     <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
-                        <CardHeader>
+                        <CardHeader paddingBottom="5px">
                             <HStack justify="space-between">
                                 <Heading size="md">Standard Error (stderr)</Heading>
-                                <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
-                                    {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
-                                </Badge>
+
+                                <HStack justify="space-between">
+                                    {stderrTruncated && stderrLogSize && (
+                                        <Badge colorScheme="orange">
+                                            Truncated ({formatFileSize(stderrLogSize)})
+                                        </Badge>
+                                    )}
+                                    <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
+                                        {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
+                                    </Badge>
+                                </HStack>
                             </HStack>
                         </CardHeader>
                         <CardBody>
