@@ -11,7 +11,6 @@ import {
     useToast,
     Card,
     CardBody,
-    CardHeader,
     Spinner,
     Alert,
     AlertIcon,
@@ -19,7 +18,6 @@ import {
     AlertDescription,
     useColorModeValue,
     Badge,
-    Code,
     Flex,
     Modal,
     ModalOverlay,
@@ -38,6 +36,7 @@ import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@c
 import { useQuery } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
+import { LogDisplay } from './LogDisplay';
 
 interface JobLogsViewProps {
     // Add props as needed
@@ -749,126 +748,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
                 {/* Logs Display */}
                 <Flex gap={6} direction={{ base: 'column', lg: 'row' }}>
-                    {/* STDOUT */}
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
-                        <CardHeader paddingBottom="5px">
-                            <HStack justify="space-between">
-                                <Heading size="md">Standard Output (stdout)</Heading>
+                    <LogDisplay
+                        logType="stdout"
+                        logData={stdout}
+                        isLoading={stdoutLoading}
+                        error={stdoutError}
+                        isTruncated={stdoutTruncated}
+                        logSize={stdoutLogSize}
+                        isJobFinished={isJobFinished(jobStatus)}
+                        logRef={stdoutRef}
+                        formatFileSize={formatFileSize}
+                    />
 
-                                <HStack justify="space-between">
-                                    {stdoutTruncated && stdoutLogSize && (
-                                        <Badge colorScheme="orange">
-                                            Truncated ({formatFileSize(stdoutLogSize)})
-                                        </Badge>
-                                    )}
-                                    <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
-                                        {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
-                                    </Badge>
-                                </HStack>
-                            </HStack>
-                        </CardHeader>
-                        <CardBody>
-                            {stdoutError ? (
-                                <Alert status="error">
-                                    <AlertIcon />
-                                    <AlertTitle>Error loading stdout</AlertTitle>
-                                    <AlertDescription>
-                                        {(stdoutError as any)?.message || 'Failed to load stdout'}
-                                    </AlertDescription>
-                                </Alert>
-                            ) : stdoutLoading ? (
-                                <Box textAlign="center" py={8}>
-                                    <Spinner size="lg" />
-                                    <Text mt={4}>Loading stdout...</Text>
-                                </Box>
-                            ) : (
-                                <Box>
-
-                                    {stdout ? (
-                                        <Code
-                                            ref={stdoutRef}
-                                            display="block"
-                                            whiteSpace="pre-wrap"
-                                            fontSize="sm"
-                                            p={4}
-                                            bg="gray.50"
-                                            color="gray.800"
-                                            borderRadius="md"
-                                            maxH="600px"
-                                            overflowY="auto"
-                                            fontFamily="mono"
-                                        >
-                                            {stdout}
-                                        </Code>
-                                    ) : (
-                                        <Text color="gray.500" textAlign="center" py={8}>
-                                            No stdout content available
-                                        </Text>
-                                    )}
-                                </Box>
-                            )}
-                        </CardBody>
-                    </Card>
-
-                    {/* STDERR */}
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
-                        <CardHeader paddingBottom="5px">
-                            <HStack justify="space-between">
-                                <Heading size="md">Standard Error (stderr)</Heading>
-
-                                <HStack justify="space-between">
-                                    {stderrTruncated && stderrLogSize && (
-                                        <Badge colorScheme="orange">
-                                            Truncated ({formatFileSize(stderrLogSize)})
-                                        </Badge>
-                                    )}
-                                    <Badge colorScheme={isJobFinished(jobStatus) ? "gray" : "green"}>
-                                        {isJobFinished(jobStatus) ? "Manual refresh" : "Auto-refresh"}
-                                    </Badge>
-                                </HStack>
-                            </HStack>
-                        </CardHeader>
-                        <CardBody>
-                            {stderrError ? (
-                                <Alert status="error">
-                                    <AlertIcon />
-                                    <AlertTitle>Error loading stderr</AlertTitle>
-                                    <AlertDescription>
-                                        {(stderrError as any)?.message || 'Failed to load stderr'}
-                                    </AlertDescription>
-                                </Alert>
-                            ) : stderrLoading ? (
-                                <Box textAlign="center" py={8}>
-                                    <Spinner size="lg" />
-                                    <Text mt={4}>Loading stderr...</Text>
-                                </Box>
-                            ) : (
-                                <Box>
-                                    {stderr ? (
-                                        <Code
-                                            ref={stderrRef}
-                                            display="block"
-                                            whiteSpace="pre-wrap"
-                                            fontSize="sm"
-                                            p={4}
-                                            bg="red.50"
-                                            color="red.800"
-                                            borderRadius="md"
-                                            maxH="600px"
-                                            overflowY="auto"
-                                            fontFamily="mono"
-                                        >
-                                            {stderr}
-                                        </Code>
-                                    ) : (
-                                        <Text color="gray.500" textAlign="center" py={8}>
-                                            No stderr content available
-                                        </Text>
-                                    )}
-                                </Box>
-                            )}
-                        </CardBody>
-                    </Card>
+                    <LogDisplay
+                        logType="stderr"
+                        logData={stderr}
+                        isLoading={stderrLoading}
+                        error={stderrError}
+                        isTruncated={stderrTruncated}
+                        logSize={stderrLogSize}
+                        isJobFinished={isJobFinished(jobStatus)}
+                        logRef={stderrRef}
+                        formatFileSize={formatFileSize}
+                    />
                 </Flex>
 
                 {/* Footer Info */}
