@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     Box,
     Heading,
@@ -19,33 +20,80 @@ import {
 
 interface LogDisplayProps {
     logType: 'stdout' | 'stderr';
-    logData: string | undefined;
-    isLoading: boolean;
-    error: any;
-    isTruncated: boolean;
-    logSize: number | null;
+    jrJobId: string;
     isJobFinished: boolean;
-    logRef: React.RefObject<HTMLDivElement>;
     formatFileSize: (bytes: number) => string;
+    fetchLogData: (jrJobId: string, start?: number, end?: number) => Promise<string>;
+    getSlurmJobLogSize: (jrJobId: string) => Promise<number>;
 }
 
 export const LogDisplay: React.FC<LogDisplayProps> = ({
     logType,
-    logData,
-    isLoading,
-    error,
-    isTruncated,
-    logSize,
+    jrJobId,
     isJobFinished,
-    logRef,
-    formatFileSize
+    formatFileSize,
+    fetchLogData,
+    getSlurmJobLogSize
 }) => {
     const bgColor = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
 
+    // Internal state for truncation and log size
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [logSize, setLogSize] = useState<number | null>(null);
+    const logRef = useRef<HTMLDivElement>(null);
+
     const displayName = logType === 'stdout' ? 'Standard Output (stdout)' : 'Standard Error (stderr)';
     const logBgColor = logType === 'stdout' ? 'gray.50' : 'red.50';
     const logTextColor = logType === 'stdout' ? 'gray.800' : 'red.800';
+
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    const CHUNK_SIZE = 500 * 1024;
+
+    // Custom function to load logs with chunked loading for large files
+    const loadLogsChunked = async (jrJobId: string): Promise<string> => {
+        try {
+            // Get log size first
+            const logSize = await getSlurmJobLogSize(jrJobId);
+            setLogSize(logSize);
+
+            // If size is small enough, load normally
+            if (logSize <= MAX_SIZE) {
+                setIsTruncated(false);
+                return await fetchLogData(jrJobId);
+            }
+
+            // For large files, load only the last 5MB to avoid browser performance issues
+            const start = Math.max(0, logSize - CHUNK_SIZE);
+            const end = logSize * 2;
+            setIsTruncated(true);
+
+            return await fetchLogData(jrJobId, start, end);
+        } catch (error) {
+            throw error;
+        }
+    };
+
+    // Get log data with auto-refresh every 30 seconds
+    const {
+        data: logData,
+        isLoading,
+        error,
+        refetch
+    } = useQuery({
+        queryKey: [`slurm-job-${logType}-full`, jrJobId],
+        queryFn: () => loadLogsChunked(jrJobId),
+        enabled: !!jrJobId,
+        refetchInterval: isJobFinished ? false : 30000, // Disable refresh if job is finished
+        refetchIntervalInBackground: true,
+    });
+
+    // Auto-scroll effect
+    useEffect(() => {
+        if (logData && logRef.current) {
+            logRef.current.scrollTop = logRef.current.scrollHeight;
+        }
+    }, [logData]);
 
     return (
         <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
@@ -56,7 +104,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                     <HStack justify="space-between">
                         {isTruncated && logSize && (
                             <Badge colorScheme="orange">
-                                Truncated ({formatFileSize(logSize)})
+                                Truncated ({formatFileSize(CHUNK_SIZE)}/{formatFileSize(logSize)})
                             </Badge>
                         )}
                         <Badge colorScheme={isJobFinished ? "gray" : "green"}>

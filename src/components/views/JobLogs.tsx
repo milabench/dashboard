@@ -73,9 +73,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const bgColor = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
 
-    // Refs for auto-scrolling
-    const stdoutRef = useRef<HTMLDivElement>(null);
-    const stderrRef = useRef<HTMLDivElement>(null);
+    // Auto-scrolling is now handled internally by LogDisplay components
 
     // Countdown timer state
     const [countdown, setCountdown] = useState(30);
@@ -96,13 +94,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [commitMessageError, setCommitMessageError] = useState('');
     const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
 
-    // Log truncation state
-    const [stdoutTruncated, setStdoutTruncated] = useState(false);
-    const [stderrTruncated, setStderrTruncated] = useState(false);
-
-    // Log size state for truncated display
-    const [stdoutLogSize, setStdoutLogSize] = useState<number | null>(null);
-    const [stderrLogSize, setStderrLogSize] = useState<number | null>(null);
+    // Keep log data for backward compatibility with existing queries
+    // The LogDisplay component will manage its own state internally
 
     // Helper function to format file size
     const formatFileSize = (bytes: number): string => {
@@ -326,101 +319,15 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
     }, [slurmJobId, jobStatus, statusError, shouldPollStatus]);
 
-    // Custom function to load logs with chunked loading for large files
-    const loadLogsChunked = async (jrJobId: string, logType: 'stdout' | 'stderr'): Promise<string> => {
-        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-        const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+    // Log fetching is now handled internally by LogDisplay components
 
-        try {
-            // Get log size first
-            const logSize = logType === 'stdout'
-                ? await getSlurmJobStdoutSize(jrJobId)
-                : await getSlurmJobStderrSize(jrJobId);
-
-            // Store log size in state for display
-            if (logType === 'stdout') {
-                setStdoutLogSize(logSize);
-            } else {
-                setStderrLogSize(logSize);
-            }
-
-            // If size is small enough, load normally
-            if (logSize <= MAX_SIZE) {
-                // Reset truncation state for this log type
-                if (logType === 'stdout') {
-                    setStdoutTruncated(false);
-                } else {
-                    setStderrTruncated(false);
-                }
-                return logType === 'stdout'
-                    ? await getSlurmJobStdoutFull(jrJobId)
-                    : await getSlurmJobStderrFull(jrJobId);
-            }
-
-            // For large files, load only the last 5MB to avoid browser performance issues
-            const start = Math.max(0, logSize - MAX_SIZE);
-            const end = logSize * 2;
-
-            // Set truncation state for this log type
-            if (logType === 'stdout') {
-                setStdoutTruncated(true);
-            } else {
-                setStderrTruncated(true);
-            }
-
-            return logType === 'stdout'
-                ? await getSlurmJobStdoutFull(jrJobId, start, end)
-                : await getSlurmJobStderrFull(jrJobId, start, end);
-
-        } catch (error) {
-            throw error;
-        }
-    };
-
-    // Get job stdout with auto-refresh every 30 seconds
-    const {
-        data: stdout,
-        isLoading: stdoutLoading,
-        error: stdoutError,
-        refetch: refetchStdout
-    } = useQuery({
-        queryKey: ['slurm-job-stdout-full', jrJobId],
-        queryFn: () => loadLogsChunked(jrJobId!, 'stdout'),
-        enabled: !!jrJobId,
-        refetchInterval: isJobFinished(jobStatus) ? false : 30000, // Disable refresh if job is finished
-        refetchIntervalInBackground: true,
-    });
-
-    // Get job stderr with auto-refresh every 30 seconds
-    const {
-        data: stderr,
-        isLoading: stderrLoading,
-        error: stderrError,
-        refetch: refetchStderr
-    } = useQuery({
-        queryKey: ['slurm-job-stderr-full', jrJobId],
-        queryFn: () => loadLogsChunked(jrJobId!, 'stderr'),
-        enabled: !!jrJobId,
-        refetchInterval: isJobFinished(jobStatus) ? false : 30000, // Disable refresh if job is finished
-        refetchIntervalInBackground: true,
-    });
+    // Log fetching is now handled internally by LogDisplay components
 
     const handleBack = () => {
         navigate(-1);
     };
 
-    // Auto-scroll to bottom when logs update
-    useEffect(() => {
-        if (stdout && stdoutRef.current) {
-            stdoutRef.current.scrollTop = stdoutRef.current.scrollHeight;
-        }
-    }, [stdout]);
-
-    useEffect(() => {
-        if (stderr && stderrRef.current) {
-            stderrRef.current.scrollTop = stderrRef.current.scrollHeight;
-        }
-    }, [stderr]);
+    // Auto-scrolling is now handled internally by LogDisplay components
 
     // Countdown timer effect
     useEffect(() => {
@@ -442,32 +349,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         return () => clearInterval(timer);
     }, [shouldPollStatus]);
 
-    // Effect to perform final refresh when job finishes
+    // Effect to show notification when job finishes
     useEffect(() => {
         if (isJobFinished(jobStatus)) {
-            // Perform one final refresh to get the latest logs
-            refetchStdout();
-            refetchStderr();
+            // LogDisplay components handle their own final refresh
             toast({
                 title: 'Job Finished',
-                description: 'Job has completed. Performing final log refresh.',
+                description: 'Job has completed. LogDisplay components will perform final refresh automatically.',
                 status: 'info',
                 duration: 3000,
                 isClosable: true,
             });
         }
-    }, [jobStatus, refetchStdout, refetchStderr]);
+    }, [jobStatus]);
 
     const handleRefresh = () => {
-        refetchStdout();
-        refetchStderr();
+        // LogDisplay components handle their own refresh internally
         if (slurmJobId && slurmJobId !== '-') {
             refetchStatus();
         }
         setCountdown(30); // Reset countdown
         toast({
-            title: 'Logs Refreshed',
-            description: 'Job logs have been refreshed',
+            title: 'Status Refreshed',
+            description: 'Job status has been refreshed. Logs auto-refresh independently.',
             status: 'success',
             duration: 2000,
             isClosable: true,
@@ -673,7 +577,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             leftIcon={<RepeatIcon />}
                             variant="outline"
                             onClick={handleRefresh}
-                            isLoading={stdoutLoading || stderrLoading || statusLoading}
+                            isLoading={statusLoading}
                         >
                             Refresh Now
                         </Button>
@@ -750,26 +654,20 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 <Flex gap={6} direction={{ base: 'column', lg: 'row' }}>
                     <LogDisplay
                         logType="stdout"
-                        logData={stdout}
-                        isLoading={stdoutLoading}
-                        error={stdoutError}
-                        isTruncated={stdoutTruncated}
-                        logSize={stdoutLogSize}
+                        jrJobId={jrJobId!}
                         isJobFinished={isJobFinished(jobStatus)}
-                        logRef={stdoutRef}
                         formatFileSize={formatFileSize}
+                        fetchLogData={getSlurmJobStdoutFull}
+                        getSlurmJobLogSize={getSlurmJobStdoutSize}
                     />
 
                     <LogDisplay
                         logType="stderr"
-                        logData={stderr}
-                        isLoading={stderrLoading}
-                        error={stderrError}
-                        isTruncated={stderrTruncated}
-                        logSize={stderrLogSize}
+                        jrJobId={jrJobId!}
                         isJobFinished={isJobFinished(jobStatus)}
-                        logRef={stderrRef}
                         formatFileSize={formatFileSize}
+                        fetchLogData={getSlurmJobStderrFull}
+                        getSlurmJobLogSize={getSlurmJobStderrSize}
                     />
                 </Flex>
 
