@@ -539,8 +539,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     }
 
     return (
-        <Box p={6}>
-            <VStack align="stretch" spacing={6}>
+        <Box p={6} className="job-logs-view" h="100%">
+            <VStack align="stretch" spacing={3} h="100%"> 
                 {/* Header */}
                 <HStack justify="space-between">
                     <Box>
@@ -650,27 +650,6 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     </AlertDescription>
                 </Alert>
 
-                {/* Logs Display */}
-                <Flex gap={6} direction={{ base: 'column', lg: 'row' }}>
-                    <LogDisplay
-                        logType="stdout"
-                        jrJobId={jrJobId!}
-                        isJobFinished={isJobFinished(jobStatus)}
-                        formatFileSize={formatFileSize}
-                        fetchLogData={getSlurmJobStdoutFull}
-                        getSlurmJobLogSize={getSlurmJobStdoutSize}
-                    />
-
-                    <LogDisplay
-                        logType="stderr"
-                        jrJobId={jrJobId!}
-                        isJobFinished={isJobFinished(jobStatus)}
-                        formatFileSize={formatFileSize}
-                        fetchLogData={getSlurmJobStderrFull}
-                        getSlurmJobLogSize={getSlurmJobStderrSize}
-                    />
-                </Flex>
-
                 {/* Footer Info */}
                 <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                     <CardBody>
@@ -710,6 +689,27 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                         </VStack>
                     </CardBody>
                 </Card>
+
+                {/* Logs Display */}
+                <Flex gap={6} direction={{ base: 'column', lg: 'row' }} className="log-holder" h="100%" flex="1" display="flex">
+                    <LogDisplay
+                        logType="stdout"
+                        jrJobId={jrJobId!}
+                        isJobFinished={isJobFinished(jobStatus)}
+                        formatFileSize={formatFileSize}
+                        fetchLogData={getSlurmJobStdoutFull}
+                        getSlurmJobLogSize={getSlurmJobStdoutSize}
+                    />
+
+                    <LogDisplay
+                        logType="stderr"
+                        jrJobId={jrJobId!}
+                        isJobFinished={isJobFinished(jobStatus)}
+                        formatFileSize={formatFileSize}
+                        fetchLogData={getSlurmJobStderrFull}
+                        getSlurmJobLogSize={getSlurmJobStderrSize}
+                    />
+                </Flex>
             </VStack>
 
             {/* Save Job Modal */}

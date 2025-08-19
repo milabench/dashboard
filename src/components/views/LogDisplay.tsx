@@ -96,7 +96,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     }, [logData]);
 
     return (
-        <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex={1}>
+        <Card bg={bgColor} border="1px solid" borderColor={borderColor} className="logview" maxH="100%" flex={1}>
             <CardHeader paddingBottom="5px">
                 <HStack justify="space-between">
                     <Heading size="md">{displayName}</Heading>
@@ -113,7 +113,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                     </HStack>
                 </HStack>
             </CardHeader>
-            <CardBody>
+            <CardBody h="100%" maxH="100%">
                 {error ? (
                     <Alert status="error">
                         <AlertIcon />
@@ -128,7 +128,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                         <Text mt={4}>Loading {logType}...</Text>
                     </Box>
                 ) : (
-                    <Box>
+                    <Box h="100%" maxH="100%" >
                         {logData ? (
                             <Code
                                 ref={logRef}
@@ -139,9 +139,10 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                                 bg={logBgColor}
                                 color={logTextColor}
                                 borderRadius="md"
-                                maxH="600px"
                                 overflowY="auto"
                                 fontFamily="mono"
+                                h="100%"
+                                maxH="calc(100vh - 31em)"
                             >
                                 {logData}
                             </Code>
