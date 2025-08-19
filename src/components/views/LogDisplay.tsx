@@ -142,7 +142,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                                 overflowY="auto"
                                 fontFamily="mono"
                                 h="100%"
-                                maxH="calc(100vh - 31em)"
+                                maxH="calc(100vh - 18em)"
                             >
                                 {logData}
                             </Code>

@@ -30,7 +30,9 @@ import {
     Input,
     FormControl,
     FormLabel,
-    FormErrorMessage
+    FormErrorMessage,
+    Wrap,
+    WrapItem
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
@@ -545,32 +547,6 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 <HStack justify="space-between">
                     <Box>
                         <Heading size="lg" mb={2}>Job Logs</Heading>
-                        <HStack spacing={3} align="center">
-                            <Text color="gray.600">
-                                JR Job ID: {jrJobId}
-                            </Text>
-                            {slurmJobId && slurmJobId !== '-' && (
-                                <Text color="gray.600">
-                                    Slurm Job ID: {slurmJobId}
-                                </Text>
-                            )}
-                            {jobStatus && jobStatus.length > 0 && (
-                                <Badge colorScheme={getStatusColor(getJobStatusString(jobStatus))}>
-                                    {getJobStatusString(jobStatus)}
-                                </Badge>
-                            )}
-                            {statusLoading && (
-                                <Badge colorScheme="gray">
-                                    <Spinner size="xs" mr={1} />
-                                    Checking Status...
-                                </Badge>
-                            )}
-                            {statusError && (
-                                <Badge colorScheme="red">
-                                    Status Error
-                                </Badge>
-                            )}
-                        </HStack>
                     </Box>
                     <HStack spacing={3}>
                         <Button
@@ -625,68 +601,58 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     </HStack>
                 </HStack>
 
-                {/* Auto-refresh indicator */}
-                <Alert status={!shouldPollStatus ? "warning" : "info"}>
-                    <AlertIcon />
-                    <AlertTitle>
-                        {!shouldPollStatus ? "Auto-refresh disabled" : "Auto-refresh enabled"}
-                    </AlertTitle>
-                    <AlertDescription>
-                        {!shouldPollStatus ? (
-                            <>
-                                {!slurmJobId || slurmJobId === '-' ? (
-                                    "No Slurm job ID available. Auto-refresh has been disabled. Click 'Refresh Now' to update manually."
-                                ) : isJobFinished(jobStatus) ? (
-                                    "Job is in finished state. Auto-refresh has been disabled to save resources. Click 'Refresh Now' to update manually."
-                                ) : (
-                                    "Auto-refresh has been disabled (job no longer in queue). Click 'Refresh Now' to update manually."
-                                )}
-                            </>
-                        ) : (
-                            <>
-                                Logs are automatically refreshed every 30 seconds. Next refresh in <strong>{countdown}</strong> seconds. Click "Refresh Now" to update immediately.
-                            </>
-                        )}
-                    </AlertDescription>
-                </Alert>
-
-                {/* Footer Info */}
+                {/* Job Quick Info */}
                 <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                     <CardBody>
-                        <VStack align="stretch" spacing={2}>
-                            <Text fontSize="sm" color="gray.600">
-                                <strong>Job Duration:</strong> {
-                                    jobInfoLoading && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')
-                                        ? <><Spinner size="xs" mr={1} />Loading...</>
-                                        : getJobDuration(jobStatus, jobInfo)
-                                }
-                                {jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-') &&
-                                    <Text as="span" fontSize="xs" color="gray.500" ml={2}>(from job info)</Text>
-                                }
-                            </Text>
-                            <Text fontSize="sm" color="gray.600">
-                                <strong>Next refresh:</strong> {
-                                    !shouldPollStatus ? (
-                                        !slurmJobId || slurmJobId === '-' ? "Disabled (no Slurm job ID)" :
-                                            isJobFinished(jobStatus) ? "Disabled (job finished)" :
-                                                "Disabled"
-                                    ) : `${countdown} seconds`
-                                }
-                            </Text>
-                            <Text fontSize="sm" color="gray.600">
-                                <strong>JR Job ID:</strong> {jrJobId}
-                            </Text>
+                        <Wrap spacing={4} rowGap={2} align="center">
+                            <WrapItem>
+                                <Text fontSize="sm" color="gray.600">
+                                    <strong>JR Job ID:</strong> {jrJobId}
+                                </Text>
+                            </WrapItem>
                             {slurmJobId && slurmJobId !== '-' && (
-                                <Text fontSize="sm" color="gray.600">
-                                    <strong>Slurm Job ID:</strong> {slurmJobId}
-                                </Text>
+                                <WrapItem>
+                                    <Text fontSize="sm" color="gray.600">
+                                        <strong>Slurm Job ID:</strong> {slurmJobId}
+                                    </Text>
+                                </WrapItem>
                             )}
+                            <WrapItem>
+                                <Text fontSize="sm" color="gray.600">
+                                    <strong>Job Duration:</strong> {
+                                        jobInfoLoading && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')
+                                            ? <><Spinner size="xs" mr={1} />Loading...</>
+                                            : getJobDuration(jobStatus, jobInfo)
+                                    }
+                                    {jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-') &&
+                                        <Text as="span" fontSize="xs" color="gray.500" ml={2}>(from job info)</Text>
+                                    }
+                                </Text>
+                            </WrapItem>
+
                             {jobStatus && jobStatus.length > 0 && (
-                                <Text fontSize="sm" color="gray.600">
-                                    <strong>Job Status:</strong> {getJobStatusString(jobStatus)}
-                                </Text>
+                                <WrapItem>
+                                    <Badge colorScheme={getStatusColor(getJobStatusString(jobStatus))}>
+                                        {getJobStatusString(jobStatus)}
+                                    </Badge>
+                                </WrapItem>
                             )}
-                        </VStack>
+                            {statusLoading && (
+                                <WrapItem>
+                                    <Badge colorScheme="gray">
+                                        <Spinner size="xs" mr={1} />
+                                        Checking Status...
+                                    </Badge>
+                                </WrapItem>
+                            )}
+                            {statusError && (
+                                <WrapItem>
+                                    <Badge colorScheme="red">
+                                        Status Error
+                                    </Badge>
+                                </WrapItem>
+                            )}
+                        </Wrap>
                     </CardBody>
                 </Card>
 
