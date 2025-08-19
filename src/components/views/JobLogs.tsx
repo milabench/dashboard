@@ -11,6 +11,7 @@ import {
     useToast,
     Card,
     CardBody,
+    CardHeader,
     Spinner,
     Alert,
     AlertIcon,
@@ -32,7 +33,15 @@ import {
     FormLabel,
     FormErrorMessage,
     Wrap,
-    WrapItem
+    WrapItem,
+    Grid,
+    GridItem,
+    Accordion,
+    AccordionItem,
+    AccordionButton,
+    AccordionPanel,
+    AccordionIcon,
+    Code
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
@@ -109,9 +118,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to check if job is in finished state
-    const isJobFinished = (jobStatus: SlurmJob[] | undefined) => {
-        if (!jobStatus || jobStatus.length === 0) return false;
-        const jobState = jobStatus[0].job_state;
+    const isJobFinished = (jobStatus: SlurmJob | undefined) => {
+        if (!jobStatus) return false;
+        const jobState = jobStatus.job_state;
         let status: string | undefined;
 
         if (Array.isArray(jobState)) {
@@ -126,9 +135,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to check if job can be cancelled (only running or pending jobs)
-    const canCancelJob = (jobStatus: SlurmJob[] | undefined) => {
-        if (!jobStatus || jobStatus.length === 0) return false;
-        const jobState = jobStatus[0].job_state;
+    const canCancelJob = (jobStatus: SlurmJob | undefined) => {
+        if (!jobStatus) return false;
+        const jobState = jobStatus.job_state;
         let status: string | undefined;
 
         if (Array.isArray(jobState)) {
@@ -143,9 +152,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to get job status string
-    const getJobStatusString = (jobStatus: SlurmJob[] | undefined) => {
-        if (!jobStatus || jobStatus.length === 0) return 'Unknown';
-        const jobState = jobStatus[0].job_state;
+    const getJobStatusString = (jobStatus: SlurmJob | undefined) => {
+        if (!jobStatus) return 'Unknown';
+        const jobState = jobStatus.job_state;
 
         if (Array.isArray(jobState)) {
             return jobState[0] || 'Unknown';
@@ -157,7 +166,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to get formatted job duration
-    const getJobDuration = (jobStatus: SlurmJob[] | undefined, jobInfo?: any) => {
+    const getJobDuration = (jobStatus: SlurmJob | undefined, jobInfo?: any) => {
         // First, try to get duration from job info when available (for finished jobs or unknown slurm IDs)
         if (jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')) {
             // Check if job is actually finished (not running) before using end_time
@@ -211,9 +220,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
 
         // Fallback to original logic using job status
-        if (!jobStatus || jobStatus.length === 0) return 'Unknown';
+        if (!jobStatus) return 'Unknown';
 
-        const job = jobStatus[0];
+        const job = jobStatus;
 
         // If job has explicit elapsed time, use it
         if (job.elapsed) {
@@ -279,7 +288,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         refetchIntervalInBackground: true,
     });
 
-    // Get job info (detailed information) - useful for finished jobs or when slurm job ID is unknown
+    // Get job info (detailed information) - useful for all jobs to show resource details
     const {
         data: jobInfo,
         isLoading: jobInfoLoading,
@@ -287,7 +296,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     } = useQuery({
         queryKey: ['slurm-job-info', jrJobId, slurmJobId],
         queryFn: () => getSlurmJobInfo(jrJobId!, slurmJobId !== '-' ? slurmJobId : undefined),
-        enabled: !!jrJobId && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-'),
+        enabled: !!jrJobId,
         staleTime: 5 * 60 * 1000, // Cache for 5 minutes since this is detailed info that doesn't change often
     });
 
@@ -542,7 +551,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     return (
         <Box p={6} className="job-logs-view" h="100%">
-            <VStack align="stretch" spacing={3} h="100%"> 
+            <VStack align="stretch" spacing={3} h="100%">
                 {/* Header */}
                 <HStack justify="space-between">
                     <Box>
@@ -630,7 +639,30 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                 </Text>
                             </WrapItem>
 
-                            {jobStatus && jobStatus.length > 0 && (
+                            {/* Additional job details from jobInfo */}
+                            {jobInfo?.gres_detail && (
+                                <WrapItem>
+                                    <Text fontSize="sm" color="gray.600">
+                                        <strong>GRES:</strong> {jobInfo.gres_detail}
+                                    </Text>
+                                </WrapItem>
+                            )}
+                            {jobInfo?.cpus?.number && (
+                                <WrapItem>
+                                    <Text fontSize="sm" color="gray.600">
+                                        <strong>CPUs:</strong> {jobInfo.cpus.number}
+                                    </Text>
+                                </WrapItem>
+                            )}
+                            {jobInfo?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
+                                <WrapItem>
+                                    <Text fontSize="sm" color="gray.600">
+                                        <strong>RAM:</strong> {Math.round(jobInfo.job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
+                                    </Text>
+                                </WrapItem>
+                            )}
+
+                            {jobStatus && (
                                 <WrapItem>
                                     <Badge colorScheme={getStatusColor(getJobStatusString(jobStatus))}>
                                         {getJobStatusString(jobStatus)}

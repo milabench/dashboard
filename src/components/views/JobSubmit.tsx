@@ -397,7 +397,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <HStack spacing={3} align="center">
                         <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
                         <Checkbox
-                            
+
                             isChecked={form.exclusive}
                             onChange={(e) => setForm({ ...form, exclusive: e.target.checked })}
                         >
@@ -431,7 +431,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         >
                             {dependencyJobs.map((job) => (
                                 <option key={job.job_id} value={job.job_id || ''}>
-                                    {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0]})
+                                    {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0] || 'Unknown'})
                                 </option>
                             ))}
                         </Select>

@@ -346,7 +346,7 @@ export const getSlurmJobStderrFull = async (jrJobId: string, start?: number, end
     }
 };
 
-export const getSlurmJobStatus = async (jobId: string): Promise<SlurmJob[]> => {
+export const getSlurmJobStatus = async (jobId: string): Promise<SlurmJob> => {
     try {
         const response = await api.get(`/slurm/jobs/${jobId}`);
         return response.data;
