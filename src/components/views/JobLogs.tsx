@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -45,9 +45,10 @@ import {
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
 import { useQuery } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
-import type { SlurmJob } from '../../services/types';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
+import type { SlurmJob, SlurmJobAccounting } from '../../services/types';
 import { LogDisplay } from './LogDisplay';
+import { NO_JOB_ID } from '../../Constant';
 
 interface JobLogsViewProps {
     // Add props as needed
@@ -76,8 +77,22 @@ const getStatusColor = (status: string) => {
 };
 
 export const JobLogsView: React.FC<JobLogsViewProps> = () => {
-    const { slurmJobId, jrJobId } = useParams<{ slurmJobId: string; jrJobId: string }>();
+    const params = useParams<{ slurmJobId: string; jrJobId: string }>();
+
+    const params_SlurmJobId = params["slurmJobId"]
+    const jrJobId = params["jrJobId"]
+
+    const [slurmJobId, setSlurmJobId] = useState(params_SlurmJobId);
+    const [jobInfo, setJobInfo] = useState<SlurmJob | null>(null);
+
     usePageTitle(`Job Logs - ${slurmJobId || 'Unknown'}`);
+
+    const updateJobInfo = (newJobInfo: SlurmJob) => {
+        if (slurmJobId === NO_JOB_ID) {
+            setSlurmJobId(newJobInfo.job_id || NO_JOB_ID);
+        }
+        setJobInfo(newJobInfo)
+    };
 
     const navigate = useNavigate();
     const toast = useToast();
@@ -115,6 +130,46 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    // Helper function to convert accounting data to SlurmJob format
+    const convertAccountingToSlurmJob = (accounting: SlurmJobAccounting): SlurmJob => {
+        return {
+            job_id: accounting.job_id?.toString() || null,
+            partition: accounting.partition,
+            name: accounting.name,
+            user: accounting.user,
+            job_state: accounting.state?.current || [],
+            time: accounting.time?.elapsed?.toString(),
+            elapsed: accounting.time?.elapsed?.toString(),
+            nodes: accounting.nodes,
+            start_time: accounting.time?.start ? {
+                number: accounting.time.start,
+                set: true,
+                infinite: false
+            } : undefined,
+            end_time: accounting.time?.end ? {
+                number: accounting.time.end,
+                set: true,
+                infinite: false
+            } : undefined,
+            submit_time: accounting.time?.submission ? {
+                number: accounting.time.submission,
+                set: true,
+                infinite: false
+            } : undefined,
+            exit_code: accounting.exit_code?.return_code?.number?.toString(),
+        };
+    };
+
+    // Helper function to check if job is finished based on accounting data
+    const isJobFinishedAccounting = (accounting: SlurmJobAccounting | undefined) => {
+        if (!accounting) return false;
+        const currentState = accounting.state?.current?.[0];
+        if (!currentState) return false;
+        const lowerStatus = currentState.toLowerCase();
+        return lowerStatus === 'completed' || lowerStatus === 'failed' || lowerStatus === 'cancelled' ||
+            lowerStatus === 'timeout' || lowerStatus === 'node_fail' || lowerStatus === 'out_of_memory';
     };
 
     // Helper function to check if job is in finished state
@@ -166,21 +221,21 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to get formatted job duration
-    const getJobDuration = (jobStatus: SlurmJob | undefined, jobInfo?: any) => {
-        // First, try to get duration from job info when available (for finished jobs or unknown slurm IDs)
-        if (jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')) {
+    const getJobDuration = (jobData: any) => {
+        // Always try to get duration from job data when available
+        if (jobData) {
             // Check if job is actually finished (not running) before using end_time
-            const isJobActuallyFinished = jobInfo.job_state &&
-                !jobInfo.job_state.includes('RUNNING') &&
-                !jobInfo.job_state.includes('PENDING');
+            const isJobActuallyFinished = jobData.job_state &&
+                !jobData.job_state.includes('RUNNING') &&
+                !jobData.job_state.includes('PENDING');
 
             // For truly finished jobs, use start_time and end_time
             if (isJobActuallyFinished &&
-                jobInfo.start_time?.set && jobInfo.start_time?.number &&
-                jobInfo.end_time?.set && jobInfo.end_time?.number) {
+                jobData.start_time?.set && jobData.start_time?.number &&
+                jobData.end_time?.set && jobData.end_time?.number) {
 
-                const startTime = jobInfo.start_time.number;
-                const endTime = jobInfo.end_time.number;
+                const startTime = jobData.start_time.number;
+                const endTime = jobData.end_time.number;
 
                 if (endTime > startTime) {
                     const durationSeconds = endTime - startTime;
@@ -200,8 +255,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             }
 
             // For running jobs or jobs without valid end_time, calculate elapsed time from start
-            if (jobInfo.start_time?.set && jobInfo.start_time?.number) {
-                const startTime = jobInfo.start_time.number;
+            if (jobData.start_time?.set && jobData.start_time?.number) {
+                const startTime = jobData.start_time.number;
                 const currentTime = Math.floor(Date.now() / 1000);
                 const durationSeconds = currentTime - startTime;
 
@@ -219,10 +274,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             }
         }
 
-        // Fallback to original logic using job status
-        if (!jobStatus) return 'Unknown';
+        // Fallback to basic job data if no timestamp info available
+        if (!jobData) return 'Unknown';
 
-        const job = jobStatus;
+        const job = jobData;
 
         // If job has explicit elapsed time, use it
         if (job.elapsed) {
@@ -274,61 +329,126 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         return 'Not started';
     };
 
-    // Get job status with auto-refresh every 30 seconds
+    // Primary job info fetch - this is our main data source
+    const {
+        data: jobInfoData,
+        isLoading: jobInfoLoading,
+        error: jobInfoError
+    } = useQuery({
+        queryKey: ['slurm-job-info', jrJobId, slurmJobId],
+        queryFn: () => {
+            // Use slurm job ID if available and valid, otherwise use job runner ID
+            const useJobId = slurmJobId && slurmJobId !== '-' ? slurmJobId : undefined;
+            return getSlurmJobInfo(jrJobId!, useJobId);
+        },
+        enabled: !!jrJobId,
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes since this is detailed info that doesn't change often
+    });
+
+    // Update jobInfo state when new data comes from the query
+    useEffect(() => {
+        if (jobInfoData) {
+            updateJobInfo(jobInfoData);
+        }
+    }, [jobInfoData]);
+
+    // Job status polling with fallback to accounting data - only if we have a slurm job ID and should poll
     const {
         data: jobStatus,
         isLoading: statusLoading,
         error: statusError,
         refetch: refetchStatus
     } = useQuery({
-        queryKey: ['slurm-job-status', slurmJobId],
-        queryFn: () => getSlurmJobStatus(slurmJobId!),
-        enabled: !!slurmJobId && slurmJobId !== '-' && shouldPollStatus,
+        queryKey: ['slurm-job-status-with-fallback', slurmJobId, jrJobId],
+        queryFn: async () => {
+            try {
+                // First try to get the current job status
+                return await getSlurmJobStatus(slurmJobId!);
+            } catch (statusError) {
+                console.log('Job status fetch failed, trying accounting data:', statusError);
+
+                // If status fails, try to get accounting data
+                if (jrJobId) {
+                    try {
+                        const accountingData = await getSlurmJobAccounting(jrJobId, slurmJobId!);
+                        console.log('Found accounting data:', accountingData);
+
+                        // Convert accounting data to SlurmJob format, but preserve existing job info
+                        const convertedJob = convertAccountingToSlurmJob(accountingData);
+
+                        // Merge with existing jobInfo to preserve allocation information
+                        // Only update status-related fields from accounting data
+                        const preservedJobData = {
+                            ...jobInfo, // Keep original allocation info (GRES, CPUs, memory, etc.)
+                            ...convertedJob, // Update with accounting data (status, times, etc.)
+                            // Explicitly preserve important allocation fields that might be overwritten
+                            ...(jobInfo && {
+                                gres_detail: (jobInfo as any).gres_detail,
+                                cpus: (jobInfo as any).cpus,
+                                job_resources: (jobInfo as any).job_resources,
+                                allocated_nodes: (jobInfo as any).allocated_nodes,
+                            })
+                        };
+
+                        // Update jobInfo with the merged data if job is finished
+                        if (isJobFinishedAccounting(accountingData)) {
+                            updateJobInfo(preservedJobData as SlurmJob);
+                        }
+
+                        return preservedJobData;
+                    } catch (accountingError) {
+                        console.log('Accounting data fetch also failed:', accountingError);
+                        throw statusError; // Throw the original status error
+                    }
+                } else {
+                    throw statusError;
+                }
+            }
+        },
+        enabled: !!slurmJobId && !!jrJobId && shouldPollStatus,
         refetchInterval: shouldPollStatus ? 30000 : false, // Stop refresh when shouldPollStatus is false
         refetchIntervalInBackground: true,
     });
 
-    // Get job info (detailed information) - useful for all jobs to show resource details
-    const {
-        data: jobInfo,
-        isLoading: jobInfoLoading,
-        error: jobInfoError
-    } = useQuery({
-        queryKey: ['slurm-job-info', jrJobId, slurmJobId],
-        queryFn: () => getSlurmJobInfo(jrJobId!, slurmJobId !== '-' ? slurmJobId : undefined),
-        enabled: !!jrJobId,
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes since this is detailed info that doesn't change often
-    });
+    // Merged job data - jobStatus updates take precedence over jobInfo for current state
+    const mergedJobData = useMemo(() => {
+        return jobStatus ? { ...jobInfo, ...jobStatus } : jobInfo;
+    }, [jobStatus, jobInfo]);
 
     // Effect to control status polling based on job state and errors
     useEffect(() => {
-        // Stop polling if job is finished
-        if (jobStatus && isJobFinished(jobStatus)) {
+        // Stop polling if job is finished (from either status or accounting data)
+        if (mergedJobData && isJobFinished(mergedJobData)) {
             setShouldPollStatus(false);
             return;
         }
 
-        // Stop polling if we get a 404 error (job no longer in queue)
+        // Stop polling if we get a 404 error and the job data shows it's finished
+        // This handles cases where we got accounting data showing completion
         if (statusError && (statusError as any).status === 404) {
-            setShouldPollStatus(false);
-            return;
+            // If we have job data showing completion, stop polling
+            if (mergedJobData && isJobFinished(mergedJobData)) {
+                setShouldPollStatus(false);
+                return;
+            }
+            // Otherwise, let the query fallback to accounting data handle it
         }
 
         // Resume polling if we had stopped but conditions change
-        if (!shouldPollStatus && jobStatus && !isJobFinished(jobStatus) && (!statusError || (statusError as any).status !== 404)) {
+        if (!shouldPollStatus && mergedJobData && !isJobFinished(mergedJobData) && (!statusError || (statusError as any).status !== 404)) {
             setShouldPollStatus(true);
         }
-    }, [jobStatus, statusError, shouldPollStatus]);
+    }, [mergedJobData, statusError, shouldPollStatus]);
 
     // Effect to disable polling when slurm job ID is not available
     useEffect(() => {
-        if (!slurmJobId || slurmJobId === '-') {
+        if (!slurmJobId) {
             setShouldPollStatus(false);
-        } else if (!shouldPollStatus && (!jobStatus || !isJobFinished(jobStatus)) && (!statusError || (statusError as any).status !== 404)) {
+        } else if (!shouldPollStatus && (!mergedJobData || !isJobFinished(mergedJobData)) && (!statusError || (statusError as any).status !== 404)) {
             // Re-enable polling if slurm job ID becomes available and other conditions are met
             setShouldPollStatus(true);
         }
-    }, [slurmJobId, jobStatus, statusError, shouldPollStatus]);
+    }, [slurmJobId, mergedJobData, statusError, shouldPollStatus]);
 
     // Log fetching is now handled internally by LogDisplay components
 
@@ -362,7 +482,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     // Effect to show notification when job finishes
     useEffect(() => {
-        if (isJobFinished(jobStatus)) {
+        if (isJobFinished(mergedJobData || undefined)) {
             // LogDisplay components handle their own final refresh
             toast({
                 title: 'Job Finished',
@@ -372,7 +492,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 isClosable: true,
             });
         }
-    }, [jobStatus]);
+    }, [mergedJobData]);
 
     const handleRefresh = () => {
         // LogDisplay components handle their own refresh internally
@@ -575,7 +695,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                         >
                             Rerun Job
                         </Button>
-                        {canCancelJob(jobStatus) && (
+                        {canCancelJob(mergedJobData || undefined) && (
                             <Button
                                 leftIcon={<CloseIcon />}
                                 variant="outline"
@@ -616,10 +736,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                         <Wrap spacing={4} rowGap={2} align="center">
                             <WrapItem>
                                 <Text fontSize="sm" color="gray.600">
-                                    <strong>JR Job ID:</strong> {jrJobId}
+                                    <strong>ID:</strong> {jrJobId}
                                 </Text>
                             </WrapItem>
-                            {slurmJobId && slurmJobId !== '-' && (
+                            {slurmJobId && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="gray.600">
                                         <strong>Slurm Job ID:</strong> {slurmJobId}
@@ -629,43 +749,40 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             <WrapItem>
                                 <Text fontSize="sm" color="gray.600">
                                     <strong>Job Duration:</strong> {
-                                        jobInfoLoading && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-')
+                                        jobInfoLoading
                                             ? <><Spinner size="xs" mr={1} />Loading...</>
-                                            : getJobDuration(jobStatus, jobInfo)
-                                    }
-                                    {jobInfo && (isJobFinished(jobStatus) || !slurmJobId || slurmJobId === '-') &&
-                                        <Text as="span" fontSize="xs" color="gray.500" ml={2}>(from job info)</Text>
+                                            : getJobDuration(mergedJobData)
                                     }
                                 </Text>
                             </WrapItem>
 
-                            {/* Additional job details from jobInfo */}
-                            {jobInfo?.gres_detail && (
+                            {/* Additional job details from job data */}
+                            {(mergedJobData as any)?.gres_detail && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="gray.600">
-                                        <strong>GRES:</strong> {jobInfo.gres_detail}
+                                        <strong>GRES:</strong> {(mergedJobData as any).gres_detail}
                                     </Text>
                                 </WrapItem>
                             )}
-                            {jobInfo?.cpus?.number && (
+                            {(mergedJobData as any)?.cpus?.number && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="gray.600">
-                                        <strong>CPUs:</strong> {jobInfo.cpus.number}
+                                        <strong>CPUs:</strong> {(mergedJobData as any).cpus.number}
                                     </Text>
                                 </WrapItem>
                             )}
-                            {jobInfo?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
+                            {(mergedJobData as any)?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="gray.600">
-                                        <strong>RAM:</strong> {Math.round(jobInfo.job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
+                                        <strong>RAM:</strong> {Math.round((mergedJobData as any).job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
                                     </Text>
                                 </WrapItem>
                             )}
 
-                            {jobStatus && (
+                            {mergedJobData && (
                                 <WrapItem>
-                                    <Badge colorScheme={getStatusColor(getJobStatusString(jobStatus))}>
-                                        {getJobStatusString(jobStatus)}
+                                    <Badge colorScheme={getStatusColor(getJobStatusString(mergedJobData || undefined))}>
+                                        {getJobStatusString(mergedJobData || undefined)}
                                     </Badge>
                                 </WrapItem>
                             )}
@@ -693,7 +810,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     <LogDisplay
                         logType="stdout"
                         jrJobId={jrJobId!}
-                        isJobFinished={isJobFinished(jobStatus)}
+                        isJobFinished={isJobFinished(mergedJobData || undefined)}
                         formatFileSize={formatFileSize}
                         fetchLogData={getSlurmJobStdoutFull}
                         getSlurmJobLogSize={getSlurmJobStdoutSize}
@@ -702,7 +819,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     <LogDisplay
                         logType="stderr"
                         jrJobId={jrJobId!}
-                        isJobFinished={isJobFinished(jobStatus)}
+                        isJobFinished={isJobFinished(mergedJobData || undefined)}
                         formatFileSize={formatFileSize}
                         fetchLogData={getSlurmJobStderrFull}
                         getSlurmJobLogSize={getSlurmJobStderrSize}

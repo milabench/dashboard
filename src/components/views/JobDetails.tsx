@@ -60,6 +60,8 @@ import {
 } from '../../services/api';
 import type { SlurmJob } from '../../services/types';
 
+import { NO_JOB_ID, NO_JOB_STATE } from '../../Constant';
+
 const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
         case 'running':
@@ -154,7 +156,7 @@ export const JobDetailsView: React.FC = () => {
     };
 
     // Set page title with the best available job ID
-    const displayJobId = jobInfo?.job_id || job?.job_id || slurmJobId || 'Unknown';
+    const displayJobId = jobInfo?.job_id || job?.job_id || slurmJobId || NO_JOB_ID;
     usePageTitle(`Job Details - ${displayJobId}`);
 
     // Show loading if we're still loading initial jobs data or job info
@@ -251,7 +253,7 @@ export const JobDetailsView: React.FC = () => {
                             <HStack>
                                 {getStatusIcon(jobInfo?.job_state?.[0] || job?.job_state?.[0] || '')}
                                 <Badge colorScheme={getStatusColor(jobInfo?.job_state?.[0] || job?.job_state?.[0] || '')}>
-                                    {jobInfo?.job_state?.[0] || job?.job_state?.[0] || 'Unknown'}
+                                    {jobInfo?.job_state?.[0] || job?.job_state?.[0] || NO_JOB_ID}
                                 </Badge>
                             </HStack>
                         </HStack>
@@ -383,7 +385,7 @@ const JobDetailsTabs: React.FC<{
                                             <Box>
                                                 <Text fontWeight="bold">Status</Text>
                                                 <Badge colorScheme={getStatusColor(jobInfo.job_state?.[0] || '')}>
-                                                    {jobInfo.job_state?.[0] || 'Unknown'}
+                                                    {jobInfo.job_state?.[0] || NO_JOB_STATE}
                                                 </Badge>
                                             </Box>
                                             <Box>

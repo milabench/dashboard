@@ -195,6 +195,65 @@ export interface SlurmJobData {
     data_files: string[];
 }
 
+export interface SlurmJobAccounting {
+    job_id: number;
+    account: string;
+    state: {
+        current: string[];
+        reason: string;
+    };
+    derived_exit_code: {
+        status: string[];
+        return_code: {
+            set: boolean;
+            infinite: boolean;
+            number: number;
+        };
+        signal: {
+            id: {
+                set: boolean;
+                infinite: boolean;
+                number: number;
+            };
+            name: string;
+        };
+    };
+    exit_code: {
+        status: string[];
+        return_code: {
+            set: boolean;
+            infinite: boolean;
+            number: number;
+        };
+        signal: {
+            id: {
+                set: boolean;
+                infinite: boolean;
+                number: number;
+            };
+            name: string;
+        };
+    };
+    time: {
+        elapsed: number;
+        eligible: number;
+        end: number;
+        start: number;
+        submission: number;
+        suspended: number;
+        limit: {
+            set: boolean;
+            infinite: boolean;
+            number: number;
+        };
+    };
+    name: string;
+    partition: string;
+    nodes: string;
+    user: string;
+    [key: string]: any; // For additional fields that might be present
+}
+
 export interface SlurmPartition {
     partition: string;
     allocated: string;

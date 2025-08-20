@@ -96,6 +96,7 @@ import {
 } from '../../services/api';
 import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { NO_JOB_ID, NO_JOB_STATE, NO_JR_JOB_ID } from '../../Constant';
 
 interface DashboardViewProps {
     // Add props as needed
@@ -190,11 +191,10 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const persistedJobIds = persistedJobsData || [];
 
     const getJobState = (job: SlurmJob) => {
-        return job.job_state?.[0]?.toLowerCase() || '';
-    };
-
-    const getJobStateDisplay = (job: SlurmJob) => {
-        return job.job_state?.[0] || 'Unknown';
+        if (Array.isArray(job.job_state)) {
+            return job.job_state[0]?.toLowerCase() || '';
+        }
+        return job.job_state?.toLowerCase() || '';
     };
 
     const runningJobs = activeJobs.filter((job: SlurmJob) =>
@@ -440,8 +440,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     };
 
     const handleViewJobDetails = (job: SlurmJob) => {
-        const jrJobId = typeof job.jr_job_id === 'string' ? job.jr_job_id : 'unknown';
-        const jobId = job.job_id || 'unknown';
+        const jrJobId = typeof job.jr_job_id === 'string' ? job.jr_job_id : NO_JR_JOB_ID;
+        const jobId = job.job_id || NO_JOB_ID;
         navigate(`/jobrunner/${jobId}/${jrJobId}`);
     };
 
@@ -667,9 +667,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                 </Td>
                                                 <Td>
                                                     <HStack>
-                                                        {getStatusIcon(getJobStateDisplay(job))}
-                                                        <Badge colorScheme={getStatusColor(getJobStateDisplay(job))}>
-                                                            {getJobStateDisplay(job)}
+                                                        {getStatusIcon(job.job_state?.[0] || '')}
+                                                        <Badge colorScheme={getStatusColor(job.job_state?.[0] || '')}>
+                                                            {job.job_state?.[0] || NO_JOB_STATE}
                                                         </Badge>
                                                     </HStack>
                                                 </Td>
@@ -703,8 +703,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                 onClick={() => navigate(`/joblogs/${job.job_id}/${job.jr_job_id}`)}
                                                             />
                                                         </Tooltip>
-                                                        {(getJobState(job) === 'running' ||
-                                                            getJobState(job) === 'pending') && (
+                                                        {(job.job_state?.[0]?.toLowerCase() === 'running' ||
+                                                            job.job_state?.[0]?.toLowerCase() === 'pending') && (
                                                                 <Tooltip label="Cancel Job">
                                                                     <IconButton
                                                                         aria-label="Cancel job"
@@ -838,9 +838,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                     </Td>
                                                     <Td>
                                                         <HStack>
-                                                            {getStatusIcon(getJobStateDisplay(job))}
-                                                            <Badge colorScheme={getStatusColor(getJobStateDisplay(job))}>
-                                                                {getJobStateDisplay(job)}
+                                                            {getStatusIcon(job.job_state?.[0] || '')}
+                                                            <Badge colorScheme={getStatusColor(job.job_state?.[0] || '')}>
+                                                                {job.job_state?.[0] || NO_JOB_STATE}
                                                             </Badge>
                                                         </HStack>
                                                     </Td>
@@ -865,8 +865,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                     onClick={() => handleViewJobDetails(job)}
                                                                 />
                                                             </Tooltip>
-                                                            {(getJobState(job) === 'running' ||
-                                                                getJobState(job) === 'pending') && (
+                                                            {(job.job_state?.[0]?.toLowerCase() === 'running' ||
+                                                                job.job_state?.[0]?.toLowerCase() === 'pending') && (
                                                                     <Tooltip label="Cancel Job">
                                                                         <IconButton
                                                                             aria-label="Cancel job"
