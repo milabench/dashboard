@@ -44,7 +44,7 @@ import {
     Code
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
 import type { SlurmJob, SlurmJobAccounting } from '../../services/types';
 import { LogDisplay } from './LogDisplay';
@@ -85,17 +85,28 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [slurmJobId, setSlurmJobId] = useState(params_SlurmJobId);
     const [jobInfo, setJobInfo] = useState<SlurmJob | null>(null);
 
+    // Keep slurmJobId in sync with URL parameters (important for rerun navigation)
+    useEffect(() => {
+        if (params_SlurmJobId !== slurmJobId) {
+            console.log('URL parameter changed, updating slurmJobId from', slurmJobId, 'to', params_SlurmJobId);
+            setSlurmJobId(params_SlurmJobId);
+            // Reset jobInfo when navigating to a new job to prevent stale data
+            setJobInfo(null);
+        }
+    }, [params_SlurmJobId]);
+
     usePageTitle(`Job Logs - ${slurmJobId || 'Unknown'}`);
 
     const updateJobInfo = (newJobInfo: SlurmJob) => {
         if (slurmJobId === NO_JOB_ID) {
-            setSlurmJobId(newJobInfo.job_id || NO_JOB_ID);
+            setSlurmJobId(newJobInfo.job_id || undefined);
         }
         setJobInfo(newJobInfo)
     };
 
     const navigate = useNavigate();
     const toast = useToast();
+    const queryClient = useQueryClient();
     const bgColor = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
 
@@ -342,7 +353,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             return getSlurmJobInfo(jrJobId!, useJobId);
         },
         enabled: !!jrJobId,
-        staleTime: 5 * 60 * 1000, // Cache for 5 minutes since this is detailed info that doesn't change often
+        staleTime: 30 * 1000, // Cache for 30 seconds to allow fresh data for reruns
     });
 
     // Update jobInfo state when new data comes from the query
@@ -525,9 +536,13 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     isClosable: true,
                 });
 
+                // Invalidate old queries to ensure fresh data for the new job
+                queryClient.invalidateQueries({ queryKey: ['slurm-job-info'] });
+                queryClient.invalidateQueries({ queryKey: ['slurm-job-status-with-fallback'] });
+
                 // Navigate to the new job logs after a short delay
                 setTimeout(() => {
-                    navigate(`/joblogs/${result.job_id || '-'}/${result.jr_job_id || jrJobId}`);
+                    navigate(`/joblogs/${result.job_id || NO_JOB_ID}/${result.jr_job_id || NO_JOB_ID}`);
                 }, 2000);
             } else {
                 toast({
