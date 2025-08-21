@@ -540,13 +540,10 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     };
 
     return (
-        <Box p={5} marginLeft="-5px">
-            <VStack align="stretch" spacing={4}>
+        <Box p={5} marginLeft="-5px" h="100%">
+            <VStack align="stretch" spacing={4} h="100%">
                 <Box>
-                    <Heading size="lg" mb={2}>Slurm Cluster Dashboard</Heading>
-                    <Text color="gray.600">
-                        Monitor and manage your Milabench jobs on the Slurm cluster
-                    </Text>
+                    <Heading size="lg" mb={2}>Milabench Jobs</Heading>
                 </Box>
 
                 {/* Cluster Statistics */}
@@ -733,11 +730,11 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Card>
 
                 {/* Persisted Jobs Table */}
-                <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
+                <Card bg={bgColor} border="1px solid" borderColor={borderColor} h="calc(100vh - 36em)">
                     <CardHeader>
                         <Heading size="md">Persisted Jobs</Heading>
                     </CardHeader>
-                    <CardBody>
+                    <CardBody overflowY="auto"> 
                         {(persistedJobsError) ? (
                             <Alert status="error">
                                 <AlertIcon />
@@ -752,7 +749,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 <Text mt={4}>Loading persisted jobs...</Text>
                             </Box>
                         ) : (
-                            <Box overflowX="auto">
+                            <Box>
                                 <Table variant="simple">
                                     <Thead>
                                         <Tr>
