@@ -26,16 +26,26 @@ import type { SlurmJobSubmitRequest, SlurmProfile, SlurmJob } from '../../servic
 const parseExportVariables = (script: string, only_constant: boolean = true): Record<string, string> => {
 
     const exportRegex = only_constant ?
-        /export\s+([A-Z_][A-Z0-9_]*)\s*=\s*([^$\n\r]+)\n/gi :
-        /export\s+([A-Z_][A-Z0-9_]*)\s*=\s*([^\n\r]+)\n/gi;
+        /export\s+([A-Z_][A-Z0-9_]*)\s*=\s*([^$\n\r]*)\n/gi :
+        /export\s+([A-Z_][A-Z0-9_]*)\s*=\s*([^\n\r]*)\n/gi;
 
     const variables: Record<string, string> = {};
     let match;
 
     while ((match = exportRegex.exec(script)) !== null) {
         const [, varName, varValue] = match;
-        // Clean up the value by removing quotes and trimming
-        const cleanValue = varValue.replace(/^["']|["']$/g, '').trim();
+        // Clean up the value by removing outer quotes but preserve intentional spaces
+        let cleanValue = varValue;
+
+        // Check if the value is wrapped in quotes and remove them, preserving content inside
+        if ((cleanValue.startsWith('"') && cleanValue.endsWith('"')) ||
+            (cleanValue.startsWith("'") && cleanValue.endsWith("'"))) {
+            cleanValue = cleanValue.slice(1, -1);
+        } else {
+            // Only trim if not quoted to avoid removing intentional spaces
+            cleanValue = cleanValue.trim();
+        }
+
         variables[varName] = cleanValue;
     }
 
@@ -47,8 +57,15 @@ const updateScriptWithExportVars = (script: string, scriptArgs: Record<string, s
     let updatedScript = script;
 
     Object.entries(scriptArgs).forEach(([varName, varValue]) => {
-        const exportRegex = new RegExp(`(export\\s+${varName}\\s*=\\s*)([^\\n\\r]+)`, 'gi');
-        const replacement = `$1${varValue}`;
+        const exportRegex = new RegExp(`(export\\s+${varName}\\s*=\\s*)([^\\n\\r]*)`, 'gi');
+
+        // Quote the value if it contains spaces or special characters, or if it's empty
+        let quotedValue = varValue;
+        if (varValue === '' || /\s/.test(varValue) || /[|&;<>(){}[\]$`"']/.test(varValue)) {
+            quotedValue = `"${varValue.replace(/"/g, '\\"')}"`;
+        }
+
+        const replacement = `$1${quotedValue}`;
         updatedScript = updatedScript.replace(exportRegex, replacement);
     });
 
