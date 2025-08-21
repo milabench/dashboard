@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
@@ -206,8 +206,9 @@ export const JobDetailsView: React.FC = () => {
                     </Button>
                     {jrJobId && (
                         <Button
-                            leftIcon={<ExternalLinkIcon />}
-                            onClick={() => navigate(`/joblogs/${slurmJobId}/${jrJobId}`)}
+                            as={Link}
+                            to={`/joblogs/${slurmJobId}/${jrJobId}`}
+                            leftIcon={<ViewIcon />}
                             variant="outline"
                             colorScheme="blue"
                         >

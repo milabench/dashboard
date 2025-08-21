@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
@@ -43,7 +43,7 @@ import {
     AccordionIcon,
     Code
 } from '@chakra-ui/react';
-import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon } from '@chakra-ui/icons';
+import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon, InfoIcon } from '@chakra-ui/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
 import type { SlurmJob, SlurmJobAccounting } from '../../services/types';
@@ -731,10 +731,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             Save Job
                         </Button>
                         <Button
-                            leftIcon={<ViewIcon />}
+                            as={Link}
+                            to={`/jobrunner/${slurmJobId}/${jrJobId}`}
+                            leftIcon={<InfoIcon />}
                             variant="outline"
                             colorScheme="blue"
-                            onClick={() => navigate(`/jobrunner/${slurmJobId}/${jrJobId}`)}
                             isDisabled={!slurmJobId || slurmJobId === '-'}
                         >
                             Job Details

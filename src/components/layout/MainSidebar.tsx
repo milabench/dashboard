@@ -16,7 +16,7 @@ const navItems: NavItem[] = [
     {
         label: 'Slurm',
         routes: [
-            { label: 'Cluster Dashboard', path: '/' },
+            { label: 'Jobs', path: '/' },
         ]
     },
     {

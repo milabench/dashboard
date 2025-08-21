@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
     Box,
     Heading,
@@ -542,82 +542,39 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     return (
         <Box p={5} marginLeft="-5px" h="100%">
             <VStack align="stretch" spacing={4} h="100%">
-                <Box>
-                    <Heading size="lg" mb={2}>Milabench Jobs</Heading>
-                </Box>
-
-                {/* Cluster Statistics */}
-                <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={3}>
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
-                        <CardBody>
-                            <Stat>
-                                <StatLabel>Active Jobs</StatLabel>
-                                <StatNumber>{activeJobs.length}</StatNumber>
-                                <StatHelpText>
-                                    <StatArrow type="increase" />
-                                    23.36%
-                                </StatHelpText>
-                            </Stat>
-                        </CardBody>
-                    </Card>
-
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
-                        <CardBody>
-                            <Stat>
-                                <StatLabel>Running Jobs</StatLabel>
-                                <StatNumber color="green.500">{runningJobs.length}</StatNumber>
-                                <StatHelpText>Active executions</StatHelpText>
-                            </Stat>
-                        </CardBody>
-                    </Card>
-
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
-                        <CardBody>
-                            <Stat>
-                                <StatLabel>Pending Jobs</StatLabel>
-                                <StatNumber color="yellow.500">{pendingJobs.length}</StatNumber>
-                                <StatHelpText>Waiting in queue</StatHelpText>
-                            </Stat>
-                        </CardBody>
-                    </Card>
-
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
-                        <CardBody>
-                            <Stat>
-                                <StatLabel>Persisted Jobs</StatLabel>
-                                <StatNumber color="blue.500">{persistedJobIds.length}</StatNumber>
-                                <StatHelpText>Available outputs</StatHelpText>
-                            </Stat>
-                        </CardBody>
-                    </Card>
-                </Grid>
 
                 {/* Action Buttons */}
-                <HStack spacing={3}>
-                    <Button
-                        leftIcon={<AddIcon />}
-                        colorScheme="blue"
-                        onClick={onOpen}
-                    >
-                        Submit New Job
-                    </Button>
-                    <Button
-                        leftIcon={<RepeatIcon />}
-                        variant="outline"
-                        onClick={() => {
-                            queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
-                            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
-                        }}
-                        isLoading={activeJobsLoading || persistedJobsLoading}
-                    >
-                        Refresh Jobs
-                    </Button>
+                <HStack spacing={3} justify={"space-between"}>
+                    <Box>
+                        <Heading size="lg" mb={2}>Jobs</Heading>
+                    </Box>
+
+                    <HStack spacing={3} justify={"space-between"}>
+                        <Button
+                            leftIcon={<AddIcon />}
+                            colorScheme="blue"
+                            onClick={onOpen}
+                        >
+                            Submit New Job
+                        </Button>
+                        <Button
+                            leftIcon={<RepeatIcon />}
+                            variant="outline"
+                            onClick={() => {
+                                queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+                                queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
+                            }}
+                            isLoading={activeJobsLoading || persistedJobsLoading}
+                        >
+                            Refresh Jobs
+                        </Button>
+                    </HStack>
                 </HStack>
 
                 {/* Active Jobs Table */}
                 <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
                     <CardHeader>
-                        <Heading size="md">Active Jobs</Heading>
+                        <Heading size="md">Active Jobs (squeue)</Heading>
                     </CardHeader>
                     <CardBody>
                         {(activeJobsError) ? (
@@ -684,20 +641,22 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                     <HStack spacing={2}>
                                                         <Tooltip label="View Details">
                                                             <IconButton
+                                                                as={Link}
+                                                                to={`/jobrunner/${job.job_id || NO_JOB_ID}/${typeof job.jr_job_id === 'string' ? job.jr_job_id : NO_JR_JOB_ID}`}
                                                                 aria-label="View job details"
-                                                                icon={<ViewIcon />}
+                                                                icon={<InfoIcon />}
                                                                 size="sm"
                                                                 variant="ghost"
-                                                                onClick={() => handleViewJobDetails(job)}
                                                             />
                                                         </Tooltip>
                                                         <Tooltip label="View Logs">
                                                             <IconButton
+                                                                as={Link}
+                                                                to={`/joblogs/${job.job_id}/${job.jr_job_id}`}
                                                                 aria-label="View job logs"
-                                                                icon={<ExternalLinkIcon />}
+                                                                icon={<ViewIcon />}
                                                                 size="sm"
                                                                 variant="ghost"
-                                                                onClick={() => navigate(`/joblogs/${job.job_id}/${job.jr_job_id}`)}
                                                             />
                                                         </Tooltip>
                                                         {(job.job_state?.[0]?.toLowerCase() === 'running' ||
@@ -730,11 +689,11 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Card>
 
                 {/* Persisted Jobs Table */}
-                <Card bg={bgColor} border="1px solid" borderColor={borderColor} h="calc(100vh - 36em)">
+                <Card bg={bgColor} border="1px solid" borderColor={borderColor} h="calc(100vh - 25em)">
                     <CardHeader>
-                        <Heading size="md">Persisted Jobs</Heading>
+                        <Heading size="md">Persisted Jobs (filesystem)</Heading>
                     </CardHeader>
-                    <CardBody overflowY="auto"> 
+                    <CardBody overflowY="auto">
                         {(persistedJobsError) ? (
                             <Alert status="error">
                                 <AlertIcon />
@@ -790,29 +749,22 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             <HStack spacing={2}>
                                                                 <Tooltip label="View Details">
                                                                     <IconButton
+                                                                        as={Link}
+                                                                        to={`/jobrunner/${NO_JOB_ID}/${jrJobId}`}
                                                                         aria-label="View job details"
-                                                                        icon={<ViewIcon />}
+                                                                        icon={<InfoIcon />}
                                                                         size="sm"
                                                                         variant="ghost"
-                                                                        onClick={() => handleViewJobDetails({
-                                                                            job_id: null,
-                                                                            jr_job_id: jrJobId,
-                                                                            name: 'Persisted Job',
-                                                                            job_state: ['COMPLETED'],
-                                                                            partition: 'N/A',
-                                                                            user_name: 'N/A',
-                                                                            time_limit: { number: 0, set: false, infinite: false },
-                                                                            nodes: 'N/A'
-                                                                        })}
                                                                     />
                                                                 </Tooltip>
                                                                 <Tooltip label="View Logs">
                                                                     <IconButton
+                                                                        as={Link}
+                                                                        to={`/joblogs/-/${jrJobId}`}
                                                                         aria-label="View job logs"
-                                                                        icon={<ExternalLinkIcon />}
+                                                                        icon={<ViewIcon />}
                                                                         size="sm"
                                                                         variant="ghost"
-                                                                        onClick={() => navigate(`/joblogs/-/${jrJobId}`)}
                                                                     />
                                                                 </Tooltip>
                                                             </HStack>
@@ -855,11 +807,12 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                         <HStack spacing={2}>
                                                             <Tooltip label="View Details">
                                                                 <IconButton
+                                                                    as={Link}
+                                                                    to={`/jobrunner/${job.job_id || NO_JOB_ID}/${typeof job.jr_job_id === 'string' ? job.jr_job_id : NO_JR_JOB_ID}`}
                                                                     aria-label="View job details"
-                                                                    icon={<ViewIcon />}
+                                                                    icon={<InfoIcon />}
                                                                     size="sm"
                                                                     variant="ghost"
-                                                                    onClick={() => handleViewJobDetails(job)}
                                                                 />
                                                             </Tooltip>
                                                             {(job.job_state?.[0]?.toLowerCase() === 'running' ||
