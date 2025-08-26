@@ -195,6 +195,11 @@ export interface SlurmJobData {
     data_files: string[];
 }
 
+export interface SlurmClusterStatus {
+    status: 'online' | 'offline';
+    reason?: string;
+}
+
 export interface SlurmJobAccounting {
     job_id: number;
     account: string;

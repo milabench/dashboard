@@ -41,11 +41,12 @@ import {
     AccordionButton,
     AccordionPanel,
     AccordionIcon,
-    Code
+    Code,
+    Tooltip
 } from '@chakra-ui/react';
 import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon, InfoIcon } from '@chakra-ui/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatus, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus } from '../../services/api';
 import type { SlurmJob, SlurmJobAccounting } from '../../services/types';
 import { LogDisplay } from './LogDisplay';
 import { NO_JOB_ID } from '../../Constant';
@@ -421,6 +422,16 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         refetchIntervalInBackground: true,
     });
 
+    // Cluster status query to show stale badge when offline
+    const { data: clusterStatus } = useQuery({
+        queryKey: ['slurm-cluster-status'],
+        queryFn: getSlurmClusterStatus,
+        refetchOnWindowFocus: false,
+        staleTime: 30000, // Consider data fresh for 30 seconds
+        refetchInterval: 60000, // Refetch every minute
+        retry: false, // Don't retry on error to avoid excessive requests when cluster is down
+    });
+
     // Merged job data - jobStatus updates take precedence over jobInfo for current state
     const mergedJobData = useMemo(() => {
         return jobStatus ? { ...jobInfo, ...jobStatus } : jobInfo;
@@ -497,9 +508,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             // LogDisplay components handle their own final refresh
             toast({
                 title: 'Job Finished',
-                description: 'Job has completed. LogDisplay components will perform final refresh automatically.',
+                description: 'Job has completed. Logs will perform final refresh in 2 seconds to capture any final output.',
                 status: 'info',
-                duration: 3000,
+                duration: 5000,
                 isClosable: true,
             });
         }
@@ -510,10 +521,12 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         if (slurmJobId && slurmJobId !== '-') {
             refetchStatus();
         }
+        // Refresh cluster status as well
+        queryClient.invalidateQueries({ queryKey: ['slurm-cluster-status'] });
         setCountdown(30); // Reset countdown
         toast({
             title: 'Status Refreshed',
-            description: 'Job status has been refreshed. Logs auto-refresh independently.',
+            description: 'Job status has been refreshed. Logs will refresh automatically or can be manually refreshed using browser refresh.',
             status: 'success',
             duration: 2000,
             isClosable: true,
@@ -689,9 +702,26 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             <VStack align="stretch" spacing={3} h="100%">
                 {/* Header */}
                 <HStack justify="space-between">
-                    <Box>
+                    <HStack spacing={3}>
                         <Heading size="lg" mb={2}>Job Logs</Heading>
-                    </Box>
+                        {clusterStatus?.status === 'offline' && (
+                            <Tooltip
+                                label={`Logs may be stale - cluster is offline${clusterStatus.reason ? `: ${clusterStatus.reason}` : ''}`}
+                            >
+                                <Badge
+                                    colorScheme="orange"
+                                    variant="solid"
+                                    fontSize="sm"
+                                    px={3}
+                                    py={1}
+                                    borderRadius="full"
+                                    cursor="help"
+                                >
+                                    Stale Data
+                                </Badge>
+                            </Tooltip>
+                        )}
+                    </HStack>
                     <HStack spacing={3}>
                         <Button
                             leftIcon={<RepeatIcon />}

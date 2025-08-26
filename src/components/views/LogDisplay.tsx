@@ -41,6 +41,8 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     // Internal state for truncation and log size
     const [isTruncated, setIsTruncated] = useState(false);
     const [logSize, setLogSize] = useState<number | null>(null);
+    // Track previous job finished state to detect when job just finished
+    const [prevIsJobFinished, setPrevIsJobFinished] = useState(isJobFinished);
     const logRef = useRef<HTMLDivElement>(null);
 
     const displayName = logType === 'stdout' ? 'Standard Output (stdout)' : 'Standard Error (stderr)';
@@ -87,6 +89,19 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
         refetchInterval: isJobFinished ? false : 30000, // Disable refresh if job is finished
         refetchIntervalInBackground: true,
     });
+
+    // Effect to perform final refresh when job finishes
+    useEffect(() => {
+        // If job just finished (changed from false to true), do a final refresh
+        if (!prevIsJobFinished && isJobFinished) {
+            console.log(`Job finished, performing final ${logType} refresh`);
+            // Wait a short delay to ensure any final output is written
+            setTimeout(() => {
+                refetch();
+            }, 2000); // 2 second delay to allow final output to be written
+        }
+        setPrevIsJobFinished(isJobFinished);
+    }, [isJobFinished, prevIsJobFinished, refetch, logType]);
 
     // Auto-scroll effect
     useEffect(() => {

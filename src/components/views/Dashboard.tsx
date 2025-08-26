@@ -93,6 +93,7 @@ import {
     getSlurmProfiles,
     saveSlurmProfile,
     saveSlurmTemplate,
+    getSlurmClusterStatus,
 } from '../../services/api';
 import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -177,8 +178,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         staleTime: 600000, // Consider data fresh for 10 minutes
     });
 
-
-
     const { data: profiles } = useQuery({
         queryKey: ['slurm-profiles'],
         queryFn: getSlurmProfiles,
@@ -186,27 +185,23 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         staleTime: 300000, // Consider data fresh for 5 minutes
     });
 
+    const { data: clusterStatus, isLoading: clusterStatusLoading } = useQuery({
+        queryKey: ['slurm-cluster-status'],
+        queryFn: getSlurmClusterStatus,
+        refetchOnWindowFocus: false,
+        staleTime: 30000, // Consider data fresh for 30 seconds
+        refetchInterval: 60000, // Refetch every minute
+        retry: false, // Don't retry on error to avoid excessive requests when cluster is down
+    });
+
     // Separate active jobs and persisted jobs
     const activeJobs = activeJobsData || [];
     const persistedJobIds = persistedJobsData || [];
 
     const getJobState = (job: SlurmJob) => {
-        if (Array.isArray(job.job_state)) {
-            return job.job_state[0]?.toLowerCase() || '';
-        }
-        return job.job_state?.toLowerCase() || '';
+        const state = job.job_state?.[0];
+        return state ? state.toLowerCase() : '';
     };
-
-    const runningJobs = activeJobs.filter((job: SlurmJob) =>
-        getJobState(job) === 'running'
-    );
-    const pendingJobs = activeJobs.filter((job: SlurmJob) =>
-        getJobState(job) === 'pending'
-    );
-    const completedJobs = activeJobs.filter((job: SlurmJob) =>
-        getJobState(job) === 'completed'
-    );
-
 
     const cancelJobMutation = useMutation({
         mutationFn: cancelSlurmJob,
@@ -545,26 +540,70 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
                 {/* Action Buttons */}
                 <HStack spacing={3} justify={"space-between"}>
-                    <Box>
+                     <HStack spacing={2}>
                         <Heading size="lg" mb={2}>Jobs</Heading>
-                    </Box>
+                        {clusterStatusLoading ? (
+                                <Tooltip label="Checking cluster status...">
+                                    <Spinner size="sm" />
+                                </Tooltip>
+                            ) : clusterStatus ? (
+                                <Tooltip
+                                    label={
+                                        clusterStatus.status === 'offline' && clusterStatus.reason
+                                            ? `${clusterStatus.reason}`
+                                            : clusterStatus.status === 'online'
+                                                ? 'Cluster is online and ready to accept jobs'
+                                                : 'Cluster status'
+                                    }
+                                >
+                                    <Badge
+                                        colorScheme={clusterStatus.status === 'online' ? 'green' : 'red'}
+                                        variant="solid"
+                                        fontSize="sm"
+                                        px={3}
+                                        py={1}
+                                        borderRadius="full"
+                                        cursor="help"
+                                    >
+                                        Cluster {clusterStatus.status === 'online' ? 'Online' : 'Offline'}
+                                    </Badge>
+                                </Tooltip>
+                            ) : (
+                                <Tooltip label="Unable to determine cluster status">
+                                    <Badge
+                                        colorScheme="gray"
+                                        variant="solid"
+                                        fontSize="sm"
+                                        px={3}
+                                        py={1}
+                                        borderRadius="full"
+                                        cursor="help"
+                                    >
+                                        Status Unknown
+                                    </Badge>
+                                </Tooltip>
+                            )}
+                    </HStack>
 
                     <HStack spacing={3} justify={"space-between"}>
-                        <Button
-                            leftIcon={<AddIcon />}
-                            colorScheme="blue"
-                            onClick={onOpen}
-                        >
-                            Submit New Job
-                        </Button>
+                        
+                            <Button
+                                leftIcon={<AddIcon />}
+                                colorScheme="blue"
+                                onClick={onOpen}
+                            >
+                                Submit New Job
+                            </Button>
+                            
                         <Button
                             leftIcon={<RepeatIcon />}
                             variant="outline"
                             onClick={() => {
                                 queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
                                 queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
+                                queryClient.invalidateQueries({ queryKey: ['slurm-cluster-status'] });
                             }}
-                            isLoading={activeJobsLoading || persistedJobsLoading}
+                            isLoading={activeJobsLoading || persistedJobsLoading || clusterStatusLoading}
                         >
                             Refresh Jobs
                         </Button>
