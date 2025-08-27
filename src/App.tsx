@@ -13,6 +13,7 @@ import SavedQueriesView from './components/views/SavedQueriesView';
 import { DashboardView } from './components/views/Dashboard';
 import { JobDetailsView } from './components/views/JobDetails';
 import { JobLogsView } from './components/views/JobLogs';
+import { PipelinesView } from './components/views/PipelinesView';
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ function App() {
                 <Route path="/grouped" element={<GroupedView />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
+                <Route path="/pipelines" element={<PipelinesView />} />
               </Routes>
             </Layout>
           </Router>

@@ -306,12 +306,85 @@ export interface SlurmProfile {
     };
 }
 
-
-
 export interface SlurmProfileSaveRequest {
     name: string;
     description?: string;
     sbatch_args: string[];
+}
+
+// Pipeline-related types
+export interface PipelineJob {
+    type: 'job';
+    script: string;
+    profile: string;
+    job_id?: string;
+    slurm_jobid?: string;
+}
+
+export interface PipelineSequential {
+    type: 'sequential';
+    name: string;
+    jobs: PipelineNode[];
+}
+
+export interface PipelineParallel {
+    type: 'parallel';
+    name: string;
+    jobs: PipelineNode[];
+}
+
+export interface Pipeline {
+    type: 'pipeline';
+    name: string;
+    definition: PipelineNode;
+    job_id?: string;
+}
+
+export type PipelineNode = PipelineJob | PipelineSequential | PipelineParallel;
+
+export interface PipelineRun {
+    id: string;
+    name: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    created_at: string;
+    started_at?: string;
+    completed_at?: string;
+    pipeline: Pipeline;
+    jobs: PipelineJobStatus[];
+}
+
+export interface PipelineJobStatus {
+    job_id: string;
+    slurm_jobid?: string;
+    name: string;
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+    started_at?: string;
+    completed_at?: string;
+    dependencies?: string[];
+}
+
+export interface PipelineTemplate {
+    name: string;
+    description: string;
+    pipeline: Pipeline;
+}
+
+export interface PipelineCreateRequest {
+    name: string;
+    pipeline: Pipeline;
+}
+
+export interface PipelineRunRequest {
+    pipeline_id: string;
+    name?: string;
+}
+
+export interface PipelineListResponse {
+    pipelines: Pipeline[];
+}
+
+export interface PipelineRunsResponse {
+    runs: PipelineRun[];
 }
 
 

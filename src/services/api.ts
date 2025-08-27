@@ -482,3 +482,33 @@ export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ 
         return handleError(error);
     }
 };
+
+
+
+// Pipeline template file management (matching server endpoints)
+export const getPipelineTemplatesList = async (): Promise<string[]> => {
+    try {
+        const response = await api.get('/slurm/pipeline/template/list');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const savePipelineToFile = async (pipelineData: any): Promise<{ success?: boolean; error?: string }> => {
+    try {
+        const response = await api.post('/slurm/pipeline/template/save', pipelineData);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const loadPipelineFromFile = async (name: string): Promise<any> => {
+    try {
+        const response = await api.get(`/slurm/pipeline/template/load/${name}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
