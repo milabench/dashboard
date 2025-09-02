@@ -7,7 +7,7 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
     return (
-        <Box h="100vh" bg="gray.50" className="layout">
+        <Box h="100vh" w="100vw" bg="gray.50" className="layout">
             <MainSidebar />
             <Box
                 className="main-content"

@@ -728,7 +728,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Card>
 
                 {/* Persisted Jobs Table */}
-                <Card bg={bgColor} border="1px solid" borderColor={borderColor} h="calc(100vh - 25em)">
+                <Card bg={bgColor} border="1px solid" borderColor={borderColor} h="100%" overflow="auto">
                     <CardHeader>
                         <Heading size="md">Persisted Jobs (filesystem)</Heading>
                     </CardHeader>

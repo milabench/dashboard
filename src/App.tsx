@@ -19,8 +19,7 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
-    <div className="app" style={{ width: '100vw' }}>
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
         <ChakraProvider>
           <Router>
             <Layout>
@@ -42,7 +41,6 @@ function App() {
           </Router>
         </ChakraProvider>
       </QueryClientProvider>
-    </div>
   );
 }
 
