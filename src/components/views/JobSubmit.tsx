@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useRef, useMemo, Suspense, useState } from 'react';
 import {
     Grid,
     VStack,
@@ -17,11 +17,18 @@ import {
     Spacer,
     Box,
     Select,
+    useToast,
 } from '@chakra-ui/react';
 
 import { MonacoEditor } from '../shared/MonacoEditor';
-
-import type { SlurmJobSubmitRequest, SlurmProfile, SlurmJob } from '../../services/types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { 
+    submitSlurmJob, 
+    getSlurmTemplateContent, 
+    saveSlurmProfile, 
+    saveSlurmTemplate 
+} from '../../services/api';
+import type { SlurmProfile, SlurmJob } from '../../services/types';
 
 // Utility function to parse export variables from script content
 // if only_constant=true then ignores exported variables that are derived
@@ -75,44 +82,303 @@ const updateScriptWithExportVars = (script: string, scriptArgs: Record<string, s
 };
 
 interface JobSubmissionFormProps {
-    form: SlurmJobSubmitRequest;
-    setForm: (form: SlurmJobSubmitRequest) => void;
-    template?: string;
     templates?: string[];
     profiles: SlurmProfile[];
-    selectedProfile: string;
-    onProfileSelect: (profileName: string) => void;
-    selectedTemplate: string;
-    onTemplateSelect: (templateName: string) => void;
-    onSaveProfile: () => void;
-    saveProfileMutation: {
-        isPending: boolean;
-    };
-    onSaveTemplate: () => void;
-    saveTemplateMutation: {
-        isPending: boolean;
-    };
     activeJobs?: SlurmJob[];
-    onFormAssemble?: (assembleForm: () => SlurmJobSubmitRequest) => void;
+    onClose?: () => void;
 }
 
 export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
-    form,
-    setForm,
-    template,
-    templates,
-    profiles,
-    selectedProfile,
-    onProfileSelect,
-    selectedTemplate,
-    onTemplateSelect,
-    onSaveProfile,
-    saveProfileMutation,
-    onSaveTemplate,
-    saveTemplateMutation,
+    templates = [],
+    profiles = [],
     activeJobs = [],
-    onFormAssemble
+    onClose
 }) => {
+    const toast = useToast();
+    const queryClient = useQueryClient();
+
+    // No form state needed - we'll build the data on-demand from refs
+
+    const [selectedProfile, setSelectedProfile] = useState<string>('');
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
+    // Mutations
+    const submitJobMutation = useMutation({
+        mutationFn: submitSlurmJob,
+        onSuccess: (data) => {
+            toast({
+                title: 'Job Submitted',
+                description: `Job ${data.job_id} submitted successfully`,
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
+            if (onClose) onClose();
+        },
+        onError: (error: any) => {
+            toast({
+                title: 'Submission Failed',
+                description: error.message || 'Failed to submit job',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        },
+    });
+
+    const loadTemplateMutation = useMutation({
+        mutationFn: getSlurmTemplateContent,
+        onSuccess: (content) => {
+            // Update the Monaco editor directly
+            if (editorRef.current) {
+                editorRef.current.setValue(content);
+            }
+        },
+        onError: (error: any) => {
+            toast({
+                title: 'Template Loading Failed',
+                description: error.message || 'Failed to load template content',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        },
+    });
+
+    const saveProfileMutation = useMutation({
+        mutationFn: saveSlurmProfile,
+        onSuccess: (data) => {
+            toast({
+                title: 'Profile Saved',
+                description: data.message || 'Profile saved successfully',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            queryClient.invalidateQueries({ queryKey: ['slurm-profiles'] });
+        },
+        onError: (error: any) => {
+            toast({
+                title: 'Profile Save Failed',
+                description: error.message || 'Failed to save profile',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        },
+    });
+
+    const saveTemplateMutation = useMutation({
+        mutationFn: saveSlurmTemplate,
+        onSuccess: (data) => {
+            toast({
+                title: 'Template Saved',
+                description: data.message || 'Template saved successfully',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            queryClient.invalidateQueries({ queryKey: ['slurm-templates'] });
+        },
+        onError: (error: any) => {
+            toast({
+                title: 'Template Save Failed',
+                description: error.message || 'Failed to save template',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        },
+    });
+
+    // Handler functions
+    const handleProfileSelect = (profileName: string) => {
+        setSelectedProfile(profileName);
+        const selectedProfileData = profiles?.find(p => p.name === profileName);
+        if (selectedProfileData) {
+            // Update form fields directly from refs
+            if (selectedProfileData.parsed_args.job_name && jobNameRef.current) {
+                jobNameRef.current.value = selectedProfileData.parsed_args.job_name;
+            }
+            if (selectedProfileData.parsed_args.partition && partitionRef.current) {
+                partitionRef.current.value = selectedProfileData.parsed_args.partition;
+            }
+            if (selectedProfileData.parsed_args.nodes && nodesRef.current) {
+                nodesRef.current.value = selectedProfileData.parsed_args.nodes.toString();
+            }
+            if (selectedProfileData.parsed_args.ntasks && ntasksRef.current) {
+                ntasksRef.current.value = selectedProfileData.parsed_args.ntasks.toString();
+            }
+            if (selectedProfileData.parsed_args.cpus_per_task && cpusPerTaskRef.current) {
+                cpusPerTaskRef.current.value = selectedProfileData.parsed_args.cpus_per_task.toString();
+            }
+            if (selectedProfileData.parsed_args.mem && memRef.current) {
+                memRef.current.value = selectedProfileData.parsed_args.mem;
+            }
+            if (selectedProfileData.parsed_args.time_limit && timeLimitRef.current) {
+                timeLimitRef.current.value = selectedProfileData.parsed_args.time_limit;
+            }
+            if (selectedProfileData.parsed_args.gpus_per_task && gpusPerTaskRef.current) {
+                gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task;
+            }
+            if (selectedProfileData.parsed_args.ntasks_per_node && ntasksPerNodeRef.current) {
+                ntasksPerNodeRef.current.value = selectedProfileData.parsed_args.ntasks_per_node.toString();
+            }
+            if (exclusiveRef.current) {
+                exclusiveRef.current.checked = selectedProfileData.parsed_args.exclusive || false;
+            }
+            if (selectedProfileData.parsed_args.export && exportVarsRef.current) {
+                exportVarsRef.current.value = selectedProfileData.parsed_args.export;
+            }
+            if (selectedProfileData.parsed_args.nodelist && nodelistRef.current) {
+                nodelistRef.current.value = selectedProfileData.parsed_args.nodelist;
+            }
+        }
+    };
+
+    const handleTemplateSelect = (templateName: string) => {
+        setSelectedTemplate(templateName);
+        if (templateName && templates?.includes(templateName)) {
+            loadTemplateMutation.mutate(templateName);
+        }
+    };
+
+    const handleSaveProfile = () => {
+        const profileName = selectedProfile.trim();
+        if (!profileName) {
+            toast({
+                title: 'Profile Name Required',
+                description: 'Please select or enter a profile name to save the current configuration.',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        const sbatch_args = [];
+        const jobName = jobNameRef.current?.value;
+        const partition = partitionRef.current?.value;
+        const nodes = nodesRef.current?.value;
+        const ntasks = ntasksRef.current?.value;
+        const cpusPerTask = cpusPerTaskRef.current?.value;
+        const mem = memRef.current?.value;
+        const timeLimit = timeLimitRef.current?.value;
+        const gpusPerTask = gpusPerTaskRef.current?.value;
+        const ntasksPerNode = ntasksPerNodeRef.current?.value;
+        const exclusive = exclusiveRef.current?.checked;
+        const exportVars = exportVarsRef.current?.value;
+        const nodelist = nodelistRef.current?.value;
+
+        if (jobName) sbatch_args.push(`--job-name=${jobName}`);
+        if (partition) sbatch_args.push(`--partition=${partition}`);
+        if (nodes) sbatch_args.push(`--nodes=${nodes}`);
+        if (ntasks) sbatch_args.push(`--ntasks=${ntasks}`);
+        if (cpusPerTask) sbatch_args.push(`--cpus-per-task=${cpusPerTask}`);
+        if (mem) sbatch_args.push(`--mem=${mem}`);
+        if (timeLimit) sbatch_args.push(`--time=${timeLimit}`);
+        if (gpusPerTask) sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
+        if (ntasksPerNode) sbatch_args.push(`--ntasks-per-node=${ntasksPerNode}`);
+        if (exclusive) sbatch_args.push('--exclusive');
+        if (exportVars) sbatch_args.push(`--export=${exportVars}`);
+        if (nodelist) sbatch_args.push(`-w ${nodelist}`);
+
+        const filteredArgs = sbatch_args.filter(arg => !arg.startsWith('--dependency'));
+
+        saveProfileMutation.mutate({
+            name: profileName,
+            description: '',
+            sbatch_args: filteredArgs
+        });
+    };
+
+    const handleSaveTemplate = () => {
+        const templateName = selectedTemplate.trim();
+        if (!templateName) {
+            toast({
+                title: 'Template Name Required',
+                description: 'Please select or enter a template name to save the current script.',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        const scriptContent = editorRef.current?.getValue() || '';
+        if (!scriptContent.trim()) {
+            toast({
+                title: 'Script Content Required',
+                description: 'Please enter script content before saving as template.',
+                status: 'warning',
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        saveTemplateMutation.mutate({
+            name: templateName,
+            content: scriptContent
+        });
+    };
+
+    const handleSubmitJob = () => {
+        // Build sbatch arguments from form fields
+        const sbatch_args = [];
+        const partition = partitionRef.current?.value;
+        const nodes = nodesRef.current?.value;
+        const ntasks = ntasksRef.current?.value;
+        const cpusPerTask = cpusPerTaskRef.current?.value;
+        const mem = memRef.current?.value;
+        const timeLimit = timeLimitRef.current?.value;
+        const gpusPerTask = gpusPerTaskRef.current?.value;
+        const ntasksPerNode = ntasksPerNodeRef.current?.value;
+        const exclusive = exclusiveRef.current?.checked;
+        const exportVars = exportVarsRef.current?.value;
+        const nodelist = nodelistRef.current?.value;
+        const dependencyEvent = dependencyEventRef.current?.value;
+        const dependencyJobId = dependencyJobRef.current?.value;
+
+        if (partition) sbatch_args.push(`--partition=${partition}`);
+        if (nodes) sbatch_args.push(`--nodes=${nodes}`);
+        if (ntasks) sbatch_args.push(`--ntasks=${ntasks}`);
+        if (cpusPerTask) sbatch_args.push(`--cpus-per-task=${cpusPerTask}`);
+        if (mem) sbatch_args.push(`--mem=${mem}`);
+        if (timeLimit) sbatch_args.push(`--time=${timeLimit}`);
+        if (gpusPerTask) sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
+        if (ntasksPerNode) sbatch_args.push(`--ntasks-per-node=${ntasksPerNode}`);
+        if (exclusive) sbatch_args.push('--exclusive');
+        if (exportVars) sbatch_args.push(`--export=${exportVars}`);
+        if (nodelist) sbatch_args.push(`-w ${nodelist}`);
+        if (dependencyEvent && dependencyJobId) {
+            sbatch_args.push(`--dependency=${dependencyEvent}:${dependencyJobId}`);
+        }
+
+        // Read script args from DOM
+        const currentScriptArgs: Record<string, string> = {};
+        const scriptArgsContainer = document.getElementById('script-args-container');
+        if (scriptArgsContainer) {
+            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
+            inputs.forEach((input) => {
+                const argName = input.getAttribute('data-arg-name');
+                const value = (input as HTMLInputElement).value;
+                if (argName) {
+                    currentScriptArgs[argName] = value;
+                }
+            });
+        }
+
+        // Use the unified submit endpoint
+        submitJobMutation.mutate({
+            script: editorRef.current?.getValue() || '',
+            job_name: jobNameRef.current?.value || 'milabench_job',
+            sbatch_args: sbatch_args,
+            script_args: currentScriptArgs
+        });
+    };
     // Refs for uncontrolled inputs - much more performant
     const editorRef = useRef<any>(null);
     const jobNameRef = useRef<HTMLInputElement>(null);
@@ -131,49 +397,10 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const dependencyJobRef = useRef<HTMLSelectElement>(null);
     
     // Minimal state only for displaying script args section (not for values)
-    const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>(() => form.script_args || {});
+    const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>({});
     
     // No more state for editor content - completely uncontrolled!
     // We'll read script args from DOM and editor content from Monaco editor directly
-
-    // Sync refs when form changes externally (e.g., template loading, profile loading)
-    useEffect(() => {
-        // Update Monaco editor
-        if (editorRef.current) {
-            editorRef.current.setValue(form.script || '');
-        }
-        
-        // Update all refs with form values
-        if (jobNameRef.current) jobNameRef.current.value = form.job_name || 'milabench_job';
-        if (partitionRef.current) partitionRef.current.value = form.partition || '';
-        if (nodesRef.current) nodesRef.current.value = String(form.nodes || 1);
-        if (ntasksRef.current) ntasksRef.current.value = String(form.ntasks || 1);
-        if (cpusPerTaskRef.current) cpusPerTaskRef.current.value = String(form.cpus_per_task || 4);
-        if (memRef.current) memRef.current.value = form.mem || '8G';
-        if (timeLimitRef.current) timeLimitRef.current.value = form.time_limit || '02:00:00';
-        if (gpusPerTaskRef.current) gpusPerTaskRef.current.value = form.gpus_per_task || '1';
-        if (ntasksPerNodeRef.current) ntasksPerNodeRef.current.value = String(form.ntasks_per_node || 1);
-        if (exclusiveRef.current) exclusiveRef.current.checked = form.exclusive || false;
-        if (exportVarsRef.current) exportVarsRef.current.value = form.export || 'ALL';
-        if (nodelistRef.current) nodelistRef.current.value = form.nodelist || '';
-        
-        // Handle dependency
-        if (form.dependency && form.dependency.length > 0) {
-            const [event, jobId] = form.dependency[0];
-            if (dependencyEventRef.current) dependencyEventRef.current.value = event || '';
-            if (dependencyJobRef.current) dependencyJobRef.current.value = jobId || '';
-        } else {
-            if (dependencyEventRef.current) dependencyEventRef.current.value = '';
-            if (dependencyJobRef.current) dependencyJobRef.current.value = '';
-        }
-        
-        // Update script arguments section when script is loaded from template
-        if (form.script) {
-            const newScriptArgs = parseExportVariables(form.script, true);
-            // We'll trigger a re-render to show the new script args by using a minimal state
-            setScriptArgsDisplay(newScriptArgs);
-        }
-    }, [form]);
 
         // Function to refresh/extract arguments from script
     const refreshScriptArgs = () => {
@@ -221,60 +448,16 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             editorRef.current.setValue(updatedScript);
         }
         
-        // Also update the form script so that future operations work correctly
-        setForm({ ...form, script: updatedScript });
+        // No need to update form state - we don't have any
     };
 
     // No more handleScriptArgChange - script args are now uncontrolled!
 
     // Note: We no longer need currentDependency since we're using uncontrolled inputs
 
-    // Function to assemble all form data from refs - no state dependencies!
-    const assembleForm = useCallback((): SlurmJobSubmitRequest => {
-        // Read current dependency values
-        const dependencyEvent = dependencyEventRef.current?.value || '';
-        const dependencyJobId = dependencyJobRef.current?.value || '';
-        const dependency: [string, string][] | undefined = (dependencyEvent && dependencyJobId) ? [[dependencyEvent, dependencyJobId] as [string, string]] : undefined;
-        
-        // Read script args from DOM
-        const currentScriptArgs: Record<string, string> = {};
-        const scriptArgsContainer = document.getElementById('script-args-container');
-        if (scriptArgsContainer) {
-            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
-            inputs.forEach((input) => {
-                const argName = input.getAttribute('data-arg-name');
-                const value = (input as HTMLInputElement).value;
-                if (argName) {
-                    currentScriptArgs[argName] = value;
-                }
-            });
-        }
-        
-        return {
-            script: editorRef.current?.getValue() || '',
-            job_name: jobNameRef.current?.value || 'milabench_job',
-            script_args: currentScriptArgs,
-            partition: partitionRef.current?.value || '',
-            nodes: parseInt(nodesRef.current?.value || '1'),
-            ntasks: parseInt(ntasksRef.current?.value || '1'),
-            cpus_per_task: parseInt(cpusPerTaskRef.current?.value || '4'),
-            mem: memRef.current?.value || '8G',
-            time_limit: timeLimitRef.current?.value || '02:00:00',
-            gpus_per_task: gpusPerTaskRef.current?.value || '1',
-            ntasks_per_node: parseInt(ntasksPerNodeRef.current?.value || '1'),
-            exclusive: exclusiveRef.current?.checked || false,
-            export: exportVarsRef.current?.value || 'ALL',
-            nodelist: nodelistRef.current?.value || '',
-            dependency: dependency
-        };
-    }, [scriptArgsDisplay]); // Only depend on scriptArgsDisplay for re-renders
 
-    // Expose the assembleForm function to parent component
-    useEffect(() => {
-        if (onFormAssemble) {
-            onFormAssemble(assembleForm);
-        }
-    }, [onFormAssemble, assembleForm]);
+
+
 
     // Filter jobs to only show running and pending jobs for dependencies
     const dependencyJobs = useMemo(() => {
@@ -285,6 +468,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     }, [activeJobs]);
 
     return (
+        <Box width="100%" height="100%">
         <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
             <VStack align="stretch" className="column-1 slurm-options">
                 <FormControl paddingBottom="10px">
@@ -294,14 +478,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <HStack spacing={3}>
                                 <Input
                                     value={selectedProfile}
-                                    onChange={(e) => onProfileSelect(e.target.value)}
+                                    onChange={(e) => handleProfileSelect(e.target.value)}
                                     placeholder="Select a profile or enter custom name"
                                     list="profile-list"
                                     flex={1}
                                 />
                                 <Button
                                     variant="outline"
-                                    onClick={onSaveProfile}
+                                    onClick={handleSaveProfile}
                                     isLoading={saveProfileMutation.isPending}
                                     size="md"
                                 >
@@ -329,7 +513,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
                         <Input
                             ref={jobNameRef}
-                            defaultValue={form.job_name || 'milabench_job'}
+                            defaultValue="milabench_job"
                             placeholder="milabench_job"
                             flex={1}
                         />
@@ -342,7 +526,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Partition</FormLabel>
                             <Input
                                 ref={partitionRef}
-                                defaultValue={form.partition || ''}
+                                defaultValue=""
                                 placeholder="Leave empty for default"
                                 flex={1}
                             />
@@ -354,7 +538,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
                             <NumberInput
                                 ref={nodesRef}
-                                defaultValue={form.nodes || 1}
+                                defaultValue="1"
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -373,7 +557,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
                             <NumberInput
                                 ref={ntasksRef}
-                                defaultValue={form.ntasks || 1}
+                                defaultValue="1"
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -392,7 +576,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
                             <NumberInput
                                 ref={cpusPerTaskRef}
-                                defaultValue={form.cpus_per_task || 4}
+                                defaultValue="4"
                                 min={1}
                                 max={64}
                                 flex={1}
@@ -411,7 +595,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
                             <Input
                                 ref={gpusPerTaskRef}
-                                defaultValue={form.gpus_per_task || '1'}
+                                defaultValue="1"
                                 placeholder="1"
                                 flex={1}
                             />
@@ -423,7 +607,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
                             <NumberInput
                                 ref={ntasksPerNodeRef}
-                                defaultValue={form.ntasks_per_node || 1}
+                                defaultValue="1"
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -442,7 +626,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Memory</FormLabel>
                             <Input
                                 ref={memRef}
-                                defaultValue={form.mem || '8G'}
+                                defaultValue="8G"
                                 placeholder="8G"
                                 flex={1}
                             />
@@ -454,7 +638,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
                             <Input
                                 ref={timeLimitRef}
-                                defaultValue={form.time_limit || '02:00:00'}
+                                defaultValue="02:00:00"
                                 placeholder="02:00:00"
                                 flex={1}
                             />
@@ -466,7 +650,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Export</FormLabel>
                             <Input
                                 ref={exportVarsRef}
-                                defaultValue={form.export || 'ALL'}
+                                defaultValue="ALL"
                                 placeholder="ALL"
                                 flex={1}
                             />
@@ -478,7 +662,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <FormLabel minW="120px" mb={0}>Node List</FormLabel>
                             <Input
                                 ref={nodelistRef}
-                                defaultValue={form.nodelist || ''}
+                                defaultValue=""
                                 placeholder="e.g., cn-d[003-004]"
                                 flex={1}
                             />
@@ -491,7 +675,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
                         <Checkbox
                             ref={exclusiveRef}
-                            defaultChecked={form.exclusive || false}
+                            defaultChecked={false}
                         >
                             Request exclusive access to nodes
                         </Checkbox>
@@ -503,7 +687,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <FormLabel minW="120px" fontWeight={"bold"} mb={0}>Dependency</FormLabel>
                         <Select
                             ref={dependencyEventRef}
-                            defaultValue={form.dependency?.[0]?.[0] || ''}
+                            defaultValue=""
                             placeholder="Select event"
                             flex={1}
                         >
@@ -517,7 +701,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         </Select>
                         <Select
                             ref={dependencyJobRef}
-                            defaultValue={form.dependency?.[0]?.[1] || ''}
+                            defaultValue=""
                             placeholder="Select job"
                             flex={1}
                         >
@@ -598,14 +782,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <HStack spacing={3}>
                                 <Input
                                     value={selectedTemplate}
-                                    onChange={(e) => onTemplateSelect(e.target.value)}
+                                    onChange={(e) => handleTemplateSelect(e.target.value)}
                                     placeholder="Select a template or enter custom name"
                                     list="template-list"
                                     flex={1}
                                 />
                                 <Button
                                     variant="outline"
-                                    onClick={onSaveTemplate}
+                                    onClick={handleSaveTemplate}
                                     isLoading={saveTemplateMutation.isPending}
                                     size="md"
                                 >
@@ -634,7 +818,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     </Box>}>
                         <MonacoEditor
                             height="calc(100vh - 17em)"
-                            value={form.script || ''}
+                            value=""
                             onChange={() => refreshScriptArgs()} // No-op - completely uncontrolled
                             onMount={(editor: any) => {
                                 console.log('Editor mounted', editor);
@@ -645,5 +829,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 </FormControl>
             </VStack>
         </Grid>
+        
+        {/* Submit and Cancel buttons */}
+        <HStack spacing={3} justify="flex-end" pt={4} borderTop="1px solid" borderColor="gray.200">
+            <Button variant="ghost" onClick={onClose}>
+                Cancel
+            </Button>
+            <Button 
+                colorScheme="blue" 
+                onClick={handleSubmitJob}
+                isLoading={submitJobMutation.isPending}
+            >
+                Submit Job
+            </Button>
+        </HStack>
+        </Box>
     );
 };

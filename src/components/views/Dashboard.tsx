@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import {
     Box,
     Heading,
     Text,
     VStack,
     HStack,
-    Grid,
-    GridItem,
     Button,
     useToast,
     Badge,
@@ -21,40 +19,13 @@ import {
     ModalOverlay,
     ModalContent,
     ModalHeader,
-    ModalFooter,
+
     ModalBody,
     ModalCloseButton,
     useDisclosure,
-    Textarea,
-    FormControl,
-    FormLabel,
-    Input,
-    NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
-    Select,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
     Card,
     CardBody,
     CardHeader,
-    Stat,
-    StatLabel,
-    StatNumber,
-    StatHelpText,
-    StatArrow,
-    Accordion,
-    AccordionItem,
-    AccordionButton,
-    AccordionPanel,
-    AccordionIcon,
-    Code,
-    Divider,
     Spinner,
     Alert,
     AlertIcon,
@@ -63,40 +34,29 @@ import {
     IconButton,
     Tooltip,
     useColorModeValue,
-    Flex,
-    Spacer,
-    Checkbox
 } from '@chakra-ui/react';
 import {
     AddIcon,
     ViewIcon,
-    DownloadIcon,
     DeleteIcon,
     RepeatIcon,
     InfoIcon,
     CheckCircleIcon,
     WarningIcon,
     TimeIcon,
-    ExternalLinkIcon
 } from '@chakra-ui/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MonacoEditor } from '../shared/MonacoEditor';
 import { JobSubmissionForm } from './JobSubmit';
 import {
     getSlurmJobs,
     getSlurmPersistedJobs,
-    submitSlurmJob,
     cancelSlurmJob,
     rerunSlurmJob,
-    getSlurmClusterInfo,
     getSlurmTemplates,
-    getSlurmTemplateContent,
     getSlurmProfiles,
-    saveSlurmProfile,
-    saveSlurmTemplate,
     getSlurmClusterStatus,
 } from '../../services/api';
-import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile, PersitedJobInfo } from '../../services/types';
+import type { SlurmJob, PersitedJobInfo } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { NO_JOB_ID, NO_JOB_STATE, NO_JR_JOB_ID } from '../../Constant';
 
@@ -150,7 +110,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     const toast = useToast();
     const queryClient = useQueryClient();
-    const navigate = useNavigate();
     const { isOpen, onOpen, onClose } = useDisclosure();
 
     const bgColor = useColorModeValue('white', 'gray.800');
@@ -199,10 +158,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const activeJobs = activeJobsData || [];
     const persistedJobs = persistedJobsData || [];
 
-    const getJobState = (job: SlurmJob) => {
-        const state = job.job_state?.[0];
-        return state ? state.toLowerCase() : '';
-    };
+
 
     const cancelJobMutation = useMutation({
         mutationFn: cancelSlurmJob,
@@ -252,206 +208,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         },
     });
 
-    // Job submission form state
-    const [submitForm, setSubmitForm] = useState<SlurmJobSubmitRequest>({
-        script: '',
-        job_name: 'milabench_job',
-        script_args: {},
-        partition: '',
-        nodes: 1,
-        ntasks: 1,
-        cpus_per_task: 4,
-        mem: '8G',
-        time_limit: '02:00:00',
-        gpus_per_task: '1',
-        ntasks_per_node: 1,
-        exclusive: false,
-        export: 'ALL',
-        nodelist: '',
-    });
 
-    const [selectedProfile, setSelectedProfile] = useState<string>('');
-    const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-
-
-
-    const loadTemplateMutation = useMutation({
-        mutationFn: getSlurmTemplateContent,
-        onSuccess: (content) => {
-            setSubmitForm(prev => ({
-                ...prev,
-                script: content
-            }));
-        },
-        onError: (error: any) => {
-            toast({
-                title: 'Template Loading Failed',
-                description: error.message || 'Failed to load template content',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        },
-    });
-
-    const saveProfileMutation = useMutation({
-        mutationFn: saveSlurmProfile,
-        onSuccess: (data) => {
-            toast({
-                title: 'Profile Saved',
-                description: data.message || 'Profile saved successfully',
-                status: 'success',
-                duration: 5000,
-                isClosable: true,
-            });
-            // Refresh profiles
-            queryClient.invalidateQueries({ queryKey: ['slurm-profiles'] });
-        },
-        onError: (error: any) => {
-            toast({
-                title: 'Profile Save Failed',
-                description: error.message || 'Failed to save profile',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        },
-    });
-
-    const saveTemplateMutation = useMutation({
-        mutationFn: saveSlurmTemplate,
-        onSuccess: (data) => {
-            toast({
-                title: 'Template Saved',
-                description: data.message || 'Template saved successfully',
-                status: 'success',
-                duration: 5000,
-                isClosable: true,
-            });
-            // Refresh templates
-            queryClient.invalidateQueries({ queryKey: ['slurm-templates'] });
-        },
-        onError: (error: any) => {
-            toast({
-                title: 'Template Save Failed',
-                description: error.message || 'Failed to save template',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        },
-    });
-
-    const submitJobMutation = useMutation({
-        mutationFn: submitSlurmJob,
-        onSuccess: (data) => {
-            toast({
-                title: 'Job Submitted',
-                description: `Job ${data.job_id} submitted successfully`,
-                status: 'success',
-                duration: 5000,
-                isClosable: true,
-            });
-            queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
-            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
-            onClose();
-        },
-        onError: (error: any) => {
-            toast({
-                title: 'Submission Failed',
-                description: error.message || 'Failed to submit job',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        },
-    });
-
-    const handleSubmitJob = () => {
-        // Always build sbatch arguments from form fields, taking precedence over profile
-        const sbatch_args = [];
-
-        if (submitForm.partition) {
-            sbatch_args.push(`--partition=${submitForm.partition}`);
-        }
-        if (submitForm.nodes) {
-            sbatch_args.push(`--nodes=${submitForm.nodes}`);
-        }
-        if (submitForm.ntasks) {
-            sbatch_args.push(`--ntasks=${submitForm.ntasks}`);
-        }
-        if (submitForm.cpus_per_task) {
-            sbatch_args.push(`--cpus-per-task=${submitForm.cpus_per_task}`);
-        }
-        if (submitForm.mem) {
-            sbatch_args.push(`--mem=${submitForm.mem}`);
-        }
-        if (submitForm.time_limit) {
-            sbatch_args.push(`--time=${submitForm.time_limit}`);
-        }
-        if (submitForm.gpus_per_task) {
-            sbatch_args.push(`--gpus-per-task=${submitForm.gpus_per_task}`);
-        }
-        if (submitForm.ntasks_per_node) {
-            sbatch_args.push(`--ntasks-per-node=${submitForm.ntasks_per_node}`);
-        }
-        if (submitForm.exclusive) {
-            sbatch_args.push('--exclusive');
-        }
-        if (submitForm.export) {
-            sbatch_args.push(`--export=${submitForm.export}`);
-        }
-        if (submitForm.nodelist) {
-            sbatch_args.push(`-w ${submitForm.nodelist}`);
-        }
-        if (submitForm.dependency) {
-            const dep = [];
-            for (const [event, job_id] of submitForm.dependency) {
-                dep.push(`${event}:${job_id}`);
-            }
-            const dependency = dep.join(",");
-            sbatch_args.push(`--dependency=${dependency}`);
-        }
-
-        // Use the unified submit endpoint
-        submitJobMutation.mutate({
-            script: submitForm.script,
-            job_name: submitForm.job_name,
-            sbatch_args: sbatch_args,
-            script_args: submitForm.script_args
-        });
-    };
-
-    const handleProfileSelect = (profileName: string) => {
-        setSelectedProfile(profileName);
-
-        // Load profile parameters into form if profile exists
-        const selectedProfileData = profiles?.find(p => p.name === profileName);
-        if (selectedProfileData) {
-            setSubmitForm(prev => ({
-                ...prev,
-                job_name: selectedProfileData.parsed_args.job_name || prev.job_name,
-                partition: selectedProfileData.parsed_args.partition || prev.partition,
-                nodes: selectedProfileData.parsed_args.nodes || prev.nodes,
-                ntasks: selectedProfileData.parsed_args.ntasks || prev.ntasks,
-                cpus_per_task: selectedProfileData.parsed_args.cpus_per_task || prev.cpus_per_task,
-                mem: selectedProfileData.parsed_args.mem || prev.mem,
-                time_limit: selectedProfileData.parsed_args.time_limit || prev.time_limit,
-                gpus_per_task: selectedProfileData.parsed_args.gpus_per_task || prev.gpus_per_task,
-                ntasks_per_node: selectedProfileData.parsed_args.ntasks_per_node || prev.ntasks_per_node,
-                exclusive: selectedProfileData.parsed_args.exclusive !== undefined ? selectedProfileData.parsed_args.exclusive : prev.exclusive,
-                export: selectedProfileData.parsed_args.export || prev.export,
-                nodelist: selectedProfileData.parsed_args.nodelist || prev.nodelist,
-            }));
-        }
-    };
-
-    const handleTemplateSelect = (templateName: string) => {
-        setSelectedTemplate(templateName);
-        if (templateName && templateNames?.includes(templateName)) {
-            loadTemplateMutation.mutate(templateName);
-        }
-    };
 
     const handleCancelJob = (jobId: string) => {
         if (window.confirm(`Are you sure you want to cancel job ${jobId}?`)) {
@@ -465,105 +222,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         }
     };
 
-    const handleViewJobDetails = (job: SlurmJob) => {
-        const jrJobId = typeof job.jr_job_id === 'string' ? job.jr_job_id : NO_JR_JOB_ID;
-        const jobId = job.job_id || NO_JOB_ID;
-        navigate(`/jobrunner/${jobId}/${jrJobId}`);
-    };
 
-    const handleSaveProfile = () => {
-        const profileName = selectedProfile.trim();
-        if (!profileName) {
-            toast({
-                title: 'Profile Name Required',
-                description: 'Please select or enter a profile name to save the current configuration.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        // Convert form fields to sbatch arguments
-        // NOTE: Deliberately exclude dependency - dependencies are job-specific and should not be saved in reusable profiles
-        const sbatch_args = [];
-
-        if (submitForm.job_name) {
-            sbatch_args.push(`--job-name=${submitForm.job_name}`);
-        }
-        if (submitForm.partition) {
-            sbatch_args.push(`--partition=${submitForm.partition}`);
-        }
-        if (submitForm.nodes) {
-            sbatch_args.push(`--nodes=${submitForm.nodes}`);
-        }
-        if (submitForm.ntasks) {
-            sbatch_args.push(`--ntasks=${submitForm.ntasks}`);
-        }
-        if (submitForm.cpus_per_task) {
-            sbatch_args.push(`--cpus-per-task=${submitForm.cpus_per_task}`);
-        }
-        if (submitForm.mem) {
-            sbatch_args.push(`--mem=${submitForm.mem}`);
-        }
-        if (submitForm.time_limit) {
-            sbatch_args.push(`--time=${submitForm.time_limit}`);
-        }
-        if (submitForm.gpus_per_task) {
-            sbatch_args.push(`--gpus-per-task=${submitForm.gpus_per_task}`);
-        }
-        if (submitForm.ntasks_per_node) {
-            sbatch_args.push(`--ntasks-per-node=${submitForm.ntasks_per_node}`);
-        }
-        if (submitForm.exclusive) {
-            sbatch_args.push('--exclusive');
-        }
-        if (submitForm.export) {
-            sbatch_args.push(`--export=${submitForm.export}`);
-        }
-        if (submitForm.nodelist) {
-            sbatch_args.push(`-w ${submitForm.nodelist}`);
-        }
-
-        // Explicitly filter out any dependency-related arguments (safety check)
-        const filteredArgs = sbatch_args.filter(arg => !arg.startsWith('--dependency'));
-
-        saveProfileMutation.mutate({
-            name: profileName,
-            description: '',
-            sbatch_args: filteredArgs
-        });
-    };
-
-    const handleSaveTemplate = () => {
-        const templateName = selectedTemplate.trim();
-        if (!templateName) {
-            toast({
-                title: 'Template Name Required',
-                description: 'Please select or enter a template name to save the current script.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        if (!submitForm.script.trim()) {
-            toast({
-                title: 'Script Content Required',
-                description: 'Please enter script content before saving as template.',
-                status: 'warning',
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        saveTemplateMutation.mutate({
-            name: templateName,
-            content: submitForm.script
-        });
-    };
 
     return (
         <Box p={5} marginLeft="-5px" h="100%">
@@ -943,34 +602,12 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                         <ModalCloseButton />
                         <ModalBody>
                             <JobSubmissionForm
-                                form={submitForm}
-                                setForm={setSubmitForm}
-                                template=""
                                 templates={templateNames}
                                 profiles={profiles || []}
-                                selectedProfile={selectedProfile}
-                                onProfileSelect={handleProfileSelect}
-                                selectedTemplate={selectedTemplate}
-                                onTemplateSelect={handleTemplateSelect}
-                                onSaveProfile={handleSaveProfile}
-                                saveProfileMutation={saveProfileMutation}
-                                onSaveTemplate={handleSaveTemplate}
-                                saveTemplateMutation={saveTemplateMutation}
                                 activeJobs={activeJobs}
+                                onClose={onClose}
                             />
                         </ModalBody>
-                        <ModalFooter>
-                            <Button variant="ghost" mr={3} onClick={onClose}>
-                                Cancel
-                            </Button>
-                            <Button
-                                colorScheme="blue"
-                                onClick={handleSubmitJob}
-                                isLoading={submitJobMutation.isPending}
-                            >
-                                Submit Job
-                            </Button>
-                        </ModalFooter>
                     </ModalContent>
                 </Modal>
             </VStack>
