@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
     Grid,
     VStack,
@@ -109,10 +110,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     saveTemplateMutation,
     activeJobs = []
 }) => {
+    // Debounce the script value to avoid excessive argument extraction
+    const debouncedScript = useDebounce(form.script || '', 2500);
+    
     // Parse export variables from script (only constant values, not derived)
     const parsedScriptArgs = useMemo(() => {
-        return parseExportVariables(form.script || '', true);
-    }, [form.script]);
+        return parseExportVariables(debouncedScript, true);
+    }, [debouncedScript]);
 
     // Update form with parsed script arguments
     useEffect(() => {

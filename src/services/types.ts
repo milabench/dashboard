@@ -259,6 +259,16 @@ export interface SlurmJobAccounting {
     [key: string]: any; // For additional fields that might be present
 }
 
+export interface PersitedJobInfo {
+    name: string;
+    creation_time: string;
+    last_modified: string;
+    last_accessed: string;
+    freshness: number;
+    info: SlurmJob;
+    acc: SlurmJobAccounting;
+}
+
 export interface SlurmPartition {
     partition: string;
     allocated: string;

@@ -1,5 +1,7 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmJobAccounting, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmClusterStatus } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmJobAccounting, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmClusterStatus, PersitedJobInfo } from './types';
+
+
 
 
 export interface ProfileCopyRequest {
@@ -223,7 +225,7 @@ export const getSlurmJobs = async (): Promise<SlurmJob[]> => {
     }
 };
 
-export const getSlurmPersistedJobs = async (): Promise<string[]> => {
+export const getSlurmPersistedJobs = async (): Promise<PersitedJobInfo[]> => {
     try {
         const response = await api.get('/slurm/jobs/persited');
         return response.data;

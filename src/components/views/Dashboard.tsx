@@ -87,6 +87,7 @@ import {
     getSlurmPersistedJobs,
     submitSlurmJob,
     cancelSlurmJob,
+    rerunSlurmJob,
     getSlurmClusterInfo,
     getSlurmTemplates,
     getSlurmTemplateContent,
@@ -95,7 +96,7 @@ import {
     saveSlurmTemplate,
     getSlurmClusterStatus,
 } from '../../services/api';
-import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile } from '../../services/types';
+import type { SlurmJob, SlurmJobSubmitRequest, SlurmJobLogs, SlurmJobData, SlurmProfile, PersitedJobInfo } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { NO_JOB_ID, NO_JOB_STATE, NO_JR_JOB_ID } from '../../Constant';
 
@@ -163,7 +164,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         staleTime: 30000, // Consider data fresh for 30 seconds
     });
 
-    const { data: persistedJobsData, isLoading: persistedJobsLoading, error: persistedJobsError } = useQuery({
+    const { data: persistedJobsData, isLoading: persistedJobsLoading, error: persistedJobsError } = useQuery<PersitedJobInfo[]>({
         queryKey: ['slurm-persisted-jobs'],
         queryFn: getSlurmPersistedJobs,
         refetchOnWindowFocus: false,
@@ -196,7 +197,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     // Separate active jobs and persisted jobs
     const activeJobs = activeJobsData || [];
-    const persistedJobIds = persistedJobsData || [];
+    const persistedJobs = persistedJobsData || [];
 
     const getJobState = (job: SlurmJob) => {
         const state = job.job_state?.[0];
@@ -220,6 +221,30 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             toast({
                 title: 'Cancellation Failed',
                 description: error.message || 'Failed to cancel job',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
+        },
+    });
+
+    const rerunJobMutation = useMutation({
+        mutationFn: rerunSlurmJob,
+        onSuccess: (data) => {
+            toast({
+                title: 'Job Rerun',
+                description: data.message || 'Job rerun successfully',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
+            });
+            queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
+        },
+        onError: (error: any) => {
+            toast({
+                title: 'Error Rerunning Job',
+                description: error?.response?.data?.error || 'Failed to rerun job',
                 status: 'error',
                 duration: 5000,
                 isClosable: true,
@@ -431,6 +456,12 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const handleCancelJob = (jobId: string) => {
         if (window.confirm(`Are you sure you want to cancel job ${jobId}?`)) {
             cancelJobMutation.mutate(jobId);
+        }
+    };
+
+    const handleRerunJob = (jrJobId: string) => {
+        if (window.confirm(`Are you sure you want to rerun job ${jrJobId}?`)) {
+            rerunJobMutation.mutate(jrJobId);
         }
     };
 
@@ -762,13 +793,78 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         </Tr>
                                     </Thead>
                                     <Tbody>
-                                        {persistedJobIds.map((jrJobId: string) => {
-                                            const job = activeJobs.find(j => j.jr_job_id === jrJobId);
-                                            if (!job) {
+                                        {persistedJobs.map((persistedJobInfo: PersitedJobInfo) => {
+                                            const job = persistedJobInfo.info;
+                                            const acc = persistedJobInfo.acc;
+                                            const jrJobId = persistedJobInfo.name;
+                                            
+                                            // Use accounting data when available, fallback to info object
+                                            const jobId = acc?.job_id?.toString() || job.job_id || '-';
+                                            const jobName = acc?.name || job.name || job.job_name || 'Persisted Job';
+                                            const jobStatus = acc?.state?.current?.[0] || job.job_state?.[0] || 'PENDING';
+                                            const partition = acc?.partition || job.partition || 'N/A';
+                                            const user = acc?.user || job.user_name || job.user || 'N/A';
+                                            
+                                            // Calculate freshness - 2 weeks = 14 * 24 * 60 * 60 = 1209600 seconds
+                                            const maxAge = 14 * 24 * 60 * 60; // 2 weeks in seconds
+                                            const freshnessRatio = Math.min(persistedJobInfo.freshness / maxAge, 1);
+                                            
+                                            // Calculate color from green (0) to brown (1)
+                                            const getFreshnessColor = (ratio: number) => {
+                                                if (ratio <= 0) return '#22c55e'; // Green
+                                                if (ratio >= 1) return '#92400e'; // Brown
+                                                
+                                                // Interpolate between green and brown
+                                                const green = [34, 197, 94]; // RGB for green
+                                                const brown = [146, 64, 14]; // RGB for brown
+                                                
+                                                const r = Math.round(green[0] + (brown[0] - green[0]) * ratio);
+                                                const g = Math.round(green[1] + (brown[1] - green[1]) * ratio);
+                                                const b = Math.round(green[2] + (brown[2] - green[2]) * ratio);
+                                                
+                                                return `rgb(${r}, ${g}, ${b})`;
+                                            };
+                                            
+                                            // Format duration for tooltip
+                                            const formatDuration = (seconds: number) => {
+                                                const days = Math.floor(seconds / (24 * 60 * 60));
+                                                const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+                                                const minutes = Math.floor((seconds % (60 * 60)) / 60);
+                                                
+                                                if (days > 0) {
+                                                    return `${days}d ${hours}h ${minutes}m ago`;
+                                                } else if (hours > 0) {
+                                                    return `${hours}h ${minutes}m ago`;
+                                                } else {
+                                                    return `${minutes}m ago`;
+                                                }
+                                            };
+                                            
+                                            // Format time limit - prefer accounting data
+                                            let timeLimit = 'N/A';
+                                            if (acc?.time?.limit?.number) {
+                                                timeLimit = `${acc.time.limit.number}min`;
+                                            } else if (typeof job.time_limit === 'string') {
+                                                timeLimit = job.time_limit;
+                                            } else if (job.time_limit?.number) {
+                                                timeLimit = `${job.time_limit.number}min`;
+                                            }
+                                            
                                                 return (
                                                     <Tr key={`persisted-${jrJobId}`}>
                                                         <Td>
-                                                            <Text fontWeight="bold">-</Text>
+                                                        <HStack spacing={2}>
+                                                            <Tooltip label={formatDuration(persistedJobInfo.freshness)}>
+                                                                <Box
+                                                                    width="12px"
+                                                                    height="12px"
+                                                                    backgroundColor={getFreshnessColor(freshnessRatio)}
+                                                                    borderRadius="2px"
+                                                                    cursor="pointer"
+                                                                />
+                                                            </Tooltip>
+                                                            <Text fontWeight="bold">{jobId}</Text>
+                                                        </HStack>
                                                         </Td>
                                                         <Td>
                                                             <Text fontFamily="mono" fontSize="sm">
@@ -776,20 +872,25 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             </Text>
                                                         </Td>
                                                         <Td>
-                                                            <Text>Persisted Job</Text>
+                                                        <Text>{jobName}</Text>
                                                         </Td>
                                                         <Td>
-                                                            <Badge colorScheme="gray">COMPLETED</Badge>
+                                                        <HStack>
+                                                            {getStatusIcon(jobStatus)}
+                                                            <Badge colorScheme={getStatusColor(jobStatus)}>
+                                                                {jobStatus}
+                                                            </Badge>
+                                                        </HStack>
                                                         </Td>
-                                                        <Td>N/A</Td>
-                                                        <Td>N/A</Td>
-                                                        <Td>N/A</Td>
+                                                    <Td>{partition}</Td>
+                                                    <Td>{user}</Td>
+                                                    <Td>{timeLimit}</Td>
                                                         <Td>
                                                             <HStack spacing={2}>
                                                                 <Tooltip label="View Details">
                                                                     <IconButton
                                                                         as={Link}
-                                                                        to={`/jobrunner/${NO_JOB_ID}/${jrJobId}`}
+                                                                    to={`/jobrunner/${jobId}/${jrJobId}`}
                                                                         aria-label="View job details"
                                                                         icon={<InfoIcon />}
                                                                         size="sm"
@@ -799,74 +900,23 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                 <Tooltip label="View Logs">
                                                                     <IconButton
                                                                         as={Link}
-                                                                        to={`/joblogs/-/${jrJobId}`}
+                                                                    to={`/joblogs/${jobId}/${jrJobId}`}
                                                                         aria-label="View job logs"
                                                                         icon={<ViewIcon />}
                                                                         size="sm"
                                                                         variant="ghost"
                                                                     />
                                                                 </Tooltip>
-                                                            </HStack>
-                                                        </Td>
-                                                    </Tr>
-                                                );
-                                            }
-                                            return (
-                                                <Tr key={job.job_id}>
-                                                    <Td>
-                                                        <Text fontWeight="bold">{job.job_id}</Text>
-                                                    </Td>
-                                                    <Td>
-                                                        <Text fontFamily="mono" fontSize="sm">
-                                                            {job.jr_job_id}
-                                                        </Text>
-                                                    </Td>
-                                                    <Td>
-                                                        <Text>{job.name || 'N/A'}</Text>
-                                                    </Td>
-                                                    <Td>
-                                                        <HStack>
-                                                            {getStatusIcon(job.job_state?.[0] || '')}
-                                                            <Badge colorScheme={getStatusColor(job.job_state?.[0] || '')}>
-                                                                {job.job_state?.[0] || NO_JOB_STATE}
-                                                            </Badge>
-                                                        </HStack>
-                                                    </Td>
-                                                    <Td>{job.partition || 'N/A'}</Td>
-                                                    <Td>{job.user_name || 'N/A'}</Td>
-                                                    <Td>
-                                                        {typeof job.time_limit === 'string'
-                                                            ? job.time_limit
-                                                            : job.time_limit?.number
-                                                                ? `${job.time_limit.number}min`
-                                                                : 'N/A'
-                                                        }
-                                                    </Td>
-                                                    <Td>
-                                                        <HStack spacing={2}>
-                                                            <Tooltip label="View Details">
+                                                            <Tooltip label="Rerun Job">
                                                                 <IconButton
-                                                                    as={Link}
-                                                                    to={`/jobrunner/${job.job_id || NO_JOB_ID}/${typeof job.jr_job_id === 'string' ? job.jr_job_id : NO_JR_JOB_ID}`}
-                                                                    aria-label="View job details"
-                                                                    icon={<InfoIcon />}
+                                                                    aria-label="Rerun job"
+                                                                    icon={<RepeatIcon />}
                                                                     size="sm"
                                                                     variant="ghost"
+                                                                    colorScheme="blue"
+                                                                    onClick={() => handleRerunJob(jrJobId)}
                                                                 />
                                                             </Tooltip>
-                                                            {(job.job_state?.[0]?.toLowerCase() === 'running' ||
-                                                                job.job_state?.[0]?.toLowerCase() === 'pending') && (
-                                                                    <Tooltip label="Cancel Job">
-                                                                        <IconButton
-                                                                            aria-label="Cancel job"
-                                                                            icon={<DeleteIcon />}
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            colorScheme="red"
-                                                                            onClick={() => job.job_id && handleCancelJob(job.job_id)}
-                                                                        />
-                                                                    </Tooltip>
-                                                                )}
                                                         </HStack>
                                                     </Td>
                                                 </Tr>
@@ -874,7 +924,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                         })}
                                     </Tbody>
                                 </Table>
-                                {persistedJobIds.length === 0 && (
+                                {persistedJobs.length === 0 && (
                                     <Box textAlign="center" py={8}>
                                         <Text color="gray.500">No persisted jobs found</Text>
                                     </Box>
