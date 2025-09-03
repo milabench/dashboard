@@ -7,7 +7,8 @@ export const MonacoEditor: React.FC<{
     value: string;
     onChange: (value: string) => void;
     height?: string;
-}> = ({ value, onChange, height = "400px" }) => {
+    onMount?: (editor: any) => void;
+}> = ({ value, onChange, height = "400px", onMount }) => {
     const isDark = useColorModeValue(false, true);
 
     return (
@@ -28,6 +29,10 @@ export const MonacoEditor: React.FC<{
                     const model = editor.getModel();
                     if (model) {
                       model.setEOL(monaco.editor.EndOfLineSequence.LF);
+                    }
+                    // Call the onMount callback if provided
+                    if (onMount) {
+                        onMount(editor);
                     }
                   }}
                 options={{

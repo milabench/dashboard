@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
-import { useDebounce } from '../../hooks/useDebounce';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     Grid,
     VStack,
@@ -110,24 +109,43 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     saveTemplateMutation,
     activeJobs = []
 }) => {
-    // Debounce the script value to avoid excessive argument extraction
-    const debouncedScript = useDebounce(form.script || '', 2500);
-    
-    // Parse export variables from script (only constant values, not derived)
-    const parsedScriptArgs = useMemo(() => {
-        return parseExportVariables(debouncedScript, true);
-    }, [debouncedScript]);
+    // Local state for Monaco editor content
+    const [editorContent, setEditorContent] = useState(form.script || '');
+    const editorRef = useRef<any>(null);
 
-    // Update form with parsed script arguments
+    // Sync editor content when form script changes externally (e.g., template loading)
     useEffect(() => {
-        if (Object.keys(parsedScriptArgs).length > 0 &&
-            JSON.stringify(parsedScriptArgs) !== JSON.stringify(form.script_args)) {
-            setForm({
-                ...form,
-                script_args: parsedScriptArgs
-            });
+        setEditorContent(form.script || '');
+        if (editorRef.current) {
+            editorRef.current.setValue(form.script || '');
         }
-    }, [parsedScriptArgs, form, setForm]);
+    }, [form.script]);
+
+    // Function to refresh/extract arguments from script
+    const refreshScriptArgs = () => {
+        // Get current content from the editor
+        const currentScript = editorRef.current?.getValue() || editorContent;
+        const newScriptArgs = parseExportVariables(currentScript, true);
+        setForm({
+            ...form,
+            script: currentScript,
+            script_args: newScriptArgs
+        });
+    };
+
+    // Function to apply arguments back to script
+    const applyScriptArgs = () => {
+        const updatedScript = updateScriptWithExportVars(form.script, form.script_args || {});
+        setForm({
+            ...form,
+            script: updatedScript
+        });
+        // Update the editor content as well
+        setEditorContent(updatedScript);
+        if (editorRef.current) {
+            editorRef.current.setValue(updatedScript);
+        }
+    };
 
     // Handle script argument changes
     const handleScriptArgChange = (varName: string, varValue: string) => {
@@ -136,13 +154,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             [varName]: varValue
         };
 
-        // Update script with new values
-        const updatedScript = updateScriptWithExportVars(form.script, updatedScriptArgs);
-
         setForm({
             ...form,
-            script_args: updatedScriptArgs,
-            script: updatedScript
+            script_args: updatedScriptArgs
         });
     };
 
@@ -460,10 +474,32 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 </FormControl>
 
                 {/* Script Arguments Section */}
-                {form.script_args && Object.keys(form.script_args).length > 0 && (
-                    <FormControl>
-                        <VStack align="stretch" spacing={3}>
+                <FormControl>
+                    <VStack align="stretch" spacing={3}>
+                        <HStack justify="space-between" align="center">
                             <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
+                            <HStack spacing={2}>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={refreshScriptArgs}
+                                    colorScheme="blue"
+                                >
+                                    Refresh
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={applyScriptArgs}
+                                    colorScheme="green"
+                                    isDisabled={!form.script_args || Object.keys(form.script_args).length === 0}
+                                >
+                                    Apply to Script
+                                </Button>
+                            </HStack>
+                        </HStack>
+                        
+                        {form.script_args && Object.keys(form.script_args).length > 0 ? (
                             <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
                                 <VStack align="stretch" spacing={2}>
                                     {Object.entries(form.script_args).map(([varName, varValue]) => (
@@ -481,12 +517,19 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                     ))}
                                 </VStack>
                             </Box>
-                            <Text fontSize="xs" color="gray.500">
-                                These export variables are automatically extracted from your script and can be modified here.
-                            </Text>
-                        </VStack>
-                    </FormControl>
-                )}
+                        ) : (
+                            <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
+                                <Text fontSize="sm" color="gray.500" fontStyle="italic">
+                                    No export variables found. Click "Refresh" to extract variables from your script.
+                                </Text>
+                            </Box>
+                        )}
+                        
+                        <Text fontSize="xs" color="gray.500">
+                            Use "Refresh" to extract export variables from your script, then "Apply to Script" to update the script with your changes.
+                        </Text>
+                    </VStack>
+                </FormControl>
 
                 <Spacer />
             </VStack>
@@ -531,8 +574,11 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 <FormControl>
                     <MonacoEditor
                         height="calc(100vh - 17em)"
-                        value={form.script}
-                        onChange={(value) => setForm({ ...form, script: value })}
+                        value={editorContent}
+                        onChange={setEditorContent}
+                        onMount={(editor: any) => {
+                            editorRef.current = editor;
+                        }}
                     />
                 </FormControl>
             </VStack>
