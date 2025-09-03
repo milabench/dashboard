@@ -18,8 +18,9 @@ import {
     Box,
     Select,
 } from '@chakra-ui/react';
-// Lazy load Monaco Editor to reduce initial bundle size and CPU usage
-const MonacoEditor = lazy(() => import('../shared/MonacoEditor').then(module => ({ default: module.MonacoEditor })));
+
+import { MonacoEditor } from '../shared/MonacoEditor';
+
 import type { SlurmJobSubmitRequest, SlurmProfile, SlurmJob } from '../../services/types';
 
 // Utility function to parse export variables from script content
@@ -174,14 +175,27 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         }
     }, [form]);
 
-    // Function to refresh/extract arguments from script
+        // Function to refresh/extract arguments from script
     const refreshScriptArgs = () => {
-        // Get current content from the editor
+        // Get current content from the editor (this should have the latest changes)
         const currentScript = editorRef.current?.getValue() || '';
+        
         const newScriptArgs = parseExportVariables(currentScript, true);
         
-        // Update the display state - the key will force re-render with new defaultValues
+        // Is this still necessary
         setScriptArgsDisplay(newScriptArgs);
+        
+        // Update the input field values directly
+        const scriptArgsContainer = document.getElementById('script-args-container');
+        if (scriptArgsContainer) {
+            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
+            inputs.forEach((input) => {
+                const argName = input.getAttribute('data-arg-name');
+                if (argName && newScriptArgs[argName] !== undefined) {
+                    (input as HTMLInputElement).value = newScriptArgs[argName];
+                }
+            });
+        }
     };
 
     // Function to apply arguments back to script
@@ -202,9 +216,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         
         const currentScript = editorRef.current?.getValue() || '';
         const updatedScript = updateScriptWithExportVars(currentScript, currentScriptArgs);
+        
         if (editorRef.current) {
             editorRef.current.setValue(updatedScript);
         }
+        
+        // Also update the form script so that future operations work correctly
+        setForm({ ...form, script: updatedScript });
     };
 
     // No more handleScriptArgChange - script args are now uncontrolled!
@@ -518,14 +536,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack justify="space-between" align="center">
                             <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
                             <HStack spacing={2}>
-                                <Button
+                                {/* <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={refreshScriptArgs}
                                     colorScheme="blue"
                                 >
                                     Refresh
-                                </Button>
+                                </Button> */}
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -614,11 +632,12 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <Suspense fallback={<Box height="calc(100vh - 17em)" display="flex" alignItems="center" justifyContent="center" border="1px solid" borderColor="gray.200" borderRadius="md">
                         <Text>Loading editor...</Text>
                     </Box>}>
-                                            <MonacoEditor
+                        <MonacoEditor
                             height="calc(100vh - 17em)"
                             value={form.script || ''}
-                            onChange={() => {}} // No-op - completely uncontrolled
+                            onChange={() => refreshScriptArgs()} // No-op - completely uncontrolled
                             onMount={(editor: any) => {
+                                console.log('Editor mounted', editor);
                                 editorRef.current = editor;
                             }}
                         />

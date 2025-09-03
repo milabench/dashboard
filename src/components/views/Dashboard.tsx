@@ -367,63 +367,46 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         },
     });
 
-    // Store the assembleForm function from JobSubmissionForm
-    const [assembleForm, setAssembleForm] = useState<(() => SlurmJobSubmitRequest) | null>(null);
-
     const handleSubmitJob = () => {
-        if (!assembleForm) {
-            toast({
-                title: 'Form Error',
-                description: 'Form is not ready for submission',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        // Get the assembled form data
-        const formData = assembleForm();
-
         // Always build sbatch arguments from form fields, taking precedence over profile
         const sbatch_args = [];
 
-        if (formData.partition) {
-            sbatch_args.push(`--partition=${formData.partition}`);
+        if (submitForm.partition) {
+            sbatch_args.push(`--partition=${submitForm.partition}`);
         }
-        if (formData.nodes) {
-            sbatch_args.push(`--nodes=${formData.nodes}`);
+        if (submitForm.nodes) {
+            sbatch_args.push(`--nodes=${submitForm.nodes}`);
         }
-        if (formData.ntasks) {
-            sbatch_args.push(`--ntasks=${formData.ntasks}`);
+        if (submitForm.ntasks) {
+            sbatch_args.push(`--ntasks=${submitForm.ntasks}`);
         }
-        if (formData.cpus_per_task) {
-            sbatch_args.push(`--cpus-per-task=${formData.cpus_per_task}`);
+        if (submitForm.cpus_per_task) {
+            sbatch_args.push(`--cpus-per-task=${submitForm.cpus_per_task}`);
         }
-        if (formData.mem) {
-            sbatch_args.push(`--mem=${formData.mem}`);
+        if (submitForm.mem) {
+            sbatch_args.push(`--mem=${submitForm.mem}`);
         }
-        if (formData.time_limit) {
-            sbatch_args.push(`--time=${formData.time_limit}`);
+        if (submitForm.time_limit) {
+            sbatch_args.push(`--time=${submitForm.time_limit}`);
         }
-        if (formData.gpus_per_task) {
-            sbatch_args.push(`--gpus-per-task=${formData.gpus_per_task}`);
+        if (submitForm.gpus_per_task) {
+            sbatch_args.push(`--gpus-per-task=${submitForm.gpus_per_task}`);
         }
-        if (formData.ntasks_per_node) {
-            sbatch_args.push(`--ntasks-per-node=${formData.ntasks_per_node}`);
+        if (submitForm.ntasks_per_node) {
+            sbatch_args.push(`--ntasks-per-node=${submitForm.ntasks_per_node}`);
         }
-        if (formData.exclusive) {
+        if (submitForm.exclusive) {
             sbatch_args.push('--exclusive');
         }
-        if (formData.export) {
-            sbatch_args.push(`--export=${formData.export}`);
+        if (submitForm.export) {
+            sbatch_args.push(`--export=${submitForm.export}`);
         }
-        if (formData.nodelist) {
-            sbatch_args.push(`-w ${formData.nodelist}`);
+        if (submitForm.nodelist) {
+            sbatch_args.push(`-w ${submitForm.nodelist}`);
         }
-        if (formData.dependency) {
+        if (submitForm.dependency) {
             const dep = [];
-            for (const [event, job_id] of formData.dependency) {
+            for (const [event, job_id] of submitForm.dependency) {
                 dep.push(`${event}:${job_id}`);
             }
             const dependency = dep.join(",");
@@ -432,10 +415,10 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
         // Use the unified submit endpoint
         submitJobMutation.mutate({
-            script: formData.script,
-            job_name: formData.job_name,
+            script: submitForm.script,
+            job_name: submitForm.job_name,
             sbatch_args: sbatch_args,
-            script_args: formData.script_args
+            script_args: submitForm.script_args
         });
     };
 
@@ -974,7 +957,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 onSaveTemplate={handleSaveTemplate}
                                 saveTemplateMutation={saveTemplateMutation}
                                 activeJobs={activeJobs}
-                                onFormAssemble={setAssembleForm}
                             />
                         </ModalBody>
                         <ModalFooter>

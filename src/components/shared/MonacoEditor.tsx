@@ -1,14 +1,14 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { Box, useColorModeValue } from '@chakra-ui/react';
 import Editor from '@monaco-editor/react';
 
 // Monaco Editor component for bash script editing
-const MonacoEditorComponent: React.FC<{
+export const MonacoEditor: React.FC<{
     value: string;
     onChange: (value: string) => void;
+    onMount: (editor: any) => void;
     height?: string;
-    onMount?: (editor: any) => void;
-}> = ({ value, onChange, height = "400px", onMount }) => {
+}> = ({ value, onChange, onMount, height = "400px" }) => {
     const isDark = useColorModeValue(false, true);
 
     return (
@@ -26,13 +26,12 @@ const MonacoEditorComponent: React.FC<{
                 onChange={(value) => onChange(value || '')}
                 theme={isDark ? 'vs-dark' : 'light'}
                 onMount={(editor, monaco) => {
+                    if (onMount) {
+                        onMount(editor);
+                    }
                     const model = editor.getModel();
                     if (model) {
                       model.setEOL(monaco.editor.EndOfLineSequence.LF);
-                    }
-                    // Call the onMount callback if provided
-                    if (onMount) {
-                        onMount(editor);
                     }
                   }}
                 options={{
@@ -42,45 +41,37 @@ const MonacoEditorComponent: React.FC<{
                     lineNumbers: 'on',
                     roundedSelection: false,
                     scrollbar: {
-                        vertical: 'auto',
-                        horizontal: 'auto'
+                        vertical: 'visible',
+                        horizontal: 'visible'
                     },
                     automaticLayout: true,
                     wordWrap: 'on',
-                    folding: false, // Disable folding to reduce CPU usage
+                    folding: true,
+                    foldingStrategy: 'indentation',
+                    showFoldingControls: 'always',
                     lineDecorationsWidth: 10,
                     lineNumbersMinChars: 3,
-                    glyphMargin: false, // Disable glyph margin to reduce rendering
+                    glyphMargin: true,
                     fixedOverflowWidgets: true,
                     overviewRulerBorder: false,
                     overviewRulerLanes: 0,
                     hideCursorInOverviewRuler: true,
-                    renderLineHighlight: 'line', // Reduce highlighting
+                    renderLineHighlight: 'all',
                     selectOnLineNumbers: true,
                     contextmenu: true,
-                    mouseWheelZoom: false, // Disable zoom to reduce CPU
+                    mouseWheelZoom: true,
                     quickSuggestions: false,
                     suggestOnTriggerCharacters: false,
-                    acceptSuggestionOnEnter: 'off',
-                    tabCompletion: 'off',
+                    acceptSuggestionOnEnter: 'on',
+                    tabCompletion: 'on',
                     wordBasedSuggestions: 'off',
                     parameterHints: {
                         enabled: false
                     },
                     insertSpaces: true,
-                    tabSize: 4,
-                    // Performance optimizations
-                    renderWhitespace: 'none',
-                    renderControlCharacters: false,
-                    renderIndentGuides: false,
-                    smoothScrolling: false,
-                    cursorBlinking: 'solid', // Reduce blinking effects
-                    cursorSmoothCaretAnimation: false
+                    tabSize: 4
                 }}
             />
         </Box>
     );
 };
-
-// Memoized Monaco Editor to prevent unnecessary re-renders
-export const MonacoEditor = memo(MonacoEditorComponent);
