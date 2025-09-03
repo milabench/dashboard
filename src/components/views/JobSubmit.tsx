@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
     Grid,
     VStack,
@@ -18,7 +18,8 @@ import {
     Box,
     Select,
 } from '@chakra-ui/react';
-import { MonacoEditor } from '../shared/MonacoEditor';
+// Lazy load Monaco Editor to reduce initial bundle size and CPU usage
+const MonacoEditor = lazy(() => import('../shared/MonacoEditor').then(module => ({ default: module.MonacoEditor })));
 import type { SlurmJobSubmitRequest, SlurmProfile, SlurmJob } from '../../services/types';
 
 // Utility function to parse export variables from script content
@@ -91,6 +92,7 @@ interface JobSubmissionFormProps {
         isPending: boolean;
     };
     activeJobs?: SlurmJob[];
+    onFormAssemble?: (assembleForm: () => SlurmJobSubmitRequest) => void;
 }
 
 export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
@@ -107,124 +109,162 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     saveProfileMutation,
     onSaveTemplate,
     saveTemplateMutation,
-    activeJobs = []
+    activeJobs = [],
+    onFormAssemble
 }) => {
-    // Local state for Monaco editor content
-    const [editorContent, setEditorContent] = useState(form.script || '');
+    // Refs for uncontrolled inputs - much more performant
     const editorRef = useRef<any>(null);
+    const jobNameRef = useRef<HTMLInputElement>(null);
+    const partitionRef = useRef<HTMLInputElement>(null);
+    const nodesRef = useRef<HTMLInputElement>(null);
+    const ntasksRef = useRef<HTMLInputElement>(null);
+    const cpusPerTaskRef = useRef<HTMLInputElement>(null);
+    const memRef = useRef<HTMLInputElement>(null);
+    const timeLimitRef = useRef<HTMLInputElement>(null);
+    const gpusPerTaskRef = useRef<HTMLInputElement>(null);
+    const ntasksPerNodeRef = useRef<HTMLInputElement>(null);
+    const exclusiveRef = useRef<HTMLInputElement>(null);
+    const exportVarsRef = useRef<HTMLInputElement>(null);
+    const nodelistRef = useRef<HTMLInputElement>(null);
+    const dependencyEventRef = useRef<HTMLSelectElement>(null);
+    const dependencyJobRef = useRef<HTMLSelectElement>(null);
+    
+    // Minimal state only for displaying script args section (not for values)
+    const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>(() => form.script_args || {});
+    
+    // No more state for editor content - completely uncontrolled!
+    // We'll read script args from DOM and editor content from Monaco editor directly
 
-    // Sync editor content when form script changes externally (e.g., template loading)
+    // Sync refs when form changes externally (e.g., template loading, profile loading)
     useEffect(() => {
-        setEditorContent(form.script || '');
+        // Update Monaco editor
         if (editorRef.current) {
             editorRef.current.setValue(form.script || '');
         }
-    }, [form.script]);
+        
+        // Update all refs with form values
+        if (jobNameRef.current) jobNameRef.current.value = form.job_name || 'milabench_job';
+        if (partitionRef.current) partitionRef.current.value = form.partition || '';
+        if (nodesRef.current) nodesRef.current.value = String(form.nodes || 1);
+        if (ntasksRef.current) ntasksRef.current.value = String(form.ntasks || 1);
+        if (cpusPerTaskRef.current) cpusPerTaskRef.current.value = String(form.cpus_per_task || 4);
+        if (memRef.current) memRef.current.value = form.mem || '8G';
+        if (timeLimitRef.current) timeLimitRef.current.value = form.time_limit || '02:00:00';
+        if (gpusPerTaskRef.current) gpusPerTaskRef.current.value = form.gpus_per_task || '1';
+        if (ntasksPerNodeRef.current) ntasksPerNodeRef.current.value = String(form.ntasks_per_node || 1);
+        if (exclusiveRef.current) exclusiveRef.current.checked = form.exclusive || false;
+        if (exportVarsRef.current) exportVarsRef.current.value = form.export || 'ALL';
+        if (nodelistRef.current) nodelistRef.current.value = form.nodelist || '';
+        
+        // Handle dependency
+        if (form.dependency && form.dependency.length > 0) {
+            const [event, jobId] = form.dependency[0];
+            if (dependencyEventRef.current) dependencyEventRef.current.value = event || '';
+            if (dependencyJobRef.current) dependencyJobRef.current.value = jobId || '';
+        } else {
+            if (dependencyEventRef.current) dependencyEventRef.current.value = '';
+            if (dependencyJobRef.current) dependencyJobRef.current.value = '';
+        }
+        
+        // Update script arguments section when script is loaded from template
+        if (form.script) {
+            const newScriptArgs = parseExportVariables(form.script, true);
+            // We'll trigger a re-render to show the new script args by using a minimal state
+            setScriptArgsDisplay(newScriptArgs);
+        }
+    }, [form]);
 
     // Function to refresh/extract arguments from script
     const refreshScriptArgs = () => {
         // Get current content from the editor
-        const currentScript = editorRef.current?.getValue() || editorContent;
+        const currentScript = editorRef.current?.getValue() || '';
         const newScriptArgs = parseExportVariables(currentScript, true);
-        setForm({
-            ...form,
-            script: currentScript,
-            script_args: newScriptArgs
-        });
+        
+        // Update the display state - the key will force re-render with new defaultValues
+        setScriptArgsDisplay(newScriptArgs);
     };
 
     // Function to apply arguments back to script
     const applyScriptArgs = () => {
-        const updatedScript = updateScriptWithExportVars(form.script, form.script_args || {});
-        setForm({
-            ...form,
-            script: updatedScript
-        });
-        // Update the editor content as well
-        setEditorContent(updatedScript);
+        // Get current script args from DOM inputs
+        const currentScriptArgs: Record<string, string> = {};
+        const scriptArgsContainer = document.getElementById('script-args-container');
+        if (scriptArgsContainer) {
+            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
+            inputs.forEach((input) => {
+                const argName = input.getAttribute('data-arg-name');
+                const value = (input as HTMLInputElement).value;
+                if (argName) {
+                    currentScriptArgs[argName] = value;
+                }
+            });
+        }
+        
+        const currentScript = editorRef.current?.getValue() || '';
+        const updatedScript = updateScriptWithExportVars(currentScript, currentScriptArgs);
         if (editorRef.current) {
             editorRef.current.setValue(updatedScript);
         }
     };
 
-    // Handle script argument changes
-    const handleScriptArgChange = (varName: string, varValue: string) => {
-        const updatedScriptArgs = {
-            ...form.script_args,
-            [varName]: varValue
+    // No more handleScriptArgChange - script args are now uncontrolled!
+
+    // Note: We no longer need currentDependency since we're using uncontrolled inputs
+
+    // Function to assemble all form data from refs - no state dependencies!
+    const assembleForm = useCallback((): SlurmJobSubmitRequest => {
+        // Read current dependency values
+        const dependencyEvent = dependencyEventRef.current?.value || '';
+        const dependencyJobId = dependencyJobRef.current?.value || '';
+        const dependency: [string, string][] | undefined = (dependencyEvent && dependencyJobId) ? [[dependencyEvent, dependencyJobId] as [string, string]] : undefined;
+        
+        // Read script args from DOM
+        const currentScriptArgs: Record<string, string> = {};
+        const scriptArgsContainer = document.getElementById('script-args-container');
+        if (scriptArgsContainer) {
+            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
+            inputs.forEach((input) => {
+                const argName = input.getAttribute('data-arg-name');
+                const value = (input as HTMLInputElement).value;
+                if (argName) {
+                    currentScriptArgs[argName] = value;
+                }
+            });
+        }
+        
+        return {
+            script: editorRef.current?.getValue() || '',
+            job_name: jobNameRef.current?.value || 'milabench_job',
+            script_args: currentScriptArgs,
+            partition: partitionRef.current?.value || '',
+            nodes: parseInt(nodesRef.current?.value || '1'),
+            ntasks: parseInt(ntasksRef.current?.value || '1'),
+            cpus_per_task: parseInt(cpusPerTaskRef.current?.value || '4'),
+            mem: memRef.current?.value || '8G',
+            time_limit: timeLimitRef.current?.value || '02:00:00',
+            gpus_per_task: gpusPerTaskRef.current?.value || '1',
+            ntasks_per_node: parseInt(ntasksPerNodeRef.current?.value || '1'),
+            exclusive: exclusiveRef.current?.checked || false,
+            export: exportVarsRef.current?.value || 'ALL',
+            nodelist: nodelistRef.current?.value || '',
+            dependency: dependency
         };
+    }, [scriptArgsDisplay]); // Only depend on scriptArgsDisplay for re-renders
 
-        setForm({
-            ...form,
-            script_args: updatedScriptArgs
-        });
-    };
-
-    // Handle dependency changes
-    const handleDependencyEventChange = (event: string) => {
-        const currentJobId = currentDependency.jobId;
-        if (event && currentJobId) {
-            setForm({
-                ...form,
-                dependency: [[event, currentJobId]]
-            });
-        } else if (event) {
-            // Keep the event selection even if no job is selected yet
-            setForm({
-                ...form,
-                dependency: [[event, ""]]
-            });
-        } else {
-            setForm({
-                ...form,
-                dependency: undefined
-            });
+    // Expose the assembleForm function to parent component
+    useEffect(() => {
+        if (onFormAssemble) {
+            onFormAssemble(assembleForm);
         }
-    };
-
-    const handleDependencyJobChange = (jobId: string) => {
-        const currentEvent = currentDependency.event;
-        if (currentEvent && jobId) {
-            setForm({
-                ...form,
-                dependency: [[currentEvent, jobId]]
-            });
-        } else if (jobId) {
-            // Keep the job selection even if no event is selected yet
-            setForm({
-                ...form,
-                dependency: [["", jobId]]
-            });
-        } else if (currentEvent) {
-            // Keep the event if job is cleared
-            setForm({
-                ...form,
-                dependency: [[currentEvent, ""]]
-            });
-        } else {
-            setForm({
-                ...form,
-                dependency: undefined
-            });
-        }
-    };
-
-    // Get current dependency values for display
-    const getCurrentDependency = () => {
-        if (form.dependency && form.dependency.length > 0) {
-            const dep = form.dependency[0];
-            return { event: dep[0], jobId: dep[1] };
-        }
-        return { event: '', jobId: '' };
-    };
-
-    const currentDependency = getCurrentDependency();
+    }, [onFormAssemble, assembleForm]);
 
     // Filter jobs to only show running and pending jobs for dependencies
-    const dependencyJobs = activeJobs.filter(job =>
+    const dependencyJobs = useMemo(() => {
+        return activeJobs.filter(job =>
         job.job_state?.[0]?.toLowerCase() === 'running' ||
         job.job_state?.[0]?.toLowerCase() === 'pending'
     );
+    }, [activeJobs]);
 
     return (
         <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
@@ -270,8 +310,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <HStack spacing={3} align="center">
                         <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
                         <Input
-                            value={form.job_name}
-                            onChange={(e) => setForm({ ...form, job_name: e.target.value })}
+                            ref={jobNameRef}
+                            defaultValue={form.job_name || 'milabench_job'}
                             placeholder="milabench_job"
                             flex={1}
                         />
@@ -283,8 +323,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Partition</FormLabel>
                             <Input
-                                value={form.partition}
-                                onChange={(e) => setForm({ ...form, partition: e.target.value })}
+                                ref={partitionRef}
+                                defaultValue={form.partition || ''}
                                 placeholder="Leave empty for default"
                                 flex={1}
                             />
@@ -295,8 +335,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
                             <NumberInput
-                                value={form.nodes}
-                                onChange={(_, value) => setForm({ ...form, nodes: value })}
+                                ref={nodesRef}
+                                defaultValue={form.nodes || 1}
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -314,8 +354,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
                             <NumberInput
-                                value={form.ntasks}
-                                onChange={(_, value) => setForm({ ...form, ntasks: value })}
+                                ref={ntasksRef}
+                                defaultValue={form.ntasks || 1}
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -333,8 +373,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
                             <NumberInput
-                                value={form.cpus_per_task}
-                                onChange={(_, value) => setForm({ ...form, cpus_per_task: value })}
+                                ref={cpusPerTaskRef}
+                                defaultValue={form.cpus_per_task || 4}
                                 min={1}
                                 max={64}
                                 flex={1}
@@ -352,8 +392,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
                             <Input
-                                value={form.gpus_per_task}
-                                onChange={(e) => setForm({ ...form, gpus_per_task: e.target.value })}
+                                ref={gpusPerTaskRef}
+                                defaultValue={form.gpus_per_task || '1'}
                                 placeholder="1"
                                 flex={1}
                             />
@@ -364,8 +404,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
                             <NumberInput
-                                value={form.ntasks_per_node}
-                                onChange={(_, value) => setForm({ ...form, ntasks_per_node: value })}
+                                ref={ntasksPerNodeRef}
+                                defaultValue={form.ntasks_per_node || 1}
                                 min={1}
                                 max={100}
                                 flex={1}
@@ -383,8 +423,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Memory</FormLabel>
                             <Input
-                                value={form.mem}
-                                onChange={(e) => setForm({ ...form, mem: e.target.value })}
+                                ref={memRef}
+                                defaultValue={form.mem || '8G'}
                                 placeholder="8G"
                                 flex={1}
                             />
@@ -395,8 +435,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
                             <Input
-                                value={form.time_limit}
-                                onChange={(e) => setForm({ ...form, time_limit: e.target.value })}
+                                ref={timeLimitRef}
+                                defaultValue={form.time_limit || '02:00:00'}
                                 placeholder="02:00:00"
                                 flex={1}
                             />
@@ -407,8 +447,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Export</FormLabel>
                             <Input
-                                value={form.export}
-                                onChange={(e) => setForm({ ...form, export: e.target.value })}
+                                ref={exportVarsRef}
+                                defaultValue={form.export || 'ALL'}
                                 placeholder="ALL"
                                 flex={1}
                             />
@@ -419,8 +459,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         <HStack spacing={3} align="center">
                             <FormLabel minW="120px" mb={0}>Node List</FormLabel>
                             <Input
-                                value={form.nodelist}
-                                onChange={(e) => setForm({ ...form, nodelist: e.target.value })}
+                                ref={nodelistRef}
+                                defaultValue={form.nodelist || ''}
                                 placeholder="e.g., cn-d[003-004]"
                                 flex={1}
                             />
@@ -432,9 +472,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <HStack spacing={3} align="center">
                         <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
                         <Checkbox
-
-                            isChecked={form.exclusive}
-                            onChange={(e) => setForm({ ...form, exclusive: e.target.checked })}
+                            ref={exclusiveRef}
+                            defaultChecked={form.exclusive || false}
                         >
                             Request exclusive access to nodes
                         </Checkbox>
@@ -445,8 +484,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <HStack spacing={3} align="center">
                         <FormLabel minW="120px" fontWeight={"bold"} mb={0}>Dependency</FormLabel>
                         <Select
-                            value={currentDependency.event}
-                            onChange={(e) => handleDependencyEventChange(e.target.value)}
+                            ref={dependencyEventRef}
+                            defaultValue={form.dependency?.[0]?.[0] || ''}
                             placeholder="Select event"
                             flex={1}
                         >
@@ -459,8 +498,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             <option value="singleton">Singleton</option>
                         </Select>
                         <Select
-                            value={currentDependency.jobId}
-                            onChange={(e) => handleDependencyJobChange(e.target.value)}
+                            ref={dependencyJobRef}
+                            defaultValue={form.dependency?.[0]?.[1] || ''}
                             placeholder="Select job"
                             flex={1}
                         >
@@ -474,8 +513,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 </FormControl>
 
                 {/* Script Arguments Section */}
-                <FormControl>
-                    <VStack align="stretch" spacing={3}>
+                    <FormControl>
+                        <VStack align="stretch" spacing={3}>
                         <HStack justify="space-between" align="center">
                             <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
                             <HStack spacing={2}>
@@ -492,24 +531,24 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                     variant="outline"
                                     onClick={applyScriptArgs}
                                     colorScheme="green"
-                                    isDisabled={!form.script_args || Object.keys(form.script_args).length === 0}
+                                    isDisabled={!scriptArgsDisplay || Object.keys(scriptArgsDisplay).length === 0}
                                 >
                                     Apply to Script
                                 </Button>
                             </HStack>
                         </HStack>
                         
-                        {form.script_args && Object.keys(form.script_args).length > 0 ? (
-                            <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
+                        {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
+                            <Box pl={3} borderLeft="2px solid" borderColor="gray.200" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
                                 <VStack align="stretch" spacing={2}>
-                                    {Object.entries(form.script_args).map(([varName, varValue]) => (
+                                    {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
                                         <HStack key={varName} spacing={2}>
                                             <Text minW="150px" fontSize="sm" fontWeight="medium">
                                                 {varName}
                                             </Text>
                                             <Input
-                                                value={varValue}
-                                                onChange={(e) => handleScriptArgChange(varName, e.target.value)}
+                                                data-arg-name={varName}
+                                                defaultValue={varValue}
                                                 size="sm"
                                                 flex={1}
                                             />
@@ -525,15 +564,15 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                             </Box>
                         )}
                         
-                        <Text fontSize="xs" color="gray.500">
+                            <Text fontSize="xs" color="gray.500">
                             Use "Refresh" to extract export variables from your script, then "Apply to Script" to update the script with your changes.
-                        </Text>
-                    </VStack>
-                </FormControl>
+                            </Text>
+                        </VStack>
+                    </FormControl>
 
                 <Spacer />
             </VStack>
-            <VStack align="stretch" className="column-2 slurm-script" >
+            <VStack align="stretch" className="column-2 slurm-script" height="100%">
                 <FormControl paddingBottom="10px">
                     <HStack spacing={3} align="center">
                         <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
@@ -571,15 +610,19 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     )}
                 </FormControl>
 
-                <FormControl>
-                    <MonacoEditor
-                        height="calc(100vh - 17em)"
-                        value={editorContent}
-                        onChange={setEditorContent}
-                        onMount={(editor: any) => {
-                            editorRef.current = editor;
-                        }}
-                    />
+                <FormControl height="100%">
+                    <Suspense fallback={<Box height="calc(100vh - 17em)" display="flex" alignItems="center" justifyContent="center" border="1px solid" borderColor="gray.200" borderRadius="md">
+                        <Text>Loading editor...</Text>
+                    </Box>}>
+                                            <MonacoEditor
+                            height="calc(100vh - 17em)"
+                            value={form.script || ''}
+                            onChange={() => {}} // No-op - completely uncontrolled
+                            onMount={(editor: any) => {
+                                editorRef.current = editor;
+                            }}
+                        />
+                    </Suspense>
                 </FormControl>
             </VStack>
         </Grid>

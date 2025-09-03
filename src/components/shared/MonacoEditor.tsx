@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Box, useColorModeValue } from '@chakra-ui/react';
 import Editor from '@monaco-editor/react';
 
 // Monaco Editor component for bash script editing
-export const MonacoEditor: React.FC<{
+const MonacoEditorComponent: React.FC<{
     value: string;
     onChange: (value: string) => void;
     height?: string;
@@ -42,37 +42,45 @@ export const MonacoEditor: React.FC<{
                     lineNumbers: 'on',
                     roundedSelection: false,
                     scrollbar: {
-                        vertical: 'visible',
-                        horizontal: 'visible'
+                        vertical: 'auto',
+                        horizontal: 'auto'
                     },
                     automaticLayout: true,
                     wordWrap: 'on',
-                    folding: true,
-                    foldingStrategy: 'indentation',
-                    showFoldingControls: 'always',
+                    folding: false, // Disable folding to reduce CPU usage
                     lineDecorationsWidth: 10,
                     lineNumbersMinChars: 3,
-                    glyphMargin: true,
+                    glyphMargin: false, // Disable glyph margin to reduce rendering
                     fixedOverflowWidgets: true,
                     overviewRulerBorder: false,
                     overviewRulerLanes: 0,
                     hideCursorInOverviewRuler: true,
-                    renderLineHighlight: 'all',
+                    renderLineHighlight: 'line', // Reduce highlighting
                     selectOnLineNumbers: true,
                     contextmenu: true,
-                    mouseWheelZoom: true,
+                    mouseWheelZoom: false, // Disable zoom to reduce CPU
                     quickSuggestions: false,
                     suggestOnTriggerCharacters: false,
-                    acceptSuggestionOnEnter: 'on',
-                    tabCompletion: 'on',
+                    acceptSuggestionOnEnter: 'off',
+                    tabCompletion: 'off',
                     wordBasedSuggestions: 'off',
                     parameterHints: {
                         enabled: false
                     },
                     insertSpaces: true,
-                    tabSize: 4
+                    tabSize: 4,
+                    // Performance optimizations
+                    renderWhitespace: 'none',
+                    renderControlCharacters: false,
+                    renderIndentGuides: false,
+                    smoothScrolling: false,
+                    cursorBlinking: 'solid', // Reduce blinking effects
+                    cursorSmoothCaretAnimation: false
                 }}
             />
         </Box>
     );
 };
+
+// Memoized Monaco Editor to prevent unnecessary re-renders
+export const MonacoEditor = memo(MonacoEditorComponent);
