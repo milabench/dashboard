@@ -21,12 +21,13 @@ import {
 } from '@chakra-ui/react';
 
 import { MonacoEditor } from '../shared/MonacoEditor';
+import AutocompleteInput from '../shared/AutocompleteInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-    submitSlurmJob, 
-    getSlurmTemplateContent, 
-    saveSlurmProfile, 
-    saveSlurmTemplate 
+import {
+    submitSlurmJob,
+    getSlurmTemplateContent,
+    saveSlurmProfile,
+    saveSlurmTemplate
 } from '../../services/api';
 import type { SlurmProfile, SlurmJob } from '../../services/types';
 
@@ -101,6 +102,12 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
     const [selectedProfile, setSelectedProfile] = useState<string>('');
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
+    // Controlled state for NumberInput components
+    const [nodes, setNodes] = useState<string>('1');
+    const [ntasks, setNtasks] = useState<string>('1');
+    const [cpusPerTask, setCpusPerTask] = useState<string>('4');
+    const [ntasksPerNode, setNtasksPerNode] = useState<string>('1');
 
     // Mutations
     const submitJobMutation = useMutation({
@@ -205,14 +212,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             if (selectedProfileData.parsed_args.partition && partitionRef.current) {
                 partitionRef.current.value = selectedProfileData.parsed_args.partition;
             }
-            if (selectedProfileData.parsed_args.nodes && nodesRef.current) {
-                nodesRef.current.value = selectedProfileData.parsed_args.nodes.toString();
+            if (selectedProfileData.parsed_args.nodes) {
+                setNodes(selectedProfileData.parsed_args.nodes.toString());
             }
-            if (selectedProfileData.parsed_args.ntasks && ntasksRef.current) {
-                ntasksRef.current.value = selectedProfileData.parsed_args.ntasks.toString();
+            if (selectedProfileData.parsed_args.ntasks) {
+                setNtasks(selectedProfileData.parsed_args.ntasks.toString());
             }
-            if (selectedProfileData.parsed_args.cpus_per_task && cpusPerTaskRef.current) {
-                cpusPerTaskRef.current.value = selectedProfileData.parsed_args.cpus_per_task.toString();
+            if (selectedProfileData.parsed_args.cpus_per_task) {
+                setCpusPerTask(selectedProfileData.parsed_args.cpus_per_task.toString());
             }
             if (selectedProfileData.parsed_args.mem && memRef.current) {
                 memRef.current.value = selectedProfileData.parsed_args.mem;
@@ -223,9 +230,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             if (selectedProfileData.parsed_args.gpus_per_task && gpusPerTaskRef.current) {
                 gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task;
             }
-            if (selectedProfileData.parsed_args.ntasks_per_node && ntasksPerNodeRef.current) {
-                ntasksPerNodeRef.current.value = selectedProfileData.parsed_args.ntasks_per_node.toString();
-            }
+
             if (exclusiveRef.current) {
                 exclusiveRef.current.checked = selectedProfileData.parsed_args.exclusive || false;
             }
@@ -261,26 +266,26 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const sbatch_args = [];
         const jobName = jobNameRef.current?.value;
         const partition = partitionRef.current?.value;
-        const nodes = nodesRef.current?.value;
-        const ntasks = ntasksRef.current?.value;
-        const cpusPerTask = cpusPerTaskRef.current?.value;
+        const nodesValue = nodes;
+        const ntasksValue = ntasks;
+        const cpusPerTaskValue = cpusPerTask;
         const mem = memRef.current?.value;
         const timeLimit = timeLimitRef.current?.value;
         const gpusPerTask = gpusPerTaskRef.current?.value;
-        const ntasksPerNode = ntasksPerNodeRef.current?.value;
+        const ntasksPerNodeValue = ntasksPerNode;
         const exclusive = exclusiveRef.current?.checked;
         const exportVars = exportVarsRef.current?.value;
         const nodelist = nodelistRef.current?.value;
 
         if (jobName) sbatch_args.push(`--job-name=${jobName}`);
         if (partition) sbatch_args.push(`--partition=${partition}`);
-        if (nodes) sbatch_args.push(`--nodes=${nodes}`);
-        if (ntasks) sbatch_args.push(`--ntasks=${ntasks}`);
-        if (cpusPerTask) sbatch_args.push(`--cpus-per-task=${cpusPerTask}`);
+        if (nodesValue) sbatch_args.push(`--nodes=${nodesValue}`);
+        if (ntasksValue) sbatch_args.push(`--ntasks=${ntasksValue}`);
+        if (cpusPerTaskValue) sbatch_args.push(`--cpus-per-task=${cpusPerTaskValue}`);
         if (mem) sbatch_args.push(`--mem=${mem}`);
         if (timeLimit) sbatch_args.push(`--time=${timeLimit}`);
         if (gpusPerTask) sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
-        if (ntasksPerNode) sbatch_args.push(`--ntasks-per-node=${ntasksPerNode}`);
+        if (ntasksPerNodeValue) sbatch_args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
         if (exclusive) sbatch_args.push('--exclusive');
         if (exportVars) sbatch_args.push(`--export=${exportVars}`);
         if (nodelist) sbatch_args.push(`-w ${nodelist}`);
@@ -329,13 +334,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         // Build sbatch arguments from form fields
         const sbatch_args = [];
         const partition = partitionRef.current?.value;
-        const nodes = nodesRef.current?.value;
-        const ntasks = ntasksRef.current?.value;
-        const cpusPerTask = cpusPerTaskRef.current?.value;
+        const nodesValue = nodes;
+        const ntasksValue = ntasks;
+        const cpusPerTaskValue = cpusPerTask;
         const mem = memRef.current?.value;
         const timeLimit = timeLimitRef.current?.value;
         const gpusPerTask = gpusPerTaskRef.current?.value;
-        const ntasksPerNode = ntasksPerNodeRef.current?.value;
+        const ntasksPerNodeValue = ntasksPerNode;
         const exclusive = exclusiveRef.current?.checked;
         const exportVars = exportVarsRef.current?.value;
         const nodelist = nodelistRef.current?.value;
@@ -343,13 +348,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const dependencyJobId = dependencyJobRef.current?.value;
 
         if (partition) sbatch_args.push(`--partition=${partition}`);
-        if (nodes) sbatch_args.push(`--nodes=${nodes}`);
-        if (ntasks) sbatch_args.push(`--ntasks=${ntasks}`);
-        if (cpusPerTask) sbatch_args.push(`--cpus-per-task=${cpusPerTask}`);
+        if (nodesValue) sbatch_args.push(`--nodes=${nodesValue}`);
+        if (ntasksValue) sbatch_args.push(`--ntasks=${ntasksValue}`);
+        if (cpusPerTaskValue) sbatch_args.push(`--cpus-per-task=${cpusPerTaskValue}`);
         if (mem) sbatch_args.push(`--mem=${mem}`);
         if (timeLimit) sbatch_args.push(`--time=${timeLimit}`);
         if (gpusPerTask) sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
-        if (ntasksPerNode) sbatch_args.push(`--ntasks-per-node=${ntasksPerNode}`);
+        if (ntasksPerNodeValue) sbatch_args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
         if (exclusive) sbatch_args.push('--exclusive');
         if (exportVars) sbatch_args.push(`--export=${exportVars}`);
         if (nodelist) sbatch_args.push(`-w ${nodelist}`);
@@ -383,35 +388,33 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const editorRef = useRef<any>(null);
     const jobNameRef = useRef<HTMLInputElement>(null);
     const partitionRef = useRef<HTMLInputElement>(null);
-    const nodesRef = useRef<HTMLInputElement>(null);
-    const ntasksRef = useRef<HTMLInputElement>(null);
-    const cpusPerTaskRef = useRef<HTMLInputElement>(null);
+
     const memRef = useRef<HTMLInputElement>(null);
     const timeLimitRef = useRef<HTMLInputElement>(null);
     const gpusPerTaskRef = useRef<HTMLInputElement>(null);
-    const ntasksPerNodeRef = useRef<HTMLInputElement>(null);
+
     const exclusiveRef = useRef<HTMLInputElement>(null);
     const exportVarsRef = useRef<HTMLInputElement>(null);
     const nodelistRef = useRef<HTMLInputElement>(null);
     const dependencyEventRef = useRef<HTMLSelectElement>(null);
     const dependencyJobRef = useRef<HTMLSelectElement>(null);
-    
+
     // Minimal state only for displaying script args section (not for values)
     const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>({});
-    
+
     // No more state for editor content - completely uncontrolled!
     // We'll read script args from DOM and editor content from Monaco editor directly
 
-        // Function to refresh/extract arguments from script
+    // Function to refresh/extract arguments from script
     const refreshScriptArgs = () => {
         // Get current content from the editor (this should have the latest changes)
         const currentScript = editorRef.current?.getValue() || '';
-        
+
         const newScriptArgs = parseExportVariables(currentScript, true);
-        
+
         // Is this still necessary
         setScriptArgsDisplay(newScriptArgs);
-        
+
         // Update the input field values directly
         const scriptArgsContainer = document.getElementById('script-args-container');
         if (scriptArgsContainer) {
@@ -440,14 +443,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 }
             });
         }
-        
+
         const currentScript = editorRef.current?.getValue() || '';
         const updatedScript = updateScriptWithExportVars(currentScript, currentScriptArgs);
-        
+
         if (editorRef.current) {
             editorRef.current.setValue(updatedScript);
         }
-        
+
         // No need to update form state - we don't have any
     };
 
@@ -462,265 +465,272 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     // Filter jobs to only show running and pending jobs for dependencies
     const dependencyJobs = useMemo(() => {
         return activeJobs.filter(job =>
-        job.job_state?.[0]?.toLowerCase() === 'running' ||
-        job.job_state?.[0]?.toLowerCase() === 'pending'
-    );
+            job.job_state?.[0]?.toLowerCase() === 'running' ||
+            job.job_state?.[0]?.toLowerCase() === 'pending'
+        );
     }, [activeJobs]);
 
     return (
         <Box width="100%" height="100%">
-        <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
-            <VStack align="stretch" className="column-1 slurm-options">
-                <FormControl paddingBottom="10px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Slurm Profile</FormLabel>
-                        <VStack align="stretch" flex={1} spacing={2}>
-                            <HStack spacing={3}>
+            <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
+                <VStack align="stretch" className="column-1 slurm-options">
+                    <FormControl paddingBottom="10px">
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Slurm Profile</FormLabel>
+                            <VStack align="stretch" flex={1} spacing={2}>
+                                <HStack spacing={3}>
+                                    <AutocompleteInput
+                                        value={selectedProfile}
+                                        onChange={setSelectedProfile}
+                                        onSelect={handleProfileSelect}
+                                        suggestions={profiles.map(p => p.name)}
+                                        placeholder="Select a profile or enter custom name"
+                                        size="md"
+                                        width="100%"
+                                        renderSuggestion={(suggestion) => {
+                                            const profile = profiles.find(p => p.name === suggestion);
+                                            return (
+                                                <VStack align="start" spacing={0}>
+                                                    <Text fontWeight="medium">{suggestion}</Text>
+                                                    {profile?.description && (
+                                                        <Text fontSize="xs" color="gray.500">
+                                                            {profile.description}
+                                                        </Text>
+                                                    )}
+                                                </VStack>
+                                            );
+                                        }}
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleSaveProfile}
+                                        isLoading={saveProfileMutation.isPending}
+                                        size="md"
+                                    >
+                                        Save Profile
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </HStack>
+                        <Text fontSize="sm" color="gray.600">
+                            Select an existing profile or enter a new name to create a new profile
+                        </Text>
+                    </FormControl>
+
+                    <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Slurm Arguments</FormLabel>
+                    <FormControl>
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
+                            <Input
+                                ref={jobNameRef}
+                                defaultValue="milabench_job"
+                                placeholder="milabench_job"
+                                flex={1}
+                            />
+                        </HStack>
+                    </FormControl>
+
+                    <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Partition</FormLabel>
                                 <Input
-                                    value={selectedProfile}
-                                    onChange={(e) => handleProfileSelect(e.target.value)}
-                                    placeholder="Select a profile or enter custom name"
-                                    list="profile-list"
+                                    ref={partitionRef}
+                                    defaultValue=""
+                                    placeholder="Leave empty for default"
                                     flex={1}
                                 />
-                                <Button
-                                    variant="outline"
-                                    onClick={handleSaveProfile}
-                                    isLoading={saveProfileMutation.isPending}
-                                    size="md"
-                                >
-                                    Save Profile
-                                </Button>
                             </HStack>
-                            <datalist id="profile-list">
-                                {profiles.map((profile) => (
-                                    <option key={profile.name} value={profile.name}>
-                                        {profile.name} - {profile.description}
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
+                                <NumberInput
+                                    value={nodes}
+                                    onChange={(valueString) => setNodes(valueString)}
+                                    min={1}
+                                    max={100}
+                                    flex={1}
+                                >
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                        <NumberIncrementStepper />
+                                        <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                </NumberInput>
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
+                                <NumberInput
+                                    value={ntasks}
+                                    onChange={(valueString) => setNtasks(valueString)}
+                                    min={1}
+                                    max={100}
+                                    flex={1}
+                                >
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                        <NumberIncrementStepper />
+                                        <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                </NumberInput>
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
+                                <NumberInput
+                                    value={cpusPerTask}
+                                    onChange={(valueString) => setCpusPerTask(valueString)}
+                                    min={1}
+                                    max={1024}
+                                    flex={1}
+                                >
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                        <NumberIncrementStepper />
+                                        <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                </NumberInput>
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
+                                <Input
+                                    ref={gpusPerTaskRef}
+                                    defaultValue="1"
+                                    placeholder="1"
+                                    flex={1}
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
+                                <NumberInput
+                                    value={ntasksPerNode}
+                                    onChange={(valueString) => setNtasksPerNode(valueString)}
+                                    min={1}
+                                    max={100}
+                                    flex={1}
+                                >
+                                    <NumberInputField />
+                                    <NumberInputStepper>
+                                        <NumberIncrementStepper />
+                                        <NumberDecrementStepper />
+                                    </NumberInputStepper>
+                                </NumberInput>
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Memory</FormLabel>
+                                <Input
+                                    ref={memRef}
+                                    defaultValue="8G"
+                                    placeholder="8G"
+                                    flex={1}
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
+                                <Input
+                                    ref={timeLimitRef}
+                                    defaultValue="02:00:00"
+                                    placeholder="02:00:00"
+                                    flex={1}
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Export</FormLabel>
+                                <Input
+                                    ref={exportVarsRef}
+                                    defaultValue="ALL"
+                                    placeholder="ALL"
+                                    flex={1}
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <FormControl>
+                            <HStack spacing={3} align="center">
+                                <FormLabel minW="120px" mb={0}>Node List</FormLabel>
+                                <Input
+                                    ref={nodelistRef}
+                                    defaultValue=""
+                                    placeholder="e.g., cn-d[003-004]"
+                                    flex={1}
+                                />
+                            </HStack>
+                        </FormControl>
+                    </Grid>
+
+                    <FormControl paddingTop="10px">
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
+                            <Checkbox
+                                ref={exclusiveRef}
+                                defaultChecked={false}
+                            >
+                                Request exclusive access to nodes
+                            </Checkbox>
+                        </HStack>
+                    </FormControl>
+
+                    <FormControl paddingTop="20px">
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" fontWeight={"bold"} mb={0}>Dependency</FormLabel>
+                            <Select
+                                ref={dependencyEventRef}
+                                defaultValue=""
+                                placeholder="Select event"
+                                flex={1}
+                            >
+                                <option value="after">After</option>
+                                <option value="afterok">After Ok</option>
+                                <option value="afterany">After Any</option>
+                                <option value="afterburstbuffer">After Burst Buffer</option>
+                                <option value="aftercorr">After Corr</option>
+                                <option value="afternotok">After Not Ok</option>
+                                <option value="singleton">Singleton</option>
+                            </Select>
+                            <Select
+                                ref={dependencyJobRef}
+                                defaultValue=""
+                                placeholder="Select job"
+                                flex={1}
+                            >
+                                {dependencyJobs.map((job) => (
+                                    <option key={job.job_id} value={job.job_id || ''}>
+                                        {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0] || 'Unknown'})
                                     </option>
                                 ))}
-                            </datalist>
-
-                        </VStack>
-                    </HStack>
-                    <Text fontSize="sm" color="gray.600">
-                        Select an existing profile or enter a new name to create a new profile
-                    </Text>
-                </FormControl>
-
-                <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Slurm Arguments</FormLabel>
-                <FormControl>
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
-                        <Input
-                            ref={jobNameRef}
-                            defaultValue="milabench_job"
-                            placeholder="milabench_job"
-                            flex={1}
-                        />
-                    </HStack>
-                </FormControl>
-
-                <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Partition</FormLabel>
-                            <Input
-                                ref={partitionRef}
-                                defaultValue=""
-                                placeholder="Leave empty for default"
-                                flex={1}
-                            />
+                            </Select>
                         </HStack>
                     </FormControl>
 
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
-                            <NumberInput
-                                ref={nodesRef}
-                                defaultValue="1"
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
-                            <NumberInput
-                                ref={ntasksRef}
-                                defaultValue="1"
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
-                            <NumberInput
-                                ref={cpusPerTaskRef}
-                                defaultValue="4"
-                                min={1}
-                                max={64}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
-                            <Input
-                                ref={gpusPerTaskRef}
-                                defaultValue="1"
-                                placeholder="1"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
-                            <NumberInput
-                                ref={ntasksPerNodeRef}
-                                defaultValue="1"
-                                min={1}
-                                max={100}
-                                flex={1}
-                            >
-                                <NumberInputField />
-                                <NumberInputStepper>
-                                    <NumberIncrementStepper />
-                                    <NumberDecrementStepper />
-                                </NumberInputStepper>
-                            </NumberInput>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Memory</FormLabel>
-                            <Input
-                                ref={memRef}
-                                defaultValue="8G"
-                                placeholder="8G"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
-                            <Input
-                                ref={timeLimitRef}
-                                defaultValue="02:00:00"
-                                placeholder="02:00:00"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Export</FormLabel>
-                            <Input
-                                ref={exportVarsRef}
-                                defaultValue="ALL"
-                                placeholder="ALL"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Node List</FormLabel>
-                            <Input
-                                ref={nodelistRef}
-                                defaultValue=""
-                                placeholder="e.g., cn-d[003-004]"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-                </Grid>
-
-                <FormControl paddingTop="10px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
-                        <Checkbox
-                            ref={exclusiveRef}
-                            defaultChecked={false}
-                        >
-                            Request exclusive access to nodes
-                        </Checkbox>
-                    </HStack>
-                </FormControl>
-
-                <FormControl paddingTop="20px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" fontWeight={"bold"} mb={0}>Dependency</FormLabel>
-                        <Select
-                            ref={dependencyEventRef}
-                            defaultValue=""
-                            placeholder="Select event"
-                            flex={1}
-                        >
-                            <option value="after">After</option>
-                            <option value="afterok">After Ok</option>
-                            <option value="afterany">After Any</option>
-                            <option value="afterburstbuffer">After Burst Buffer</option>
-                            <option value="aftercorr">After Corr</option>
-                            <option value="afternotok">After Not Ok</option>
-                            <option value="singleton">Singleton</option>
-                        </Select>
-                        <Select
-                            ref={dependencyJobRef}
-                            defaultValue=""
-                            placeholder="Select job"
-                            flex={1}
-                        >
-                            {dependencyJobs.map((job) => (
-                                <option key={job.job_id} value={job.job_id || ''}>
-                                    {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0] || 'Unknown'})
-                                </option>
-                            ))}
-                        </Select>
-                    </HStack>
-                </FormControl>
-
-                {/* Script Arguments Section */}
+                    {/* Script Arguments Section */}
                     <FormControl>
                         <VStack align="stretch" spacing={3}>
-                        <HStack justify="space-between" align="center">
-                            <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
-                            <HStack spacing={2}>
-                                {/* <Button
+                            <HStack justify="space-between" align="center">
+                                <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
+                                <HStack spacing={2}>
+                                    {/* <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={refreshScriptArgs}
@@ -728,121 +738,116 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 >
                                     Refresh
                                 </Button> */}
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={applyScriptArgs}
-                                    colorScheme="green"
-                                    isDisabled={!scriptArgsDisplay || Object.keys(scriptArgsDisplay).length === 0}
-                                >
-                                    Apply to Script
-                                </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={applyScriptArgs}
+                                        colorScheme="green"
+                                        isDisabled={!scriptArgsDisplay || Object.keys(scriptArgsDisplay).length === 0}
+                                    >
+                                        Apply to Script
+                                    </Button>
+                                </HStack>
                             </HStack>
-                        </HStack>
-                        
-                        {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
-                            <Box pl={3} borderLeft="2px solid" borderColor="gray.200" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
-                                <VStack align="stretch" spacing={2}>
-                                    {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
-                                        <HStack key={varName} spacing={2}>
-                                            <Text minW="150px" fontSize="sm" fontWeight="medium">
-                                                {varName}
-                                            </Text>
-                                            <Input
-                                                data-arg-name={varName}
-                                                defaultValue={varValue}
-                                                size="sm"
-                                                flex={1}
-                                            />
-                                        </HStack>
-                                    ))}
-                                </VStack>
-                            </Box>
-                        ) : (
-                            <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
-                                <Text fontSize="sm" color="gray.500" fontStyle="italic">
-                                    No export variables found. Click "Refresh" to extract variables from your script.
-                                </Text>
-                            </Box>
-                        )}
-                        
+
+                            {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
+                                <Box pl={3} borderLeft="2px solid" borderColor="gray.200" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
+                                    <VStack align="stretch" spacing={2}>
+                                        {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
+                                            <HStack key={varName} spacing={2}>
+                                                <Text minW="150px" fontSize="sm" fontWeight="medium">
+                                                    {varName}
+                                                </Text>
+                                                <Input
+                                                    data-arg-name={varName}
+                                                    defaultValue={varValue}
+                                                    size="sm"
+                                                    flex={1}
+                                                />
+                                            </HStack>
+                                        ))}
+                                    </VStack>
+                                </Box>
+                            ) : (
+                                <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
+                                    <Text fontSize="sm" color="gray.500" fontStyle="italic">
+                                        No export variables found. Click "Refresh" to extract variables from your script.
+                                    </Text>
+                                </Box>
+                            )}
+
                             <Text fontSize="xs" color="gray.500">
-                            Use "Refresh" to extract export variables from your script, then "Apply to Script" to update the script with your changes.
+                                Use "Refresh" to extract export variables from your script, then "Apply to Script" to update the script with your changes.
                             </Text>
                         </VStack>
                     </FormControl>
 
-                <Spacer />
-            </VStack>
-            <VStack align="stretch" className="column-2 slurm-script" height="100%">
-                <FormControl paddingBottom="10px">
-                    <HStack spacing={3} align="center">
-                        <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
-                        <VStack align="stretch" flex={1} spacing={2}>
-                            <HStack spacing={3}>
-                                <Input
-                                    value={selectedTemplate}
-                                    onChange={(e) => handleTemplateSelect(e.target.value)}
-                                    placeholder="Select a template or enter custom name"
-                                    list="template-list"
-                                    flex={1}
-                                />
-                                <Button
-                                    variant="outline"
-                                    onClick={handleSaveTemplate}
-                                    isLoading={saveTemplateMutation.isPending}
-                                    size="md"
-                                >
-                                    Save Template
-                                </Button>
-                            </HStack>
-                            <datalist id="template-list">
-                                {templates?.map((templateName) => (
-                                    <option key={templateName} value={templateName}>
-                                        {templateName}
-                                    </option>
-                                ))}
-                            </datalist>
-                        </VStack>
-                    </HStack>
-                    {selectedTemplate && (
-                        <Text fontSize="sm" color="gray.600">
-                            Template loaded: {selectedTemplate}
-                        </Text>
-                    )}
-                </FormControl>
+                    <Spacer />
+                </VStack>
+                <VStack align="stretch" className="column-2 slurm-script" height="100%">
+                    <FormControl paddingBottom="10px">
+                        <HStack spacing={3} align="center">
+                            <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
+                            <VStack align="stretch" flex={1} spacing={2}>
+                                <HStack spacing={3}>
+                                    <AutocompleteInput
+                                        value={selectedTemplate}
+                                        onChange={setSelectedTemplate}
+                                        onSelect={handleTemplateSelect}
+                                        suggestions={templates || []}
+                                        placeholder="Select a template or enter custom name"
+                                        size="md"
+                                        width="100%"
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleSaveTemplate}
+                                        isLoading={saveTemplateMutation.isPending}
+                                        size="md"
+                                    >
+                                        Save Template
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </HStack>
+                        {selectedTemplate && (
+                            <Text fontSize="sm" color="gray.600">
+                                Template loaded: {selectedTemplate}
+                            </Text>
+                        )}
+                    </FormControl>
 
-                <FormControl height="100%">
-                    <Suspense fallback={<Box height="calc(100vh - 17em)" display="flex" alignItems="center" justifyContent="center" border="1px solid" borderColor="gray.200" borderRadius="md">
-                        <Text>Loading editor...</Text>
-                    </Box>}>
-                        <MonacoEditor
-                            height="calc(100vh - 17em)"
-                            value=""
-                            onChange={() => refreshScriptArgs()} // No-op - completely uncontrolled
-                            onMount={(editor: any) => {
-                                console.log('Editor mounted', editor);
-                                editorRef.current = editor;
-                            }}
-                        />
-                    </Suspense>
-                </FormControl>
-            </VStack>
-        </Grid>
-        
-        {/* Submit and Cancel buttons */}
-        <HStack spacing={3} justify="flex-end" pt={4} borderTop="1px solid" borderColor="gray.200">
-            <Button variant="ghost" onClick={onClose}>
-                Cancel
-            </Button>
-            <Button 
-                colorScheme="blue" 
-                onClick={handleSubmitJob}
-                isLoading={submitJobMutation.isPending}
-            >
-                Submit Job
-            </Button>
-        </HStack>
+                    <FormControl height="100%">
+                        <Suspense fallback={<Box height="calc(100vh - 17em)" display="flex" alignItems="center" justifyContent="center" border="1px solid" borderColor="gray.200" borderRadius="md">
+                            <Text>Loading editor...</Text>
+                        </Box>}>
+                            <MonacoEditor
+                                height="calc(100vh - 17em)"
+                                value=""
+                                onChange={() => refreshScriptArgs()} // No-op - completely uncontrolled
+                                onMount={(editor: any) => {
+                                    console.log('Editor mounted', editor);
+                                    editorRef.current = editor;
+                                }}
+                            />
+                        </Suspense>
+                    </FormControl>
+                </VStack>
+            </Grid>
+
+            {/* Submit and Cancel buttons */}
+            <HStack spacing={3} justify="flex-end" pt={4} borderTop="1px solid" borderColor="gray.200">
+                <Button variant="ghost" onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button
+                    colorScheme="blue"
+                    onClick={handleSubmitJob}
+                    isLoading={submitJobMutation.isPending}
+                >
+                    Submit Job
+                </Button>
+            </HStack>
         </Box>
     );
 };

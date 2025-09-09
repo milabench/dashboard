@@ -824,6 +824,13 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                     </Text>
                                 </WrapItem>
                             )}
+                            {(mergedJobData as any)?.nodes && (
+                                <WrapItem>
+                                    <Text fontSize="sm" color="gray.600">
+                                        <strong>Nodes:</strong> {(mergedJobData as any).nodes}
+                                    </Text>
+                                </WrapItem>
+                            )}
 
                             {mergedJobData && (
                                 <WrapItem>
