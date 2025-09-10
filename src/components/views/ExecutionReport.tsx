@@ -21,6 +21,7 @@ import {
     AccordionPanel,
     AccordionIcon,
     Tooltip,
+    GridItem
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { getExecution, getPacks } from '../../services/api';
@@ -242,9 +243,9 @@ export const ExecutionReport = () => {
     return (
         <Box height="100%" width="100%">
         <HStack align="flex-start" height="100%" width="100%">
-            <Box p={4} className="execution-details" maxW="900px" height="100%">
+            <Box p={4} className="execution-details" maxW="500px" height="100%">
                 <VStack align="stretch" spacing={6} overflow="hidden" height="100%">
-                    <HStack justify="space-between" overflow="hidden">
+                    <HStack justify="space-between" overflow="hidden" height="10%">
                         <Heading size="lg">Execution Report</Heading>
                         <HStack>
                             <Button
@@ -263,13 +264,17 @@ export const ExecutionReport = () => {
                     </HStack>
 
                     {/* Execution Details */}
-                    <Box p={4} borderWidth={1} borderRadius="md" overflow="hidden">
-                        <Stat >
+                    <Box p={2} borderWidth={1} height={"50%"} borderRadius="md" overflow="hidden">
+                        
+                        <SimpleGrid columns={3} spacing={4}>
+                            <GridItem colSpan={{ base: 1, md: 3 }}>
+                            <Stat >
                             <StatLabel>Name</StatLabel>
                             <StatNumber>{execution.name} </StatNumber>
                             <StatHelpText>{execution.namespace}</StatHelpText>
                         </Stat>
-                        <SimpleGrid columns={2} spacing={4}>
+                            </GridItem>
+                            <GridItem colSpan={{ base: 1, md: 2 }}>
                             <Stat>
                                 <StatLabel>GPU</StatLabel>
                                 <StatNumber>
@@ -279,30 +284,36 @@ export const ExecutionReport = () => {
                                     Driver: {execution.meta?.accelerators?.system?.CUDA_DRIVER || 'N/A'}
                                 </StatHelpText>
                             </Stat>
+                            </GridItem>
+                            <GridItem>
                             <Stat>
                                 <StatLabel>PyTorch</StatLabel>
                                 <StatNumber>{execution.meta?.pytorch?.build_settings?.TORCH_VERSION || 'N/A'}</StatNumber>
                                 <StatHelpText>CUDA: {execution.meta?.pytorch?.build_settings?.CUDA_VERSION || 'N/A'}</StatHelpText>
                             </Stat>
-
+                            </GridItem>
+                            <GridItem>
                             <Stat>
                                 <StatLabel>CPU</StatLabel>
                                 <StatNumber>{execution.meta?.cpu?.count || 'N/A'}</StatNumber>
-                                <StatHelpText>Name: {execution.meta?.cpu?.brand || 'N/A'}</StatHelpText>
+                                <StatHelpText>{execution.meta?.cpu?.brand || 'N/A'}</StatHelpText>
                             </Stat>
+                            </GridItem>
+                            <GridItem>
                             <Stat>
                                 <StatLabel>System</StatLabel>
                                 <StatNumber>{execution.meta?.os?.machine || 'N/A'}</StatNumber>
                                 <StatHelpText>Kernel: {execution.meta?.os?.release || 'N/A'}</StatHelpText>
                             </Stat>
-
+                            </GridItem>
+                            <GridItem>
                             <Stat>
                                 <StatLabel>Milabench</StatLabel>
                                 <StatNumber>{execution.meta?.milabench?.tag || 'N/A'}</StatNumber>
                                 <StatHelpText>Date: {execution.meta?.milabench?.date || 'N/A'}</StatHelpText>
                             </Stat>
-
-
+                            </GridItem>
+                            <GridItem>
                             <Stat>
                                 <StatLabel>Status</StatLabel>
                                 <StatNumber>
@@ -319,13 +330,16 @@ export const ExecutionReport = () => {
                                     </Badge>
                                 </StatNumber>
                             </Stat>
-                            <Stat>
-                                <StatLabel>Created Time</StatLabel>
-                                <StatNumber>{new Date(execution.created_time).toLocaleString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</StatNumber>
-                                <StatHelpText>
+                            </GridItem>
+                            <GridItem colSpan={{ base: 1, md: 2 }}>
+                                <Stat>
+                                    <StatLabel>Created Time</StatLabel>
+                                    <StatNumber>{new Date(execution.created_time).toLocaleString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</StatNumber>
+                                    <StatHelpText>
 
-                                </StatHelpText>
-                            </Stat>
+                                    </StatHelpText>
+                                </Stat>
+                            </GridItem>
                         </SimpleGrid>
                     </Box>
 
