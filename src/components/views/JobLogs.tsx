@@ -221,6 +221,20 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         retry: false,
     });
 
+    // Accounting data query - only fetch when job is terminal for accurate duration
+    const { data: accountingData } = useQuery({
+        queryKey: ['slurm-job-accounting', jrJobId, slurmJobId],
+        queryFn: () => {
+            if (!jrJobId || !slurmJobId || slurmJobId === '-') {
+                throw new Error('Missing job IDs');
+            }
+            return getSlurmJobAccounting(jrJobId, slurmJobId);
+        },
+        enabled: !!jrJobId && !!slurmJobId && slurmJobId !== '-' && isJobTerminal,
+        staleTime: 300000, // Cache for 5 minutes since accounting data doesn't change
+        refetchOnWindowFocus: false,
+    });
+
     // Helper function to check if job can be cancelled (only running or pending jobs)
     const canCancelJob = (status: string | null) => {
         if (!status) return false;
@@ -228,9 +242,28 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         return lowerStatus === 'running' || lowerStatus === 'pending' || lowerStatus === 'r' || lowerStatus === 'pd';
     };
 
+    // Helper function to format elapsed seconds to duration string
+    const formatElapsedSeconds = (seconds: number): string => {
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+
+        if (days > 0) {
+            return `${days}-${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        } else {
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+    };
+
     // Helper function to get job duration
     const getJobDuration = (jobData: any) => {
         if (!jobData) return 'Unknown';
+
+        // For terminal jobs, prioritize accounting data elapsed time if available
+        if (isJobTerminal && accountingData?.time?.elapsed) {
+            return formatElapsedSeconds(accountingData.time.elapsed);
+        }
 
         // If job has explicit elapsed time, use it
         if (jobData.elapsed) {
@@ -251,18 +284,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             }
 
             const durationSeconds = endTime - startTime;
-
-            // Format duration as HH:MM:SS or DD-HH:MM:SS
-            const days = Math.floor(durationSeconds / 86400);
-            const hours = Math.floor((durationSeconds % 86400) / 3600);
-            const minutes = Math.floor((durationSeconds % 3600) / 60);
-            const seconds = durationSeconds % 60;
-
-            if (days > 0) {
-                return `${days}-${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            } else {
-                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
+            return formatElapsedSeconds(durationSeconds);
         }
 
         // Check job state for pending jobs
