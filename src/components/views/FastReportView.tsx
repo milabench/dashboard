@@ -277,29 +277,8 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
     const columns = getAllKeys(filteredDataArray, columnPriority);
 
     return (
-        <Box
-            p={3}
-            width="100%"
-            height="100vh"
-            className='report-view'
-        >
+        <Box>
             <VStack align="stretch" spacing={4} p={4}>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <VStack align="start" spacing={1}>
-                        <Heading size="md">SQL Report</Heading>
-                        <Badge colorScheme="green">API Endpoint</Badge>
-                    </VStack>
-                    <Text
-                        cursor="pointer"
-                        onClick={onClose}
-                        fontSize="lg"
-                        fontWeight="bold"
-                        _hover={{ color: 'gray.600' }}
-                    >
-                        ×
-                    </Text>
-                </Box>
-
                 <HStack spacing={4}>
                     <FormControl>
                         <HStack>
@@ -352,8 +331,6 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                             </HStack>
                         </HStack>
                     </FormControl>
-
-
                 </HStack>
 
                 <Box
@@ -361,8 +338,6 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                     borderRadius="md"
                     border="1px solid"
                     borderColor="gray.200"
-                    overflow="auto"
-                    maxHeight="calc(100vh - 200px)"
                 >
                     <TableContainer>
                         <Table variant="simple" size="sm">

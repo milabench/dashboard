@@ -240,11 +240,12 @@ export const ExecutionReport = () => {
     }, {} as { [key: string]: Pack[] }) || {};
 
     return (
-        <HStack align="flex-start">
-            <Box p={4} className="execution-details" maxW="800px">
-                <VStack align="stretch" spacing={6} overflow="hidden">
+        <Box height="100%" width="100%">
+        <HStack align="flex-start" height="100%" width="100%">
+            <Box p={4} className="execution-details" maxW="900px" height="100%">
+                <VStack align="stretch" spacing={6} overflow="hidden" height="100%">
                     <HStack justify="space-between" overflow="hidden">
-                        <Heading>Execution Report</Heading>
+                        <Heading size="lg">Execution Report</Heading>
                         <HStack>
                             <Button
                                 colorScheme='green'
@@ -329,39 +330,41 @@ export const ExecutionReport = () => {
                     </Box>
 
                     {/* Packs */}
-                    <Box overflow="hidden">
+                    <Box overflow="hidden" height={"100%"}>
                         <Heading size="md" mb={4}>Packs</Heading>
-                        <Accordion allowMultiple>
-                            {Object.entries(groupedPacks).map(([name, packs]) => (
-                                <AccordionItem key={name}>
-                                    <h2>
-                                        <AccordionButton
-                                            onClick={() => handlePackGroupClick(packs[0])}
-                                            _hover={{ bg: 'gray.50' }}
-                                        >
-                                            <Box flex="1" textAlign="left">
-                                                <HStack>
-                                                    <Heading size="sm">{name}</Heading>
-                                                    <Badge colorScheme="blue">{packs.length} runs</Badge>
-                                                </HStack>
-                                            </Box>
-                                            <AccordionIcon />
-                                        </AccordionButton>
-                                    </h2>
-                                    <AccordionPanel pb={4}>
-                                        <DataTable
-                                            data={packs}
-                                            columns={packColumns}
-                                        />
-                                    </AccordionPanel>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
+                        <Box overflow={"auto"} height={"100%"}>
+                            <Accordion allowMultiple>
+                                {Object.entries(groupedPacks).map(([name, packs]) => (
+                                    <AccordionItem key={name}>
+                                        <h2>
+                                            <AccordionButton
+                                                onClick={() => handlePackGroupClick(packs[0])}
+                                                _hover={{ bg: 'gray.50' }}
+                                            >
+                                                <Box flex="1" textAlign="left">
+                                                    <HStack>
+                                                        <Heading size="sm">{name}</Heading>
+                                                        <Badge colorScheme="blue">{packs.length} runs</Badge>
+                                                    </HStack>
+                                                </Box>
+                                                <AccordionIcon />
+                                            </AccordionButton>
+                                        </h2>
+                                        <AccordionPanel pb={4}>
+                                            <DataTable
+                                                data={packs}
+                                                columns={packColumns}
+                                            />
+                                        </AccordionPanel>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
+                        </Box>
                     </Box>
                 </VStack>
             </Box>
 
-            <Box p={4} className="side-panel" width="100%" height="100%">
+            <Box p={4} className="side-panel" width="100%" height="100%" overflow={"auto"}>
                 {sideView === 'METRICS' && (
                     <VStack align="stretch" spacing={4}>
                         <HStack justify="space-between">
@@ -433,5 +436,6 @@ export const ExecutionReport = () => {
                 )}
             </Box>
         </HStack>
+        </Box>
     );
 };
