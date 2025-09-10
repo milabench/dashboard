@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmJobAccounting, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmClusterStatus, PersitedJobInfo } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmJobAccounting, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse } from './types';
 
 
 
@@ -485,7 +485,32 @@ export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ 
     }
 };
 
+// Push-related API functions
+export const pushZipFile = async (file: File): Promise<PushZipResponse> => {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
 
+        const response = await axios.post('/push/zip', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+            timeout: 30000, // 30 seconds for file upload
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const pushJobFolder = async (jrJobId: string): Promise<PushFolderResponse> => {
+    try {
+        const response = await api.get(`/push/folder/${jrJobId}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
 
 // Pipeline template file management (matching server endpoints)
 export const getPipelineTemplatesList = async (): Promise<string[]> => {
@@ -509,6 +534,15 @@ export const savePipelineToFile = async (pipelineData: any): Promise<{ success?:
 export const loadPipelineFromFile = async (name: string): Promise<any> => {
     try {
         const response = await api.get(`/slurm/pipeline/template/load/${name}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSlurmJobStatusSimple = async (jrJobId: string, jobId: string): Promise<SlurmJobStatusResponse> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jrJobId}/status/${jobId}`);
         return response.data;
     } catch (error) {
         return handleError(error);

@@ -200,6 +200,10 @@ export interface SlurmClusterStatus {
     reason?: string;
 }
 
+export interface SlurmJobStatusResponse {
+    status: string;
+}
+
 export interface SlurmJobAccounting {
     job_id: number;
     account: string;
@@ -395,6 +399,18 @@ export interface PipelineListResponse {
 
 export interface PipelineRunsResponse {
     runs: PipelineRun[];
+}
+
+// Push-related types
+export interface PushZipResponse {
+    status: "OK" | "ERR";
+    message: string;
+}
+
+export interface PushFolderResponse {
+    status: "OK";
+    success: any[];
+    failures: Array<[any, string]>;
 }
 
 
