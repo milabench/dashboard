@@ -14,33 +14,35 @@ import { DashboardView } from './components/views/Dashboard';
 import { JobDetailsView } from './components/views/JobDetails';
 import { JobLogsView } from './components/views/JobLogs';
 import { PipelinesView } from './components/views/PipelinesView';
+import { RealtimeMetricsView } from './components/views/RealtimeMetricsView';
 
 const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-        <ChakraProvider>
-          <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<DashboardView />} />
-                <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
-                <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
-                <Route path="/executions" element={<Executions />} />
-                <Route path="/executions/:id" element={<ExecutionReport />} />
-                <Route path="/pivot" element={<PivotView />} />
-                <Route path="/explorer" element={<ExplorerView />} />
-                <Route path="/scaling" element={<Scaling />} />
-                <Route path="/grouped" element={<GroupedView />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/saved-queries" element={<SavedQueriesView />} />
-                <Route path="/pipelines" element={<PipelinesView />} />
-              </Routes>
-            </Layout>
-          </Router>
-        </ChakraProvider>
-      </QueryClientProvider>
+      <ChakraProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<DashboardView />} />
+              <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
+              <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
+              <Route path="/executions" element={<Executions />} />
+              <Route path="/executions/:id" element={<ExecutionReport />} />
+              <Route path="/pivot" element={<PivotView />} />
+              <Route path="/explorer" element={<ExplorerView />} />
+              <Route path="/scaling" element={<Scaling />} />
+              <Route path="/grouped" element={<GroupedView />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/saved-queries" element={<SavedQueriesView />} />
+              <Route path="/pipelines" element={<PipelinesView />} />
+              <Route path="/realtime" element={<RealtimeMetricsView />} />
+            </Routes>
+          </Layout>
+        </Router>
+      </ChakraProvider>
+    </QueryClientProvider>
   );
 }
 

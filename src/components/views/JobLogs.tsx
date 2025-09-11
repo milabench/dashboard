@@ -98,6 +98,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [isJobTerminal, setIsJobTerminal] = useState(false);
     const [shouldPoll, setShouldPoll] = useState(true);
     const [countdown, setCountdown] = useState(30);
+    const [realtimeUpdateTrigger, setRealtimeUpdateTrigger] = useState(0);
 
     // Keep slurmJobId in sync with URL parameters (important for rerun navigation)
     useEffect(() => {
@@ -108,6 +109,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             setJobStatus(null);
             setIsJobTerminal(false);
             setShouldPoll(true);
+            setRealtimeUpdateTrigger(0);
         }
     }, [params_SlurmJobId]);
 
@@ -256,7 +258,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
     };
 
-    // Helper function to get job duration
+    // Helper function to get job duration (uses realtimeUpdateTrigger for real-time updates)
     const getJobDuration = (jobData: any) => {
         if (!jobData) return 'Unknown';
 
@@ -270,7 +272,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             return jobData.elapsed;
         }
 
-        // Calculate duration from timestamps
+        // Calculate duration from timestamps (real-time for running jobs)
         const currentTime = Math.floor(Date.now() / 1000);
 
         // Check if job has started
@@ -282,6 +284,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             if (isJobTerminal && jobData.end_time?.set && jobData.end_time.number > 0) {
                 endTime = jobData.end_time.number;
             }
+            // For running jobs, use current time for real-time updates
+            // (realtimeUpdateTrigger ensures this recalculates every second)
 
             const durationSeconds = endTime - startTime;
             return formatElapsedSeconds(durationSeconds);
@@ -299,6 +303,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
         return 'Not started';
     };
+
+    // Memoized job duration that updates in real-time for running jobs
+    const currentJobDuration = useMemo(() => {
+        return getJobDuration(jobInfoData);
+    }, [jobInfoData, accountingData, isJobTerminal, jobStatus, realtimeUpdateTrigger]);
 
     // Countdown timer effect
     useEffect(() => {
@@ -318,6 +327,23 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
         return () => clearInterval(timer);
     }, [shouldPoll]);
+
+    // Real-time duration timer for running jobs
+    useEffect(() => {
+        // Only update for running jobs (not pending, not terminal)
+        const isRunning = jobStatus && !isJobTerminal &&
+            !['pending', 'pd'].includes(jobStatus.toLowerCase());
+
+        if (!isRunning) {
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setRealtimeUpdateTrigger(prev => prev + 1);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [jobStatus, isJobTerminal]);
 
     const handleBack = () => {
         navigate(-1);
@@ -646,7 +672,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                     <strong>Job Duration:</strong> {
                                         jobInfoLoading
                                             ? <><Spinner size="xs" mr={1} />Loading...</>
-                                            : getJobDuration(jobInfoData)
+                                            : currentJobDuration
                                     }
                                 </Text>
                             </WrapItem>
