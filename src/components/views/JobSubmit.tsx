@@ -104,10 +104,10 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
     // Controlled state for NumberInput components
-    const [nodes, setNodes] = useState<string>('1');
-    const [ntasks, setNtasks] = useState<string>('1');
-    const [cpusPerTask, setCpusPerTask] = useState<string>('4');
-    const [ntasksPerNode, setNtasksPerNode] = useState<string>('1');
+    const [nodes, setNodes] = useState<string>('');
+    const [ntasks, setNtasks] = useState<string>('');
+    const [cpusPerTask, setCpusPerTask] = useState<string>('');
+    const [ntasksPerNode, setNtasksPerNode] = useState<string>('');
 
     // Mutations
     const submitJobMutation = useMutation({
@@ -205,40 +205,34 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         setSelectedProfile(profileName);
         const selectedProfileData = profiles?.find(p => p.name === profileName);
         if (selectedProfileData) {
-            // Update form fields directly from refs
-            if (selectedProfileData.parsed_args.job_name && jobNameRef.current) {
-                jobNameRef.current.value = selectedProfileData.parsed_args.job_name;
+            // Clear all fields first, then set values from profile
+            if (jobNameRef.current) {
+                jobNameRef.current.value = selectedProfileData.parsed_args.job_name || '';
             }
-            if (selectedProfileData.parsed_args.partition && partitionRef.current) {
-                partitionRef.current.value = selectedProfileData.parsed_args.partition;
+            if (partitionRef.current) {
+                partitionRef.current.value = selectedProfileData.parsed_args.partition || '';
             }
-            if (selectedProfileData.parsed_args.nodes) {
-                setNodes(selectedProfileData.parsed_args.nodes.toString());
+            setNodes(selectedProfileData.parsed_args.nodes?.toString() || '');
+            setNtasks(selectedProfileData.parsed_args.ntasks?.toString() || '');
+            setCpusPerTask(selectedProfileData.parsed_args.cpus_per_task?.toString() || '');
+            setNtasksPerNode(selectedProfileData.parsed_args.ntasks_per_node?.toString() || '');
+            if (memRef.current) {
+                memRef.current.value = selectedProfileData.parsed_args.mem || '';
             }
-            if (selectedProfileData.parsed_args.ntasks) {
-                setNtasks(selectedProfileData.parsed_args.ntasks.toString());
+            if (timeLimitRef.current) {
+                timeLimitRef.current.value = selectedProfileData.parsed_args.time_limit || '';
             }
-            if (selectedProfileData.parsed_args.cpus_per_task) {
-                setCpusPerTask(selectedProfileData.parsed_args.cpus_per_task.toString());
+            if (gpusPerTaskRef.current) {
+                gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task || '';
             }
-            if (selectedProfileData.parsed_args.mem && memRef.current) {
-                memRef.current.value = selectedProfileData.parsed_args.mem;
-            }
-            if (selectedProfileData.parsed_args.time_limit && timeLimitRef.current) {
-                timeLimitRef.current.value = selectedProfileData.parsed_args.time_limit;
-            }
-            if (selectedProfileData.parsed_args.gpus_per_task && gpusPerTaskRef.current) {
-                gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task;
-            }
-
             if (exclusiveRef.current) {
                 exclusiveRef.current.checked = selectedProfileData.parsed_args.exclusive || false;
             }
-            if (selectedProfileData.parsed_args.export && exportVarsRef.current) {
-                exportVarsRef.current.value = selectedProfileData.parsed_args.export;
+            if (exportVarsRef.current) {
+                exportVarsRef.current.value = selectedProfileData.parsed_args.export || '';
             }
-            if (selectedProfileData.parsed_args.nodelist && nodelistRef.current) {
-                nodelistRef.current.value = selectedProfileData.parsed_args.nodelist;
+            if (nodelistRef.current) {
+                nodelistRef.current.value = selectedProfileData.parsed_args.nodelist || '';
             }
         }
     };
@@ -347,17 +341,17 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const dependencyEvent = dependencyEventRef.current?.value;
         const dependencyJobId = dependencyJobRef.current?.value;
 
-        if (partition) sbatch_args.push(`--partition=${partition}`);
-        if (nodesValue) sbatch_args.push(`--nodes=${nodesValue}`);
-        if (ntasksValue) sbatch_args.push(`--ntasks=${ntasksValue}`);
-        if (cpusPerTaskValue) sbatch_args.push(`--cpus-per-task=${cpusPerTaskValue}`);
-        if (mem) sbatch_args.push(`--mem=${mem}`);
-        if (timeLimit) sbatch_args.push(`--time=${timeLimit}`);
-        if (gpusPerTask) sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
-        if (ntasksPerNodeValue) sbatch_args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
+        if (partition && partition.trim() !== '') sbatch_args.push(`--partition=${partition}`);
+        if (nodesValue && nodesValue.trim() !== '') sbatch_args.push(`--nodes=${nodesValue}`);
+        if (ntasksValue && ntasksValue.trim() !== '') sbatch_args.push(`--ntasks=${ntasksValue}`);
+        if (cpusPerTaskValue && cpusPerTaskValue.trim() !== '') sbatch_args.push(`--cpus-per-task=${cpusPerTaskValue}`);
+        if (mem && mem.trim() !== '') sbatch_args.push(`--mem=${mem}`);
+        if (timeLimit && timeLimit.trim() !== '') sbatch_args.push(`--time=${timeLimit}`);
+        if (gpusPerTask && gpusPerTask.trim() !== '') sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
+        if (ntasksPerNodeValue && ntasksPerNodeValue.trim() !== '') sbatch_args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
         if (exclusive) sbatch_args.push('--exclusive');
-        if (exportVars) sbatch_args.push(`--export=${exportVars}`);
-        if (nodelist) sbatch_args.push(`-w ${nodelist}`);
+        if (exportVars && exportVars.trim() !== '') sbatch_args.push(`--export=${exportVars}`);
+        if (nodelist && nodelist.trim() !== '') sbatch_args.push(`-w ${nodelist}`);
         if (dependencyEvent && dependencyJobId) {
             sbatch_args.push(`--dependency=${dependencyEvent}:${dependencyJobId}`);
         }
@@ -605,8 +599,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
                                 <Input
                                     ref={gpusPerTaskRef}
-                                    defaultValue="1"
-                                    placeholder="1"
+                                    placeholder="e.g. 1, 2"
                                     flex={1}
                                 />
                             </HStack>
@@ -636,8 +629,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <FormLabel minW="120px" mb={0}>Memory</FormLabel>
                                 <Input
                                     ref={memRef}
-                                    defaultValue="8G"
-                                    placeholder="8G"
+                                    placeholder="e.g. 8G, 16GB"
                                     flex={1}
                                 />
                             </HStack>
@@ -648,8 +640,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
                                 <Input
                                     ref={timeLimitRef}
-                                    defaultValue="02:00:00"
-                                    placeholder="02:00:00"
+                                    placeholder="e.g. 02:00:00, 1-12:00:00"
                                     flex={1}
                                 />
                             </HStack>
@@ -660,8 +651,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <FormLabel minW="120px" mb={0}>Export</FormLabel>
                                 <Input
                                     ref={exportVarsRef}
-                                    defaultValue="ALL"
-                                    placeholder="ALL"
+                                    placeholder="e.g. ALL, NONE, VAR1,VAR2"
                                     flex={1}
                                 />
                             </HStack>

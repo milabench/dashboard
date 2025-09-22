@@ -42,6 +42,8 @@ import {
 } from '@chakra-ui/react';
 import { DeleteIcon, DownloadIcon } from '@chakra-ui/icons';
 import { webSocketService, type MetricData } from '../../services/websocket';
+import type {BenchLogEntry } from '../../services/types';
+
 
 interface MetricEntry {
     id: string;
@@ -72,9 +74,11 @@ interface JobMetrics {
 
 
 function metricStreamProcessor(
-    then: (jobId: string, accumulatedData: Record<string, any>, currentBench: any) => void
+    onUpdate: (jobId: string, accumulatedData: Record<string, any>, currentBench: any) => void,
+    onMeta: (meta: any) => void,
 ) {
     let accumulatedData: Record<string, any> = {};
+    let hasMeta = false;
 
     function setDefault<T, K extends keyof any>(
         obj: Record<K, T>,
@@ -87,7 +91,7 @@ function metricStreamProcessor(
         return obj[key];
     }
 
-    const processor = (jobId: string, data: any) => {
+    const processor = (jobId: string, data: BenchLogEntry) => {
         let jobData = setDefault(accumulatedData, jobId, {});
 
         let currentBench = setDefault(jobData, data.tag, {
@@ -98,7 +102,10 @@ function metricStreamProcessor(
             data: 0,
             stop: 0,
             error: 0,
+            line: 0,
             end: 0,
+            stdout: 0,
+            stderr: 0,
         });
 
         switch (data.event) {
@@ -108,6 +115,10 @@ function metricStreamProcessor(
 
             case "meta":
                 currentBench["meta"] = data.data;
+                if (!hasMeta) {
+                    onMeta(data.data);
+                    hasMeta = true;
+                }
                 break;
 
             case "start":
@@ -116,10 +127,31 @@ function metricStreamProcessor(
 
             case "data":
                 currentBench["data"] += 1;
+
+                if ("gpudata" in data.data) {
+                    
+                }
+                if ("cpudata" in data.data) {
+                    
+                }
+
                 break;
 
             case "stop":
                 currentBench["stop"] += 1;
+                break;
+
+            case "line":
+                currentBench["line"] += 1;
+                switch (data.pipe) {
+                    case "stderr":
+                        currentBench["stderr"] += 1;
+                        break;
+
+                    case "stdout":
+                        currentBench["stdout"] += 1;
+                        break;
+                }
                 break;
 
             case "error":
@@ -131,8 +163,8 @@ function metricStreamProcessor(
                 break;
         }
 
-        if (then) {
-            then(jobId, jobData, currentBench);
+        if (onUpdate) {
+            onUpdate(jobId, jobData, currentBench);
         }
     };
 
@@ -145,10 +177,11 @@ export const RealtimeMetricsView: React.FC = () => {
     const [jobMetrics, setJobMetrics] = useState<{ [jobId: string]: JobMetrics }>({});
     const [activeJobs, setActiveJobs] = useState<string[]>([]);
     const [selectedJobIndex, setSelectedJobIndex] = useState(0);
-    const [statusMessages, setStatusMessages] = useState<string[]>([]);
+    const [runMeta, setRunMeta] = useState<any>(null);
     const toast = useToast();
-    
-    const metricProcessor = metricStreamProcessor((jobId, jobData) => {
+
+    const metricProcessor = metricStreamProcessor(
+        (jobId, jobData) => {
             // Update the jobMetrics state with the new accumulated data
             setJobMetrics(prev => {
                 const newMetrics = { ...prev };
@@ -183,9 +216,13 @@ export const RealtimeMetricsView: React.FC = () => {
                 });
 
                 return newMetrics;
-        });
-    })
-
+            });
+        },
+        (meta) => {
+            // Display the meta information about the run
+            setRunMeta(meta);
+        }
+    );
 
     useEffect(() => {
         // Connect to WebSocket when component mounts
@@ -215,7 +252,13 @@ export const RealtimeMetricsView: React.FC = () => {
         });
 
         webSocketService.onStatus((data) => {
-            setStatusMessages(prev => [data.msg, ...prev.slice(0, 4)]);
+            toast({
+                title: 'Server Status',
+                description: data.msg,
+                status: 'info',
+                duration: 4000,
+                isClosable: true,
+            });
         });
 
         webSocketService.onMetricData((data: MetricData) => {
@@ -252,17 +295,17 @@ export const RealtimeMetricsView: React.FC = () => {
 
     const clearMetrics = () => {
         setRawMetrics([]);
-        setStatusMessages([]);
         setJobMetrics({});
         setActiveJobs([]);
         setSelectedJobIndex(0);
+        setRunMeta(null);
     };
 
     const exportMetrics = () => {
         const dataStr = JSON.stringify({
             rawMetrics,
             jobMetrics,
-            statusMessages,
+            runMeta,
             timestamp: new Date().toISOString()
         }, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -310,43 +353,65 @@ export const RealtimeMetricsView: React.FC = () => {
         }
 
         return (
-            <VStack spacing={6} align="stretch">
-                {/* Job Overview */}
-                <Card>
-                    <CardHeader>
-                        <Heading size="md">Job Overview: {job.jobId}</Heading>
-                    </CardHeader>
-                    <CardBody>
-                        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
-                            <Stat>
-                                <StatLabel>Benchmarks</StatLabel>
-                                <StatNumber>{Object.keys(job.benchmarks).length}</StatNumber>
-                            </Stat>
-                            <Stat>
-                                <StatLabel>Total Started</StatLabel>
-                                <StatNumber>
-                                    {Object.values(job.benchmarks).reduce((sum, b) => sum + b.start, 0)}
-                                </StatNumber>
-                            </Stat>
-                            <Stat>
-                                <StatLabel>Total Finished</StatLabel>
-                                <StatNumber>
-                                    {Object.values(job.benchmarks).reduce((sum, b) => sum + b.end, 0)}
-                                </StatNumber>
-                            </Stat>
-                            <Stat>
-                                <StatLabel>Error Rate</StatLabel>
-                                <StatNumber>
-                                    {(() => {
-                                        const totalFinished = Object.values(job.benchmarks).reduce((sum, b) => sum + b.end, 0);
-                                        const totalErrors = Object.values(job.benchmarks).reduce((sum, b) => sum + b.error, 0);
-                                        return totalFinished > 0 ? `${((totalErrors / totalFinished) * 100).toFixed(1)}%` : 'N/A';
-                                    })()}
-                                </StatNumber>
-                            </Stat>
-                        </SimpleGrid>
-                    </CardBody>
-                </Card>
+            <VStack spacing={6} align="stretch" height={"100%"}>
+                {/* Run Meta Information */}
+                {runMeta && (
+                    <Card>
+                        <CardHeader>
+                            <Heading size="md">Run Information</Heading>
+                        </CardHeader>
+                        <CardBody>
+                            <VStack spacing={4} align="stretch">
+                                {runMeta.arch && (
+                                    <Box>
+                                        <Text fontWeight="bold" fontSize="sm">System Architecture:</Text>
+                                        <Code display="block" p={2} mt={1}>
+                                            {JSON.stringify(runMeta.arch, null, 2)}
+                                        </Code>
+                                    </Box>
+                                )}
+                                {runMeta.milabench && (
+                                    <Box>
+                                        <Text fontWeight="bold" fontSize="sm">Milabench Info:</Text>
+                                        <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mt={2}>
+                                            <Stat size="sm">
+                                                <StatLabel>Version</StatLabel>
+                                                <StatNumber fontSize="md">{runMeta.milabench.version || 'N/A'}</StatNumber>
+                                            </Stat>
+                                            <Stat size="sm">
+                                                <StatLabel>Tag</StatLabel>
+                                                <StatNumber fontSize="md">{runMeta.milabench.tag || 'N/A'}</StatNumber>
+                                            </Stat>
+                                            <Stat size="sm">
+                                                <StatLabel>Commit</StatLabel>
+                                                <StatNumber fontSize="md">{runMeta.milabench.commit?.slice(0, 8) || 'N/A'}</StatNumber>
+                                            </Stat>
+                                            <Stat size="sm">
+                                                <StatLabel>Date</StatLabel>
+                                                <StatNumber fontSize="md">{runMeta.milabench.date || 'N/A'}</StatNumber>
+                                            </Stat>
+                                        </SimpleGrid>
+                                    </Box>
+                                )}
+                                {Object.keys(runMeta).length > 0 && (
+                                    <Box>
+                                        <Text fontWeight="bold" fontSize="sm">Full Meta Data:</Text>
+                                        <Code
+                                            display="block"
+                                            p={3}
+                                            mt={1}
+                                            maxH="300px"
+                                            overflowY="auto"
+                                            whiteSpace="pre-wrap"
+                                        >
+                                            {JSON.stringify(runMeta, null, 2)}
+                                        </Code>
+                                    </Box>
+                                )}
+                            </VStack>
+                        </CardBody>
+                    </Card>
+                )}
 
                 {/* Benchmarks Table */}
                 <Card>
@@ -470,8 +535,8 @@ export const RealtimeMetricsView: React.FC = () => {
     // Note: renderJobMetrics function is defined above
 
     return (
-        <Box p={6} maxW="100%" mx="auto">
-            <VStack spacing={6} align="stretch">
+        <Box p={6} maxW="100%" mx="auto"  height={"100%"}>
+            <VStack spacing={6} align="stretch" height={"100%"}>
                 {/* Header */}
                 <Flex align="center">
                     <Heading size="lg">Real-time Metrics Dashboard</Heading>
@@ -491,35 +556,11 @@ export const RealtimeMetricsView: React.FC = () => {
                     </HStack>
                 </Flex>
 
-                {/* Controls */}
-                <Card>
-                    <CardBody>
-                        <HStack>
-                            <IconButton
-                                aria-label="Clear metrics"
-                                icon={<DeleteIcon />}
-                                colorScheme="red"
-                                variant="outline"
-                                onClick={clearMetrics}
-                            />
-                            <IconButton
-                                aria-label="Export metrics"
-                                icon={<DownloadIcon />}
-                                colorScheme="green"
-                                variant="outline"
-                                onClick={exportMetrics}
-                                isDisabled={rawMetrics.length === 0}
-                            />
-                            <Text fontSize="sm" color="gray.600">
-                                {rawMetrics.length} recent messages
-                            </Text>
-                        </HStack>
-                    </CardBody>
-                </Card>
+
 
                 {/* Job Tabs */}
                 {activeJobs.length > 0 ? (
-                    <Tabs index={selectedJobIndex} onChange={setSelectedJobIndex}>
+                    <Tabs index={selectedJobIndex} onChange={setSelectedJobIndex}  height={"100%"}>
                         <TabList>
                             {activeJobs.map((jobId, index) => {
                                 const job = jobMetrics[jobId];
@@ -542,15 +583,15 @@ export const RealtimeMetricsView: React.FC = () => {
                             })}
                         </TabList>
 
-                        <TabPanels>
+                        <TabPanels height={"100%"}>
                             {activeJobs.map((jobId) => (
-                                <TabPanel key={jobId} p={0} pt={6}>
+                                <TabPanel key={jobId} p={0} pt={6} height={"100%"}>
                                     {(() => {
                                         const job = jobMetrics[jobId];
                                         if (!job || Object.keys(job.benchmarks).length === 0) {
                                             return (
-                                                <Card>
-                                                    <CardBody>
+                                                <Card height={"100%"}>
+                                                    <CardBody height={"100%"}>
                                                         <Text color="gray.500" textAlign="center" py={8}>
                                                             No benchmark data available for this job
                                                         </Text>
@@ -565,8 +606,8 @@ export const RealtimeMetricsView: React.FC = () => {
                         </TabPanels>
                     </Tabs>
                 ) : (
-                    <Card>
-                        <CardBody>
+                    <Card height={"100%"}>
+                        <CardBody height={"100%"}>
                             <Text color="gray.500" textAlign="center" py={8}>
                                 Waiting for job metrics...
                             </Text>
@@ -574,32 +615,16 @@ export const RealtimeMetricsView: React.FC = () => {
                     </Card>
                 )}
 
-                {/* Recent Messages */}
-                {statusMessages.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <Heading size="sm">Status Messages</Heading>
-                        </CardHeader>
-                        <CardBody>
-                            <VStack spacing={2} align="stretch">
-                                {statusMessages.map((msg, index) => (
-                                    <Text key={index} fontSize="sm" color="blue.600">
-                                        {msg}
-                                    </Text>
-                                ))}
-                            </VStack>
-                        </CardBody>
-                    </Card>
-                )}
+
 
                 {/* Last 5 Raw Messages */}
                 {rawMetrics.length > 0 && (
-                    <Card>
+                    <Card width={"100%"} height={"100%"}>
                         <CardHeader>
                             <Heading size="sm">Recent Raw Messages</Heading>
                         </CardHeader>
-                        <CardBody>
-                            <VStack spacing={3} align="stretch">
+                        <CardBody width={"100%"}>
+                            <VStack spacing={3} align="stretch" width={"100%"}>
                                 {rawMetrics.map((metric) => (
                                     <Box
                                         key={metric.id}
@@ -608,29 +633,29 @@ export const RealtimeMetricsView: React.FC = () => {
                                         borderRadius="md"
                                         borderLeft="4px solid"
                                         borderLeftColor="blue.400"
+                                        width={"100%"}
                                     >
-                                        <HStack justify="space-between" mb={2}>
-                                            <Badge colorScheme="cyan" variant="solid">
-                                                {metric.jobId}
-                                            </Badge>
-                                            <Text fontSize="xs" color="gray.600">
-                                                {metric.timestamp.toLocaleTimeString()}
-                                            </Text>
-                                        </HStack>
 
                                         {metric.data ? (
+                                            <HStack width={"100%"}>
+                                                <Text fontSize="xs" color="gray.600">
+                                                    {metric.timestamp.toLocaleTimeString()}
+                                                </Text>
+                                                <Badge colorScheme="cyan" variant="solid">
+                                                    {metric.jobId}
+                                               </Badge>
                                             <Code
                                                 display="block"
-                                                whiteSpace="pre-wrap"
                                                 p={2}
                                                 bg="white"
                                                 borderRadius="sm"
                                                 fontSize="sm"
-                                                maxH="200px"
-                                                overflowY="auto"
+                                                overflow="clip"
+                                                width={"100%"}
                                             >
-                                                {formatMetricData(metric.data)}
+                                                 {JSON.stringify(metric.data)}
                                             </Code>
+                                            </HStack>
                                         ) : (
                                             <Code
                                                 display="block"
@@ -638,6 +663,7 @@ export const RealtimeMetricsView: React.FC = () => {
                                                 bg="white"
                                                 borderRadius="sm"
                                                 fontSize="sm"
+                                                wordBreak="break-all"
                                             >
                                                 {metric.rawLine}
                                             </Code>

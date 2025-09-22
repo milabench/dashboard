@@ -230,61 +230,61 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
                 {/* Action Buttons */}
                 <HStack spacing={3} justify={"space-between"}>
-                     <HStack spacing={2}>
+                    <HStack spacing={2}>
                         <Heading size="lg" mb={2}>Jobs</Heading>
                         {clusterStatusLoading ? (
-                                <Tooltip label="Checking cluster status...">
-                                    <Spinner size="sm" />
-                                </Tooltip>
-                            ) : clusterStatus ? (
-                                <Tooltip
-                                    label={
-                                        clusterStatus.status === 'offline' && clusterStatus.reason
-                                            ? `${clusterStatus.reason}`
-                                            : clusterStatus.status === 'online'
-                                                ? 'Cluster is online and ready to accept jobs'
-                                                : 'Cluster status'
-                                    }
+                            <Tooltip label="Checking cluster status...">
+                                <Spinner size="sm" />
+                            </Tooltip>
+                        ) : clusterStatus ? (
+                            <Tooltip
+                                label={
+                                    clusterStatus.status === 'offline' && clusterStatus.reason
+                                        ? `${clusterStatus.reason}`
+                                        : clusterStatus.status === 'online'
+                                            ? 'Cluster is online and ready to accept jobs'
+                                            : 'Cluster status'
+                                }
+                            >
+                                <Badge
+                                    colorScheme={clusterStatus.status === 'online' ? 'green' : 'red'}
+                                    variant="solid"
+                                    fontSize="sm"
+                                    px={3}
+                                    py={1}
+                                    borderRadius="full"
+                                    cursor="help"
                                 >
-                                    <Badge
-                                        colorScheme={clusterStatus.status === 'online' ? 'green' : 'red'}
-                                        variant="solid"
-                                        fontSize="sm"
-                                        px={3}
-                                        py={1}
-                                        borderRadius="full"
-                                        cursor="help"
-                                    >
-                                        Cluster {clusterStatus.status === 'online' ? 'Online' : 'Offline'}
-                                    </Badge>
-                                </Tooltip>
-                            ) : (
-                                <Tooltip label="Unable to determine cluster status">
-                                    <Badge
-                                        colorScheme="gray"
-                                        variant="solid"
-                                        fontSize="sm"
-                                        px={3}
-                                        py={1}
-                                        borderRadius="full"
-                                        cursor="help"
-                                    >
-                                        Status Unknown
-                                    </Badge>
-                                </Tooltip>
-                            )}
+                                    Cluster {clusterStatus.status === 'online' ? 'Online' : 'Offline'}
+                                </Badge>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip label="Unable to determine cluster status">
+                                <Badge
+                                    colorScheme="gray"
+                                    variant="solid"
+                                    fontSize="sm"
+                                    px={3}
+                                    py={1}
+                                    borderRadius="full"
+                                    cursor="help"
+                                >
+                                    Status Unknown
+                                </Badge>
+                            </Tooltip>
+                        )}
                     </HStack>
 
                     <HStack spacing={3} justify={"space-between"}>
-                        
-                            <Button
-                                leftIcon={<AddIcon />}
-                                colorScheme="blue"
-                                onClick={onOpen}
-                            >
-                                Submit New Job
-                            </Button>
-                            
+
+                        <Button
+                            leftIcon={<AddIcon />}
+                            colorScheme="blue"
+                            onClick={onOpen}
+                        >
+                            Submit New Job
+                        </Button>
+
                         <Button
                             leftIcon={<RepeatIcon />}
                             variant="outline"
@@ -328,6 +328,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                             <Th>JR Job ID</Th>
                                             <Th>Name</Th>
                                             <Th>Status</Th>
+                                            <Th>State Reason</Th>
                                             <Th>Partition</Th>
                                             <Th>User</Th>
                                             <Th>Time</Th>
@@ -355,6 +356,17 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             {job.job_state?.[0] || NO_JOB_STATE}
                                                         </Badge>
                                                     </HStack>
+                                                </Td>
+                                                <Td>
+                                                    {job.state_reason ? (
+                                                        <Tooltip label={job.state_description || 'No description available'} placement="top">
+                                                            <Text cursor="help" maxW="150px" isTruncated>
+                                                                {job.state_reason}
+                                                            </Text>
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Text color="gray.500">N/A</Text>
+                                                    )}
                                                 </Td>
                                                 <Td>{job.partition || 'N/A'}</Td>
                                                 <Td>{job.user_name || 'N/A'}</Td>
@@ -456,40 +468,40 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                             const job = persistedJobInfo.info;
                                             const acc = persistedJobInfo.acc;
                                             const jrJobId = persistedJobInfo.name;
-                                            
+
                                             // Use accounting data when available, fallback to info object
                                             const jobId = acc?.job_id?.toString() || job.job_id || '-';
                                             const jobName = acc?.name || job.name || job.job_name || 'Persisted Job';
                                             const jobStatus = acc?.state?.current?.[0] || job.job_state?.[0] || 'PENDING';
                                             const partition = acc?.partition || job.partition || 'N/A';
                                             const user = acc?.user || job.user_name || job.user || 'N/A';
-                                            
+
                                             // Calculate freshness - 2 weeks = 14 * 24 * 60 * 60 = 1209600 seconds
                                             const maxAge = 14 * 24 * 60 * 60; // 2 weeks in seconds
                                             const freshnessRatio = Math.min(persistedJobInfo.freshness / maxAge, 1);
-                                            
+
                                             // Calculate color from green (0) to brown (1)
                                             const getFreshnessColor = (ratio: number) => {
                                                 if (ratio <= 0) return '#22c55e'; // Green
                                                 if (ratio >= 1) return '#92400e'; // Brown
-                                                
+
                                                 // Interpolate between green and brown
                                                 const green = [34, 197, 94]; // RGB for green
                                                 const brown = [146, 64, 14]; // RGB for brown
-                                                
+
                                                 const r = Math.round(green[0] + (brown[0] - green[0]) * ratio);
                                                 const g = Math.round(green[1] + (brown[1] - green[1]) * ratio);
                                                 const b = Math.round(green[2] + (brown[2] - green[2]) * ratio);
-                                                
+
                                                 return `rgb(${r}, ${g}, ${b})`;
                                             };
-                                            
+
                                             // Format duration for tooltip
                                             const formatDuration = (seconds: number) => {
                                                 const days = Math.floor(seconds / (24 * 60 * 60));
                                                 const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
                                                 const minutes = Math.floor((seconds % (60 * 60)) / 60);
-                                                
+
                                                 if (days > 0) {
                                                     return `${days}d ${hours}h ${minutes}m ago`;
                                                 } else if (hours > 0) {
@@ -498,7 +510,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                     return `${minutes}m ago`;
                                                 }
                                             };
-                                            
+
                                             // Format time limit - prefer accounting data
                                             let timeLimit = 'N/A';
                                             if (acc?.time?.limit?.number) {
@@ -508,10 +520,10 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                             } else if (job.time_limit?.number) {
                                                 timeLimit = `${job.time_limit.number}min`;
                                             }
-                                            
-                                                return (
-                                                    <Tr key={`persisted-${jrJobId}`}>
-                                                        <Td>
+
+                                            return (
+                                                <Tr key={`persisted-${jrJobId}`}>
+                                                    <Td>
                                                         <HStack spacing={2}>
                                                             <Tooltip label={formatDuration(persistedJobInfo.freshness)}>
                                                                 <Box
@@ -524,48 +536,48 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             </Tooltip>
                                                             <Text fontWeight="bold">{jobId}</Text>
                                                         </HStack>
-                                                        </Td>
-                                                        <Td>
-                                                            <Text fontFamily="mono" fontSize="sm">
-                                                                {jrJobId}
-                                                            </Text>
-                                                        </Td>
-                                                        <Td>
+                                                    </Td>
+                                                    <Td>
+                                                        <Text fontFamily="mono" fontSize="sm">
+                                                            {jrJobId}
+                                                        </Text>
+                                                    </Td>
+                                                    <Td>
                                                         <Text>{jobName}</Text>
-                                                        </Td>
-                                                        <Td>
+                                                    </Td>
+                                                    <Td>
                                                         <HStack>
                                                             {getStatusIcon(jobStatus)}
                                                             <Badge colorScheme={getStatusColor(jobStatus)}>
                                                                 {jobStatus}
                                                             </Badge>
                                                         </HStack>
-                                                        </Td>
+                                                    </Td>
                                                     <Td>{partition}</Td>
                                                     <Td>{user}</Td>
                                                     <Td>{timeLimit}</Td>
-                                                        <Td>
-                                                            <HStack spacing={2}>
-                                                                <Tooltip label="View Details">
-                                                                    <IconButton
-                                                                        as={Link}
+                                                    <Td>
+                                                        <HStack spacing={2}>
+                                                            <Tooltip label="View Details">
+                                                                <IconButton
+                                                                    as={Link}
                                                                     to={`/jobrunner/${jobId}/${jrJobId}`}
-                                                                        aria-label="View job details"
-                                                                        icon={<InfoIcon />}
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                    />
-                                                                </Tooltip>
-                                                                <Tooltip label="View Logs">
-                                                                    <IconButton
-                                                                        as={Link}
+                                                                    aria-label="View job details"
+                                                                    icon={<InfoIcon />}
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                />
+                                                            </Tooltip>
+                                                            <Tooltip label="View Logs">
+                                                                <IconButton
+                                                                    as={Link}
                                                                     to={`/joblogs/${jobId}/${jrJobId}`}
-                                                                        aria-label="View job logs"
-                                                                        icon={<ViewIcon />}
-                                                                        size="sm"
-                                                                        variant="ghost"
-                                                                    />
-                                                                </Tooltip>
+                                                                    aria-label="View job logs"
+                                                                    icon={<ViewIcon />}
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                />
+                                                            </Tooltip>
                                                             <Tooltip label="Rerun Job">
                                                                 <IconButton
                                                                     aria-label="Rerun job"

@@ -77,6 +77,16 @@ export interface Metric {
 
 }
 
+export type EventType = "config" | "meta" | "start" | "data" | "stop" | "line" | "error" | "end";
+export type PipeType = "data" | "stderr" | "stdout";
+
+export interface BenchLogEntry {
+    event: EventType;
+    data: any;
+    pipe: PipeType;
+    tag: string;
+}
+
 export interface Summary {
     [key: string]: {
         [key: string]: number | string;
@@ -113,6 +123,8 @@ export interface SlurmJob {
     status?: string;
     state?: string;
     job_state?: string[];
+    state_reason?: string;
+    state_description?: string;
     time?: string;
     time_limit?: {
         number: number,
