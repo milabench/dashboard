@@ -1,0 +1,6 @@
+importlib_resources
+sqlalchemy
+pandas
+flask
+flask_caching
+apscheduler
