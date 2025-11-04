@@ -7,6 +7,7 @@ interface NavItem {
     label: string;
     path?: string;
     routes?: NavItem[];
+    env?: string;
 }
 
 
@@ -15,6 +16,7 @@ const navItems: NavItem[] = [
     { label: 'Latest Executions', path: '/executions' },
     {
         label: 'Slurm',
+        env: "dev",
         routes: [
             { label: 'Jobs', path: '/' },
             { label: 'Pipelines', path: '/pipelines' },

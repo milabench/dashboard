@@ -1,5 +1,5 @@
 dashboard
-=============================
+=========
 
 |pypi| |py_versions| |codecov| |docs| |tests| |style|
 
@@ -26,11 +26,21 @@ dashboard
 
 .. code-block:: bash
 
-   pip install dashboard
-
+   git clone https://github.com/milabench/dashboard.git
+   
+   cd dashboard
+   conda create -n py312 PYTHON=3.12
+   conda activate py312
+   pip instal -e .
+   make front
+   make back
 
 Features
 --------
 
-* Feature 1
-* Feature 2
+* Pivot Table
+* Slurm integration
+   * Job Tracking
+   * Job Submit
+* Plot Generation
+* 

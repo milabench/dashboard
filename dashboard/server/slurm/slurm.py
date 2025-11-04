@@ -48,13 +48,24 @@ class ClusterContext:
     ssh: str
     remote_folder: str
     local_folder: str = '.'
+    config: dict = None
 
 
 mila = ClusterContext(
+    # Cluster name
     name="mila",
+
+    # SSH config name, keep things simple
     ssh="mila",
+
+    # Relative to home
     remote_folder="~/scratch/jobrunner",
-    local_folder="."                     # Relative to the globally configured local storage path
+
+    # Relative to the globally configured local storage path
+    local_folder=".",            
+
+    # Dictionnary of node configuration for slurm submission
+    config={}
 )
 
 
