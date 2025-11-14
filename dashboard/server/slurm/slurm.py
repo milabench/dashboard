@@ -1519,3 +1519,18 @@ def slurm_integration(app, cache):
         definition = request.json["definition"]
 
         return pipeline_definition_run(definition, context)
+
+
+
+
+def jobrunner_result_handler(app):
+    # 
+    # 
+    #
+    
+    @app.route('/api/slurm/job/<string:jr_job_id>/runs')
+    def api_slurm_job_runs(jr_job_id):
+        try:
+            return jsonify({})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
