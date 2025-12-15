@@ -4,8 +4,10 @@ import {
     Input,
     VStack,
     Text,
-    Spinner
+    Spinner,
+    useToken
 } from '@chakra-ui/react';
+import { useColorModeValue } from '../ui/color-mode';
 
 interface AutocompleteInputProps {
     value: string;
@@ -38,6 +40,26 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     const [selectedIndex, setSelectedIndex] = useState(-1);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Theme-friendly colors
+    const [blue500, blue400] = useToken('colors', ['blue.500', 'blue.400']);
+    const inputBg = useColorModeValue('white', 'gray.800');
+    const inputBorderColor = useColorModeValue('gray.200', 'gray.700');
+    const inputHoverBorderColor = useColorModeValue('gray.300', 'gray.600');
+    const inputFocusBorderColor = useColorModeValue('blue.500', 'blue.400');
+    const inputFocusShadowColor = useColorModeValue(blue500, blue400);
+    const inputFocusShadow = `0 0 0 1px ${inputFocusShadowColor}`;
+
+    const dropdownBg = useColorModeValue('white', 'gray.800');
+    const dropdownBorderColor = useColorModeValue('gray.200', 'gray.700');
+    const dropdownShadow = useColorModeValue('md', 'dark-lg');
+
+    const suggestionSelectedBg = useColorModeValue('blue.50', 'blue.900');
+    const suggestionHoverBg = useColorModeValue('gray.100', 'gray.700');
+    const suggestionSelectedHoverBg = useColorModeValue('blue.100', 'blue.800');
+    const suggestionBorderColor = useColorModeValue('blue.500', 'blue.400');
+    const suggestionTextColor = useColorModeValue('gray.700', 'gray.300');
+    const noResultsTextColor = useColorModeValue('gray.500', 'gray.400');
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -184,10 +206,11 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                 placeholder={placeholder}
                 disabled={disabled}
                 size={inputSize}
-                bg="white"
-                borderColor="gray.200"
-                _hover={{ borderColor: "gray.300" }}
-                _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3182ce" }}
+                bg={inputBg}
+                borderColor={inputBorderColor}
+                color={suggestionTextColor}
+                _hover={{ borderColor: inputHoverBorderColor }}
+                _focus={{ borderColor: inputFocusBorderColor, boxShadow: inputFocusShadow }}
             />
 
             {showSuggestions && !disabled && (
@@ -196,11 +219,11 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                     top="100%"
                     left={0}
                     right={0}
-                    bg="white"
+                    bg={dropdownBg}
                     border="1px solid"
-                    borderColor="gray.200"
+                    borderColor={dropdownBorderColor}
                     borderRadius="md"
-                    boxShadow="md"
+                    boxShadow={dropdownShadow}
                     zIndex={1000}
                     maxHeight="200px"
                     overflowY="auto"
@@ -217,10 +240,11 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                                     px={3}
                                     py={2}
                                     cursor="pointer"
-                                    bg={selectedIndex === index ? "blue.50" : "transparent"}
+                                    bg={selectedIndex === index ? suggestionSelectedBg : "transparent"}
                                     borderLeft={selectedIndex === index ? "3px solid" : "3px solid transparent"}
-                                    borderColor={selectedIndex === index ? "blue.500" : "transparent"}
-                                    _hover={{ bg: selectedIndex === index ? "blue.100" : "gray.100" }}
+                                    borderColor={selectedIndex === index ? suggestionBorderColor : "transparent"}
+                                    color={suggestionTextColor}
+                                    _hover={{ bg: selectedIndex === index ? suggestionSelectedHoverBg : suggestionHoverBg }}
                                     onMouseDown={(e) => {
                                         e.preventDefault(); // Prevent input blur
                                         handleSuggestionSelect(suggestion);
@@ -228,12 +252,14 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
                                     onMouseEnter={() => setSelectedIndex(index)}
                                     fontSize={inputSize === 'sm' ? 'sm' : 'md'}
                                 >
-                                    {renderSuggestion ? renderSuggestion(suggestion) : suggestion}
+                                    {renderSuggestion ? renderSuggestion(suggestion) : (
+                                        <Text color={suggestionTextColor}>{suggestion}</Text>
+                                    )}
                                 </Box>
                             ))}
                         </VStack>
                     ) : (
-                        <Box p={2} color="gray.500" fontSize="sm" textAlign="center">
+                        <Box p={2} color={noResultsTextColor} fontSize="sm" textAlign="center">
                             No suggestions found
                         </Box>
                     )}

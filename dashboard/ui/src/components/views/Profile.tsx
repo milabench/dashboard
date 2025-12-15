@@ -15,16 +15,9 @@ import {
     Select,
     Input,
     Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
     Switch,
-    FormControl,
-    FormLabel,
-    useToast,
 } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import type { Weight } from '../../services/types';
 import { getProfileList, getProfileDetails, saveProfile, copyProfile } from '../../services/api';
 import Cookies from 'js-cookie';
@@ -40,7 +33,6 @@ export const Profile: React.FC = () => {
     const [sourceProfile, setSourceProfile] = useState<string>('');
     const [isSaving, setIsSaving] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
-    const toast = useToast();
 
     // Fetch available profiles
     useEffect(() => {
@@ -58,10 +50,10 @@ export const Profile: React.FC = () => {
                 }
             } catch (error) {
                 console.error('Error fetching profiles:', error);
-                toast({
+                toaster.create({
                     title: 'Error fetching profiles',
                     description: error instanceof Error ? error.message : 'Unknown error',
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
                 });
             }
@@ -77,10 +69,10 @@ export const Profile: React.FC = () => {
                     const data = await getProfileDetails(selectedProfile);
                     setWeights(data);
                 } catch (error) {
-                    toast({
+                    toaster.create({
                         title: 'Error fetching weights',
                         description: error instanceof Error ? error.message : 'Unknown error',
-                        status: 'error',
+                        type: 'error',
                         duration: 5000,
                     });
                 }
@@ -106,17 +98,17 @@ export const Profile: React.FC = () => {
             // Refresh the weights after saving
             const data = await getProfileDetails(selectedProfile);
             setWeights(data);
-            toast({
+            toaster.create({
                 title: 'Success',
                 description: 'Profile saved successfully',
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error saving profile',
                 description: error instanceof Error ? error.message : 'Unknown error',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {
@@ -145,17 +137,17 @@ export const Profile: React.FC = () => {
             // Select the new profile
             setSelectedProfile(newProfileName);
 
-            toast({
+            toaster.create({
                 title: 'Success',
                 description: 'Profile copied successfully',
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error copying profile',
                 description: error instanceof Error ? error.message : 'Unknown error',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {
@@ -169,24 +161,24 @@ export const Profile: React.FC = () => {
 
     const handleSetScoreProfile = () => {
         Cookies.set('scoreProfile', scoreProfile, { expires: 365 }); // Cookie expires in 1 year
-        toast({
+        toaster.create({
             title: 'Success',
             description: `Score computation profile set to ${scoreProfile}`,
-            status: 'success',
+            type: 'success',
             duration: 3000,
         });
     };
 
     return (
         <Box p={4}>
-            <VStack align="stretch" spacing={6}>
+            <VStack align="stretch" gap={6}>
                 <Heading>Profile Management</Heading>
 
                 <Box borderWidth={1} borderRadius="md" p={4}>
-                    <VStack align="stretch" spacing={4}>
+                    <VStack align="stretch" gap={4}>
                         <Heading size="md">Profile Selection</Heading>
-                        <HStack spacing={4}>
-                            <FormControl>
+                        <HStack gap={4}>
+                            <Field.Root>
                                 <Select
                                     value={scoreProfile}
                                     onChange={handleScoreProfileChange}
@@ -197,7 +189,7 @@ export const Profile: React.FC = () => {
                                         </option>
                                     ))}
                                 </Select>
-                            </FormControl>
+                            </Field.Root>
                             <Button
                                 onClick={handleSetScoreProfile}
                                 colorScheme="blue"
@@ -210,11 +202,11 @@ export const Profile: React.FC = () => {
                 </Box>
 
                 <Box borderWidth={1} borderRadius="md" p={4}>
-                    <VStack align="stretch" spacing={4}>
+                    <VStack align="stretch" gap={4}>
                         <Heading size="md">Copy Profile</Heading>
-                        <HStack spacing={4}>
-                            <FormControl>
-                                <FormLabel>Source Profile</FormLabel>
+                        <HStack gap={4}>
+                            <Field.Root>
+                                <Field.Label>Source Profile</Field.Label>
                                 <Select
                                     value={sourceProfile}
                                     onChange={(e) => setSourceProfile(e.target.value)}
@@ -225,18 +217,18 @@ export const Profile: React.FC = () => {
                                         </option>
                                     ))}
                                 </Select>
-                            </FormControl>
-                            <FormControl>
-                                <FormLabel>New Profile Name</FormLabel>
+                            </Field.Root>
+                            <Field.Root>
+                                <Field.Label>New Profile Name</Field.Label>
                                 <Input
                                     value={newProfileName}
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => setNewProfileName(e.target.value)}
                                 />
-                            </FormControl>
+                            </Field.Root>
                             <Button
                                 onClick={handleCopyProfile}
-                                isLoading={isCopying}
-                                isDisabled={!sourceProfile || !newProfileName}
+                                loading={isCopying}
+                                disabled={!sourceProfile || !newProfileName}
                                 colorScheme="blue"
                                 alignSelf="flex-end"
                             >
@@ -247,10 +239,10 @@ export const Profile: React.FC = () => {
                 </Box>
 
                 <Box borderWidth={1} borderRadius="md" p={4}>
-                    <VStack align="stretch" spacing={4}>
+                    <VStack align="stretch" gap={4}>
                         <Heading size="md">Update Profile</Heading>
-                        <HStack spacing={4}>
-                            <FormControl>
+                        <HStack gap={4}>
+                            <Field.Root>
                                 <Select
                                     value={selectedProfile}
                                     onChange={handleProfileChange}
@@ -261,11 +253,11 @@ export const Profile: React.FC = () => {
                                         </option>
                                     ))}
                                 </Select>
-                            </FormControl>
+                            </Field.Root>
 
                             <Button
                                 onClick={handleSave}
-                                isLoading={isSaving}
+                                loading={isSaving}
                                 colorScheme="blue"
                                 alignSelf="flex-end"
                             >
@@ -273,77 +265,77 @@ export const Profile: React.FC = () => {
                             </Button>
                         </HStack>
 
-                        <Table variant="simple">
-                            <Thead>
-                                <Tr>
-                                    <Th>Pack</Th>
-                                    <Th>Weight</Th>
-                                    <Th>Order</Th>
-                                    <Th>Enabled</Th>
-                                    <Th>Group 1</Th>
-                                    <Th>Group 2</Th>
-                                    <Th>Group 3</Th>
-                                    <Th>Group 4</Th>
-                                </Tr>
-                            </Thead>
-                            <Tbody>
+                        <Table.Root variant="simple">
+                            <Table.Header>
+                                <Table.Row>
+                                    <Table.ColumnHeader>Pack</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Weight</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Order</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Enabled</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Group 1</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Group 2</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Group 3</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Group 4</Table.ColumnHeader>
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
                                 {weights.map((weight) => (
-                                    <Tr key={weight._id}>
-                                        <Td>{weight.pack}</Td>
-                                        <Td>
+                                    <Table.Row key={weight._id}>
+                                        <Table.Cell>{weight.pack}</Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 type="number"
                                                 value={weight.weight}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'weight', parseInt(e.target.value))}
                                                 size="sm"
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 type="number"
                                                 value={weight.priority}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'priority', parseInt(e.target.value))}
                                                 size="sm"
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Switch
                                                 isChecked={weight.enabled}
                                                 onChange={(e) => handleWeightChange(weight._id, 'enabled', e.target.checked)}
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 value={weight.group1 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group1', e.target.value)}
                                                 size="sm"
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 value={weight.group2 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group2', e.target.value)}
                                                 size="sm"
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 value={weight.group3 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group3', e.target.value)}
                                                 size="sm"
                                             />
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Input
                                                 value={weight.group4 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group4', e.target.value)}
                                                 size="sm"
                                             />
-                                        </Td>
-                                    </Tr>
+                                        </Table.Cell>
+                                    </Table.Row>
                                 ))}
-                            </Tbody>
-                        </Table>
+                            </Table.Body>
+                        </Table.Root>
                     </VStack>
                 </Box>
             </VStack>

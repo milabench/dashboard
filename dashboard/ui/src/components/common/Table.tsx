@@ -1,11 +1,5 @@
 import {
-    TableContainer,
     Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
 } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
 
@@ -23,36 +17,36 @@ interface TableProps<T> {
 
 export function DataTable<T>({ data, columns, onRowClick }: TableProps<T>) {
     return (
-        <TableContainer overflowX="auto">
-            <Table variant="simple">
-                <Thead>
-                    <Tr>
+        <Table.ScrollArea>
+            <Table.Root variant="simple">
+                <Table.Header>
+                    <Table.Row>
                         {columns.map((column, index) => (
-                            <Th key={index} width={column.width}>
+                            <Table.ColumnHeader key={index} width={column.width}>
                                 {column.header}
-                            </Th>
+                            </Table.ColumnHeader>
                         ))}
-                    </Tr>
-                </Thead>
-                <Tbody>
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
                     {data.map((item, rowIndex) => (
-                        <Tr
+                        <Table.Row
                             key={rowIndex}
                             onClick={() => onRowClick?.(item)}
                             cursor={onRowClick ? 'pointer' : 'default'}
                             _hover={onRowClick ? { bg: 'gray.50' } : undefined}
                         >
                             {columns.map((column, colIndex) => (
-                                <Td key={colIndex}>
+                                <Table.Cell key={colIndex}>
                                     {typeof column.accessor === 'function'
                                         ? column.accessor(item)
                                         : String(item[column.accessor])}
-                                </Td>
+                                </Table.Cell>
                             ))}
-                        </Tr>
+                        </Table.Row>
                     ))}
-                </Tbody>
-            </Table>
-        </TableContainer>
+                </Table.Body>
+            </Table.Root>
+        </Table.ScrollArea>
     );
 }

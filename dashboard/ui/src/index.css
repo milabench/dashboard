@@ -5,14 +5,12 @@
   --group-active: #2c5282;
   --pack-active: #4299e1;
   --sidebar-text: #e1e1e1;
-  --main-bg: #f8f9fa;
   --border-color: #2c3138;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
 
   font-synthesis: none;

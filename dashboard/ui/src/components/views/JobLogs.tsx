@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useColorModeValue } from '../ui/color-mode';
+import { Tooltip } from '../ui/tooltip';
 import {
     Box,
     Heading,
@@ -8,43 +10,22 @@ import {
     VStack,
     HStack,
     Button,
-    useToast,
     Card,
-    CardBody,
-    CardHeader,
     Spinner,
     Alert,
-    AlertIcon,
-    AlertTitle,
-    AlertDescription,
-    useColorModeValue,
     Badge,
     Flex,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    useDisclosure,
+    Dialog,
     Input,
-    FormControl,
-    FormLabel,
-    FormErrorMessage,
     Wrap,
     WrapItem,
     Grid,
     GridItem,
-    Accordion,
-    AccordionItem,
-    AccordionButton,
-    AccordionPanel,
-    AccordionIcon,
     Code,
-    Tooltip
+    Field,
 } from '@chakra-ui/react';
-import { ArrowBackIcon, RepeatIcon, ViewIcon, CloseIcon, DownloadIcon, InfoIcon, ExternalLinkIcon, TimeIcon } from '@chakra-ui/icons';
+import { toaster } from '../ui/toaster';
+import { LuArrowLeft, LuRefreshCw, LuEye, LuX, LuDownload, LuInfo, LuExternalLink, LuClock } from 'react-icons/lu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob } from '../../services/api';
 import type { SlurmJob, SlurmJobAccounting, SlurmJobStatusResponse } from '../../services/types';
@@ -116,10 +97,12 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     usePageTitle(`Job Logs - ${slurmJobId || 'Unknown'}`);
 
     const navigate = useNavigate();
-    const toast = useToast();
     const queryClient = useQueryClient();
     const bgColor = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
+    // Higher contrast colors for Job Quick Info
+    const textColor = useColorModeValue('gray.800', 'gray.200');
+    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
 
     // Rerun state
     const [isRerunning, setIsRerunning] = useState(false);
@@ -131,7 +114,9 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [commitMessage, setCommitMessage] = useState('');
     const [commitMessageError, setCommitMessageError] = useState('');
-    const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const onSaveModalOpen = () => setIsSaveModalOpen(true);
+    const onSaveModalClose = () => setIsSaveModalOpen(false);
 
     // Push data state
     const [isPushing, setIsPushing] = useState(false);
@@ -182,12 +167,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             // Don't trigger if job was already terminal or if this is the first status load
             if (!wasTerminal && nowTerminal && jobStatus !== null) {
                 setShouldPoll(false);
-                toast({
+                toaster.create({
                     title: 'Job Finished',
                     description: `Job status changed to ${newStatus}. Logs will perform final refresh in 2 seconds.`,
-                    status: 'info',
+                    type: 'info',
                     duration: 5000,
-                    isClosable: true,
                 });
 
                 // Trigger final log refresh after 2 seconds
@@ -199,7 +183,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 setShouldPoll(false);
             }
         }
-    }, [jobStatusData, isJobTerminal, jobStatus, toast, queryClient]);
+    }, [jobStatusData, isJobTerminal, jobStatus, queryClient]);
 
     // Backup job info query for additional details (non-polling)
     const {
@@ -357,12 +341,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         queryClient.invalidateQueries({ queryKey: ['slurm-job-logs'] });
         queryClient.invalidateQueries({ queryKey: ['slurm-cluster-status'] });
         setCountdown(30);
-        toast({
+        toaster.create({
             title: 'Status Refreshed',
             description: 'Job status and logs have been refreshed.',
-            status: 'success',
+            type: 'success',
             duration: 2000,
-            isClosable: true,
         });
     };
 
@@ -374,12 +357,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             const result = await rerunSlurmJob(jrJobId);
 
             if (result.success) {
-                toast({
+                toaster.create({
                     title: 'Job Rerun Successfully',
                     description: `New job submitted with ID: ${result.job_id}. Job runner ID: ${result.jr_job_id}`,
-                    status: 'success',
+                    type: 'success',
                     duration: 5000,
-                    isClosable: true,
                 });
 
                 // Invalidate old queries to ensure fresh data for the new job
@@ -391,21 +373,19 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     navigate(`/joblogs/${result.job_id || NO_JOB_ID}/${result.jr_job_id || NO_JOB_ID}`);
                 }, 2000);
             } else {
-                toast({
+                toaster.create({
                     title: 'Rerun Failed',
                     description: result.error || 'Failed to rerun job',
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
-                    isClosable: true,
                 });
             }
         } catch (error: any) {
-            toast({
+            toaster.create({
                 title: 'Rerun Failed',
                 description: error.message || 'An unexpected error occurred',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         } finally {
             setIsRerunning(false);
@@ -414,12 +394,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     const handleCancel = async () => {
         if (!slurmJobId || slurmJobId === '-') {
-            toast({
+            toaster.create({
                 title: 'Cannot Cancel Job',
                 description: 'No Slurm job ID available for cancellation',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
-                isClosable: true,
             });
             return;
         }
@@ -429,32 +408,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             const result = await cancelSlurmJob(slurmJobId);
 
             if (result.success) {
-                toast({
+                toaster.create({
                     title: 'Job Cancelled Successfully',
                     description: result.message || `Job ${slurmJobId} has been cancelled`,
-                    status: 'success',
+                    type: 'success',
                     duration: 5000,
-                    isClosable: true,
                 });
 
                 // Refresh status to show updated state
                 refetchStatus();
             } else {
-                toast({
+                toaster.create({
                     title: 'Cancel Failed',
                     description: result.error || 'Failed to cancel job',
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
-                    isClosable: true,
                 });
             }
         } catch (error: any) {
-            toast({
+            toaster.create({
                 title: 'Cancel Failed',
                 description: error.message || 'An unexpected error occurred',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         } finally {
             setIsCancelling(false);
@@ -482,32 +458,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
             // Since the API returns an empty object on success, we check for the absence of error
             if (!result.error) {
-                toast({
+                toaster.create({
                     title: 'Job Saved Successfully',
                     description: `Job ${jrJobId} has been saved with commit message: "${commitMessage.trim()}"`,
-                    status: 'success',
+                    type: 'success',
                     duration: 5000,
-                    isClosable: true,
                 });
 
                 onSaveModalClose();
                 setCommitMessage('');
             } else {
-                toast({
+                toaster.create({
                     title: 'Save Failed',
                     description: result.error || 'Failed to save job',
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
-                    isClosable: true,
                 });
             }
         } catch (error: any) {
-            toast({
+            toaster.create({
                 title: 'Save Failed',
                 description: error.message || 'An unexpected error occurred',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         } finally {
             setIsSaving(false);
@@ -522,29 +495,26 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             const result = await pushJobFolder(jrJobId);
 
             if (result.status === 'OK') {
-                toast({
+                toaster.create({
                     title: 'Data Pushed Successfully',
                     description: `Job data for ${jrJobId} has been pushed successfully.`,
-                    status: 'success',
+                    type: 'success',
                     duration: 5000,
-                    isClosable: true,
                 });
             } else {
-                toast({
+                toaster.create({
                     title: 'Push Failed',
                     description: 'Failed to push job data',
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
-                    isClosable: true,
                 });
             }
         } catch (error: any) {
-            toast({
+            toaster.create({
                 title: 'Push Failed',
                 description: error.message || 'An unexpected error occurred',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         } finally {
             setIsPushing(false);
@@ -553,12 +523,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     const handleEarlySync = async () => {
         if (!jrJobId || !slurmJobId || slurmJobId === '-') {
-            toast({
+            toaster.create({
                 title: 'Cannot Sync',
                 description: 'Job ID or Slurm Job ID is missing',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
-                isClosable: true,
             });
             return;
         }
@@ -568,32 +537,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             const result = await earlySyncJob(jrJobId, slurmJobId);
 
             if (result.status === 'ok') {
-                toast({
+                toaster.create({
                     title: 'Early Sync Successful',
                     description: 'Job results have been synced early from the compute node.',
-                    status: 'success',
+                    type: 'success',
                     duration: 5000,
-                    isClosable: true,
                 });
 
                 // Refresh the logs after sync
                 queryClient.invalidateQueries({ queryKey: ['slurm-job-logs'] });
             } else {
-                toast({
+                toaster.create({
                     title: 'Early Sync Failed',
                     description: 'Could not sync job results early. Job may not be running or compute node unavailable.',
-                    status: 'warning',
+                    type: 'warning',
                     duration: 5000,
-                    isClosable: true,
                 });
             }
         } catch (error: any) {
-            toast({
+            toaster.create({
                 title: 'Early Sync Failed',
                 description: error.message || 'An unexpected error occurred',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         } finally {
             setIsEarlySync(false);
@@ -603,27 +569,29 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     if (!jrJobId) {
         return (
             <Box p={6}>
-                <Alert status="error">
-                    <AlertIcon />
-                    <AlertTitle>Invalid Job ID</AlertTitle>
-                    <AlertDescription>
-                        No JR job ID provided in the URL.
-                    </AlertDescription>
-                </Alert>
+                <Alert.Root status="error">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                        <Alert.Title>Invalid Job ID</Alert.Title>
+                        <Alert.Description>
+                            No JR job ID provided in the URL.
+                        </Alert.Description>
+                    </Alert.Content>
+                </Alert.Root>
             </Box>
         );
     }
 
     return (
-        <Box p={6} className="job-logs-view" h="100%">
-            <VStack align="stretch" spacing={3} h="100%">
+        <Box p={6} className="job-logs-view" h="100%" display="flex" flexDirection="column">
+            <VStack align="stretch" gap={3} h="100%" flex="1" minH={0}>
                 {/* Header */}
                 <HStack justify="space-between">
-                    <HStack spacing={3}>
+                    <HStack gap={3}>
                         <Heading size="lg" mb={2}>Job Logs</Heading>
                         {clusterStatus?.status === 'offline' && (
                             <Tooltip
-                                label={`Logs may be stale - cluster is offline${clusterStatus.reason ? `: ${clusterStatus.reason}` : ''}`}
+                                content={`Logs may be stale - cluster is offline${clusterStatus.reason ? `: ${clusterStatus.reason}` : ''}`}
                             >
                                 <Badge
                                     colorScheme="orange"
@@ -639,98 +607,98 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             </Tooltip>
                         )}
                     </HStack>
-                    <HStack spacing={3}>
+                    <HStack gap={3}>
                         <Button
-                            leftIcon={<RepeatIcon />}
                             variant="outline"
                             onClick={handleRefresh}
-                            isLoading={statusLoading}
+                            loading={statusLoading}
                         >
+                            <LuRefreshCw />
                             Refresh Now
                         </Button>
                         <Button
-                            leftIcon={<RepeatIcon />}
                             variant="outline"
                             colorScheme="green"
                             onClick={handleRerun}
-                            isLoading={isRerunning}
+                            loading={isRerunning}
                         >
+                            <LuRefreshCw />
                             Rerun Job
                         </Button>
                         <Button
-                            leftIcon={<TimeIcon />}
                             variant="outline"
                             colorScheme="orange"
                             onClick={handleEarlySync}
-                            isLoading={isEarlySync}
-                            isDisabled={!slurmJobId || slurmJobId === '-' || isJobTerminal}
+                            loading={isEarlySync}
+                            disabled={!slurmJobId || slurmJobId === '-' || isJobTerminal}
                         >
+                            <LuClock />
                             Early Sync
                         </Button>
                         <Button
-                            leftIcon={<ExternalLinkIcon />}
                             variant="outline"
                             colorScheme="blue"
                             onClick={handlePushData}
-                            isLoading={isPushing}
-                            isDisabled={!isJobTerminal}
-                        >
+                            loading={isPushing}
+                            disabled={!isJobTerminal}
+                        >   <LuExternalLink />
                             Push Data
                         </Button>
                         {canCancelJob(jobStatus) && (
                             <Button
-                                leftIcon={<CloseIcon />}
                                 variant="outline"
                                 colorScheme="red"
                                 onClick={handleCancel}
-                                isLoading={isCancelling}
+                                loading={isCancelling}
                             >
+                                <LuX />
                                 Cancel Job
                             </Button>
                         )}
                         <Button
-                            leftIcon={<DownloadIcon />}
                             variant="outline"
                             colorScheme="purple"
                             onClick={handleSaveClick}
-                            isLoading={isSaving}
+                            loading={isSaving}
                         >
+                            <LuDownload />
                             Save Job
                         </Button>
                         <Button
                             as={Link}
                             to={`/jobrunner/${slurmJobId}/${jrJobId}`}
-                            leftIcon={<InfoIcon />}
                             variant="outline"
                             colorScheme="blue"
-                            isDisabled={!slurmJobId || slurmJobId === '-'}
+                            disabled={!slurmJobId || slurmJobId === '-'}
                         >
+                            <LuInfo />
                             Job Details
                         </Button>
-                        <Button leftIcon={<ArrowBackIcon />} onClick={handleBack} variant="ghost">
+                        <Button onClick={handleBack} variant="ghost">
+                            <LuArrowLeft />
                             Back
                         </Button>
                     </HStack>
                 </HStack>
 
                 {/* Job Quick Info */}
-                <Card bg={bgColor} border="1px solid" borderColor={borderColor}>
-                    <CardBody>
-                        <Wrap spacing={4} rowGap={2} align="center">
+                <Card.Root bg={bgColor} padding="10px" border="1px solid" borderColor={borderColor}>
+                    <Card.Body>
+                        <Wrap gap={4} rowGap={2} align="center">
                             <WrapItem>
-                                <Text fontSize="sm" color="gray.600">
+                                <Text fontSize="sm" color={textColor}>
                                     <strong>ID:</strong> {jrJobId}
                                 </Text>
                             </WrapItem>
                             {slurmJobId && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={textColor}>
                                         <strong>Slurm Job ID:</strong> {slurmJobId}
                                     </Text>
                                 </WrapItem>
                             )}
                             <WrapItem>
-                                <Text fontSize="sm" color="gray.600">
+                                <Text fontSize="sm" color={textColor}>
                                     <strong>Job Duration:</strong> {
                                         jobInfoLoading
                                             ? <><Spinner size="xs" mr={1} />Loading...</>
@@ -742,28 +710,28 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             {/* Additional job details from job data */}
                             {(jobInfoData as any)?.gres_detail && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={textColor}>
                                         <strong>GRES:</strong> {(jobInfoData as any).gres_detail}
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.cpus?.number && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={textColor}>
                                         <strong>CPUs:</strong> {(jobInfoData as any).cpus.number}
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={textColor}>
                                         <strong>RAM:</strong> {Math.round((jobInfoData as any).job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.nodes && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={textColor}>
                                         <strong>Nodes:</strong> {(jobInfoData as any).nodes}
                                     </Text>
                                 </WrapItem>
@@ -793,18 +761,18 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             )}
                             {shouldPoll && countdown > 0 && (
                                 <WrapItem>
-                                    <Text fontSize="xs" color="gray.500">
+                                    <Text fontSize="xs" color={mutedTextColor}>
                                         Next refresh in {countdown}s
                                     </Text>
                                 </WrapItem>
                             )}
                         </Wrap>
-                    </CardBody>
-                </Card>
+                    </Card.Body>
+                </Card.Root>
 
                 {/* Logs Display - Only show when we have job status */}
                 {jobStatus && (
-                    <Flex gap={6} direction={{ base: 'column', lg: 'row' }} className="log-holder" h="100%" flex="1" display="flex">
+                    <Flex gap={6} direction={{ base: 'column', lg: 'row' }} className="log-holder" flex="1" minH={0} display="flex">
                         <LogDisplay
                             logType="stdout"
                             jrJobId={jrJobId!}
@@ -827,62 +795,68 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
                 {/* Loading state for logs */}
                 {!jobStatus && statusLoading && (
-                    <Card bg={bgColor} border="1px solid" borderColor={borderColor} flex="1">
-                        <CardBody>
-                            <VStack spacing={4} justify="center" h="100%">
+                    <Card.Root bg={bgColor} border="1px solid" borderColor={borderColor} flex="1">
+                        <Card.Body>
+                            <VStack gap={4} justify="center" h="100%">
                                 <Spinner size="xl" />
                                 <Text>Loading job status...</Text>
                             </VStack>
-                        </CardBody>
-                    </Card>
+                        </Card.Body>
+                    </Card.Root>
                 )}
 
                 {/* Error state */}
                 {statusError && !jobStatus && (
-                    <Alert status="error">
-                        <AlertIcon />
-                        <AlertTitle>Failed to load job status</AlertTitle>
-                        <AlertDescription>
-                            {(statusError as any)?.message || 'Unknown error occurred'}
-                        </AlertDescription>
-                    </Alert>
+                    <Alert.Root status="error">
+                        <Alert.Indicator />
+                        <Alert.Content>
+                            <Alert.Title>Failed to load job status</Alert.Title>
+                            <Alert.Description>
+                                {(statusError as any)?.message || 'Unknown error occurred'}
+                            </Alert.Description>
+                        </Alert.Content>
+                    </Alert.Root>
                 )}
             </VStack>
 
             {/* Save Job Modal */}
-            <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Save Job</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        <VStack align="stretch" spacing={4}>
-                            <FormControl isInvalid={!!commitMessageError}>
-                                <FormLabel>Commit Message</FormLabel>
-                                <Input
-                                    value={commitMessage}
-                                    onChange={(e) => setCommitMessage(e.target.value)}
-                                    placeholder="Enter a commit message for this job"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !isSaving && commitMessage.trim()) {
-                                            handleSave();
-                                        }
-                                    }}
-                                />
-                                <FormErrorMessage>{commitMessageError}</FormErrorMessage>
-                            </FormControl>
-                        </VStack>
-                    </ModalBody>
-                    <ModalFooter>
-                        <Button variant="outline" mr={3} onClick={onSaveModalClose}>
-                            Cancel
-                        </Button>
-                        <Button colorScheme="blue" onClick={handleSave} isLoading={isSaving}>
-                            Save Job
-                        </Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
+            <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setIsSaveModalOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Save Job</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            <VStack align="stretch" gap={4}>
+                                <Field.Root invalid={!!commitMessageError}>
+                                    <Field.Label>Commit Message</Field.Label>
+                                    <Input
+                                        value={commitMessage}
+                                        onChange={(e) => setCommitMessage(e.target.value)}
+                                        placeholder="Enter a commit message for this job"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !isSaving && commitMessage.trim()) {
+                                                handleSave();
+                                            }
+                                        }}
+                                    />
+                                    <Field.ErrorText>{commitMessageError}</Field.ErrorText>
+                                </Field.Root>
+                            </VStack>
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button variant="outline" mr={3} onClick={onSaveModalClose}>
+                                Cancel
+                            </Button>
+                            <Button colorScheme="blue" onClick={handleSave} loading={isSaving}>
+                                Save Job
+                            </Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     );
 };

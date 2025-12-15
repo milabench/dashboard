@@ -1,19 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useColorModeValue } from '../ui/color-mode';
 import {
     Box,
     Heading,
     Text,
     HStack,
     Card,
-    CardBody,
-    CardHeader,
     Spinner,
     Alert,
-    AlertIcon,
-    AlertTitle,
-    AlertDescription,
-    useColorModeValue,
     Badge,
     Code
 } from '@chakra-ui/react';
@@ -46,8 +41,16 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     const logRef = useRef<HTMLDivElement>(null);
 
     const displayName = logType === 'stdout' ? 'Standard Output (stdout)' : 'Standard Error (stderr)';
-    const logBgColor = logType === 'stdout' ? 'gray.50' : 'red.50';
-    const logTextColor = logType === 'stdout' ? 'gray.800' : 'red.800';
+    // Theme-aware log colors
+    const logBgColor = useColorModeValue(
+        logType === 'stdout' ? 'gray.50' : 'red.50',
+        logType === 'stdout' ? 'gray.900' : 'red.900'
+    );
+    const logTextColor = useColorModeValue(
+        logType === 'stdout' ? 'gray.800' : 'red.800',
+        logType === 'stdout' ? 'gray.100' : 'red.100'
+    );
+    const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     const CHUNK_SIZE = 500 * 1024;
@@ -111,8 +114,8 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     }, [logData]);
 
     return (
-        <Card bg={bgColor} border="1px solid" borderColor={borderColor} className="logview" maxH="100%" flex={1}>
-            <CardHeader paddingBottom="5px">
+        <Card.Root bg={bgColor} padding="10px" border="1px solid" borderColor={borderColor} className="logview" flex={1} minH={0} display="flex" flexDirection="column">
+            <Card.Header paddingBottom="5px" flexShrink={0}>
                 <HStack justify="space-between">
                     <Heading size="md">{displayName}</Heading>
 
@@ -127,23 +130,25 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                         </Badge>
                     </HStack>
                 </HStack>
-            </CardHeader>
-            <CardBody h="100%" maxH="100%">
+            </Card.Header>
+            <Card.Body flex="1" minH={0} display="flex" flexDirection="column">
                 {error ? (
-                    <Alert status="error">
-                        <AlertIcon />
-                        <AlertTitle>Error loading {logType}</AlertTitle>
-                        <AlertDescription>
-                            {error?.message || `Failed to load ${logType}`}
-                        </AlertDescription>
-                    </Alert>
+                    <Alert.Root status="error">
+                        <Alert.Indicator />
+                        <Alert.Content>
+                            <Alert.Title>Error loading {logType}</Alert.Title>
+                            <Alert.Description>
+                                {error?.message || `Failed to load ${logType}`}
+                            </Alert.Description>
+                        </Alert.Content>
+                    </Alert.Root>
                 ) : isLoading ? (
                     <Box textAlign="center" py={8}>
                         <Spinner size="lg" />
                         <Text mt={4}>Loading {logType}...</Text>
                     </Box>
                 ) : (
-                    <Box h="100%" maxH="100%" >
+                    <Box flex="1" minH={0} display="flex" flexDirection="column">
                         {logData ? (
                             <Code
                                 ref={logRef}
@@ -156,23 +161,23 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                                 borderRadius="md"
                                 overflowY="auto"
                                 fontFamily="mono"
-                                h="100%"
-                                maxH="calc(100vh - 18em)"
+                                flex="1"
+                                minH={0}
                                 onCopy={(event) => {
                                     event.clipboardData.setData("text/plain", window.getSelection().toString());
                                     event.preventDefault();
-                                  }}
+                                }}
                             >
                                 {logData}
                             </Code>
                         ) : (
-                            <Text color="gray.500" textAlign="center" py={8}>
+                            <Text color={mutedTextColor} textAlign="center" py={8}>
                                 No {logType} content available
                             </Text>
                         )}
                     </Box>
                 )}
-            </CardBody>
-        </Card>
+            </Card.Body>
+        </Card.Root>
     );
 };

@@ -7,28 +7,17 @@ import {
     Heading,
     Text,
     Button,
-    useToast,
     Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
     Badge,
     IconButton,
     Tooltip,
-    AlertDialog,
-    AlertDialogBody,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogContent,
-    AlertDialogOverlay,
-    useDisclosure,
+    Dialog,
 } from '@chakra-ui/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { DeleteIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { LuTrash2, LuExternalLink } from 'react-icons/lu';
 import { getAllSavedQueries, deleteSavedQuery } from '../../services/api';
+import { toaster } from '../ui/toaster';
 
 interface SavedQuery {
     _id: number;
@@ -43,11 +32,10 @@ interface SavedQuery {
 const SavedQueriesView: React.FC = () => {
     usePageTitle('Saved Queries');
 
-    const toast = useToast();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [queryToDelete, setQueryToDelete] = useState<string | null>(null);
-    const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const cancelRef = useRef<HTMLButtonElement>(null);
 
     // Fetch all saved queries
@@ -58,7 +46,7 @@ const SavedQueriesView: React.FC = () => {
 
     const handleDeleteClick = (queryName: string) => {
         setQueryToDelete(queryName);
-        onDeleteOpen();
+        setIsDeleteOpen(true);
     };
 
     const handleDeleteConfirm = async () => {
@@ -66,22 +54,22 @@ const SavedQueriesView: React.FC = () => {
 
         try {
             await deleteSavedQuery(queryToDelete);
-            toast({
+            toaster.create({
                 title: 'Query deleted',
                 description: `"${queryToDelete}" has been deleted successfully`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
             queryClient.invalidateQueries({ queryKey: ['savedQueries'] });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error deleting query',
                 description: error instanceof Error ? error.message : 'Failed to delete query',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {
-            onDeleteClose();
+            setIsDeleteOpen(false);
             setQueryToDelete(null);
         }
     };
@@ -136,7 +124,7 @@ const SavedQueriesView: React.FC = () => {
 
     return (
         <Box p={4}>
-            <VStack align="stretch" spacing={6}>
+            <VStack align="stretch" gap={6}>
                 <HStack justify="space-between">
                     <Heading size="lg">Saved Queries</Heading>
                     <Text color="gray.600">
@@ -145,38 +133,38 @@ const SavedQueriesView: React.FC = () => {
                 </HStack>
 
                 {savedQueries && savedQueries.length > 0 ? (
-                    <Box overflowX="auto">
-                        <Table variant="simple">
-                            <Thead>
-                                <Tr>
-                                    <Th>Name</Th>
-                                    <Th>Type</Th>
-                                    <Th>Created</Th>
-                                    <Th>Actions</Th>
-                                </Tr>
-                            </Thead>
-                            <Tbody>
+                    <Table.ScrollArea>
+                        <Table.Root variant="simple">
+                            <Table.Header>
+                                <Table.Row>
+                                    <Table.ColumnHeader>Name</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Type</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Created</Table.ColumnHeader>
+                                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
                                 {savedQueries.map((query: SavedQuery) => (
-                                    <Tr key={query._id}>
-                                        <Td>
+                                    <Table.Row key={query._id}>
+                                        <Table.Cell>
                                             <Text fontWeight="medium">{query.name}</Text>
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Badge colorScheme="blue">
                                                 {getQueryType(query.query.url)}
                                             </Badge>
-                                        </Td>
-                                        <Td>
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <Text fontSize="sm" color="gray.600">
                                                 {formatDate(query.created_time)}
                                             </Text>
-                                        </Td>
-                                        <Td>
-                                            <HStack spacing={2}>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <HStack gap={2}>
                                                 <Tooltip label="View Query">
                                                     <IconButton
                                                         aria-label="View query"
-                                                        icon={<ExternalLinkIcon />}
+                                                        icon={<LuExternalLink />}
                                                         size="sm"
                                                         colorScheme="blue"
                                                         variant="ghost"
@@ -186,7 +174,7 @@ const SavedQueriesView: React.FC = () => {
                                                 <Tooltip label="Delete Query">
                                                     <IconButton
                                                         aria-label="Delete query"
-                                                        icon={<DeleteIcon />}
+                                                        icon={<LuTrash2 />}
                                                         size="sm"
                                                         colorScheme="red"
                                                         variant="ghost"
@@ -194,12 +182,12 @@ const SavedQueriesView: React.FC = () => {
                                                     />
                                                 </Tooltip>
                                             </HStack>
-                                        </Td>
-                                    </Tr>
+                                        </Table.Cell>
+                                    </Table.Row>
                                 ))}
-                            </Tbody>
-                        </Table>
-                    </Box>
+                            </Table.Body>
+                        </Table.Root>
+                    </Table.ScrollArea>
                 ) : (
                     <Box textAlign="center" py={8}>
                         <Text color="gray.500" fontSize="lg">
@@ -213,28 +201,31 @@ const SavedQueriesView: React.FC = () => {
             </VStack>
 
             {/* Delete Confirmation Dialog */}
-            <AlertDialog isOpen={isDeleteOpen} onClose={onDeleteClose} leastDestructiveRef={cancelRef}>
-                <AlertDialogOverlay>
-                    <AlertDialogContent>
-                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                            Delete Saved Query
-                        </AlertDialogHeader>
+            <Dialog.Root open={isDeleteOpen} onOpenChange={(details) => setIsDeleteOpen(details.open)} role="alertdialog">
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title fontSize="lg" fontWeight="bold">
+                                Delete Saved Query
+                            </Dialog.Title>
+                        </Dialog.Header>
 
-                        <AlertDialogBody>
+                        <Dialog.Body>
                             Are you sure you want to delete "{queryToDelete}"? This action cannot be undone.
-                        </AlertDialogBody>
+                        </Dialog.Body>
 
-                        <AlertDialogFooter>
-                            <Button ref={cancelRef} onClick={onDeleteClose}>
+                        <Dialog.Footer>
+                            <Button ref={cancelRef} onClick={() => setIsDeleteOpen(false)}>
                                 Cancel
                             </Button>
                             <Button colorScheme="red" onClick={handleDeleteConfirm} ml={3}>
                                 Delete
                             </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialogOverlay>
-            </AlertDialog>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     );
 };

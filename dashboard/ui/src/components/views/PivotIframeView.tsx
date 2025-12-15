@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, useToast } from '@chakra-ui/react';
+import { Box } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import axios from 'axios';
 
 interface PivotField {
@@ -20,7 +21,6 @@ interface PivotIframeViewProps {
 }
 
 export const PivotIframeView = ({ fields, isRelativePivot, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotIframeViewProps) => {
-    const toast = useToast();
     const [pivotHtml, setPivotHtml] = React.useState<string>('');
 
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
@@ -62,10 +62,10 @@ export const PivotIframeView = ({ fields, isRelativePivot, triggerGeneration, se
             const response = await axios.get(`${endpoint}?${params.toString()}`);
             setPivotHtml(response.data);
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error generating pivot',
                 description: error instanceof Error ? error.message : 'Unknown error',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {

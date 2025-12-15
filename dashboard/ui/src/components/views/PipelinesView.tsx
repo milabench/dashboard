@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useColorModeValue } from '../ui/color-mode';
 import {
     Box,
     Heading,
@@ -7,57 +8,27 @@ import {
     HStack,
     Button,
     Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
     Badge,
-    useToast,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    useDisclosure,
-    FormControl,
-    FormLabel,
+    Dialog,
     Input,
     Textarea,
     Select,
     IconButton,
     Tooltip,
     Alert,
-    AlertIcon,
-    AlertDescription,
     Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
     Card,
-    CardBody,
-    CardHeader,
-    Spinner,
-    useColorModeValue,
+    Field,
     Flex,
     Spacer,
     Code,
-    Divider
+    Separator
 } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import {
-    AddIcon,
-    ViewIcon,
-    DeleteIcon,
-    RepeatIcon,
-    InfoIcon,
-    CheckCircleIcon,
-    WarningIcon,
-    TimeIcon,
-    CloseIcon
-} from '@chakra-ui/icons';
+    LuPlus,
+    LuTrash2,
+} from 'react-icons/lu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getSlurmProfiles,
@@ -168,8 +139,8 @@ const JobNode: React.FC<{
 
     const renderNodeHeader = () => {
         return (
-            <HStack spacing={3} justify="space-between">
-                <HStack spacing={3} flex={1}>
+            <HStack gap={3} justify="space-between">
+                <HStack gap={3} flex={1}>
                     <Select
                         size="sm"
                         value={node.type}
@@ -227,7 +198,7 @@ const JobNode: React.FC<{
                     )}
                 </HStack>
 
-                <HStack spacing={2}>
+                <HStack gap={2}>
                     {node.type !== 'job' && (
                         <Button size="sm" onClick={handleAddChild}>
                             +
@@ -236,7 +207,7 @@ const JobNode: React.FC<{
                     {canDelete && (
                         <IconButton
                             aria-label="Delete"
-                            icon={<DeleteIcon />}
+                            icon={<LuTrash2 />}
                             size="sm"
                             colorScheme="red"
                             variant="ghost"
@@ -372,7 +343,6 @@ const PipelineBuilder: React.FC<{
     onSaveTemplate: (data: any) => void;
     onLoadTemplate: (fileName: string) => Promise<any>;
 }> = ({ isOpen, onClose, profiles, templates, pipelineTemplateFiles, loadedTemplateData, onSaveTemplate, onLoadTemplate }) => {
-    const toast = useToast();
     const [pipelineName, setPipelineName] = useState('');
     const [rootNode, setRootNode] = useState<JobNodeData>({
         type: 'sequential',
@@ -512,64 +482,69 @@ const PipelineBuilder: React.FC<{
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} size="6xl">
-            <ModalOverlay />
-            <ModalContent maxH="90vh">
-                <ModalHeader>Pipeline</ModalHeader>
-                <ModalCloseButton />
-                <ModalBody overflowY="auto">
-                    <VStack spacing={6} align="stretch">
-                        <FormControl isRequired>
-                            <FormLabel>Pipeline Name</FormLabel>
-                            <Input
-                                value={pipelineName}
-                                onChange={(e) => setPipelineName(e.target.value)}
-                                placeholder="Enter pipeline name"
-                            />
-                        </FormControl>
-
-                        <Divider />
-
-                        <Box>
-                            <HStack mb={4}>
-                                <Heading size="md">Pipeline Structure</Heading>
-                            </HStack>
-
-                            <Box border="1px" borderColor="gray.200" borderRadius="md" p={4} bg="gray.50">
-                                <JobNode
-                                    node={rootNode}
-                                    onUpdate={setRootNode}
-                                    onDelete={() => { }} // Root can't be deleted
-                                    profiles={profiles}
-                                    templates={templates}
-                                    canDelete={false}
+        <Dialog.Root open={isOpen} onOpenChange={(details) => { if (!details.open) onClose(); }}>
+            <Dialog.Backdrop />
+            <Dialog.Positioner>
+                <Dialog.Content maxW="6xl" maxH="90vh">
+                    <Dialog.Header>
+                        <Dialog.Title>Pipeline</Dialog.Title>
+                        <Dialog.CloseTrigger />
+                    </Dialog.Header>
+                    <Dialog.Body overflowY="auto">
+                        <VStack gap={6} align="stretch">
+                            <Field.Root required>
+                                <Field.Label>Pipeline Name</Field.Label>
+                                <Input
+                                    value={pipelineName}
+                                    onChange={(e) => setPipelineName(e.target.value)}
+                                    placeholder="Enter pipeline name"
                                 />
+                            </Field.Root>
+
+                            <Separator />
+
+                            <Box>
+                                <HStack mb={4}>
+                                    <Heading size="md">Pipeline Structure</Heading>
+                                </HStack>
+
+                                <Box border="1px" borderColor="gray.200" borderRadius="md" p={4} bg="gray.50">
+                                    <JobNode
+                                        node={rootNode}
+                                        onUpdate={setRootNode}
+                                        onDelete={() => { }} // Root can't be deleted
+                                        profiles={profiles}
+                                        templates={templates}
+                                        canDelete={false}
+                                    />
+                                </Box>
                             </Box>
-                        </Box>
-                    </VStack>
-                </ModalBody>
-                <ModalFooter>
-                    <Button variant="ghost" mr={3} onClick={onClose}>
-                        Cancel
-                    </Button>
-                    <Button
-                        colorScheme="blue"
-                        onClick={handleSavePipeline}
-                        isDisabled={!pipelineName}
-                    >
-                        Save
-                    </Button>
-                </ModalFooter>
-            </ModalContent>
-        </Modal>
+                        </VStack>
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                        <Button variant="ghost" mr={3} onClick={onClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            onClick={handleSavePipeline}
+                            disabled={!pipelineName}
+                        >
+                            Save
+                        </Button>
+                    </Dialog.Footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Dialog.Root>
     );
 };
 
 export const PipelinesView: React.FC = () => {
     usePageTitle('Pipelines');
-    const toast = useToast();
     const queryClient = useQueryClient();
-    const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const onCreateOpen = () => setIsCreateOpen(true);
+    const onCreateClose = () => setIsCreateOpen(false);
     const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
     const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null);
     const [loadedTemplateData, setLoadedTemplateData] = useState<any>(null);
@@ -595,17 +570,17 @@ export const PipelinesView: React.FC = () => {
         mutationFn: savePipelineToFile,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['pipeline-template-files'] });
-            toast({
+            toaster.create({
                 title: 'Pipeline template saved',
-                status: 'success',
+                type: 'success',
                 duration: 3000
             });
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Failed to save pipeline template',
                 description: error.message,
-                status: 'error',
+                type: 'error',
                 duration: 5000
             });
         }
@@ -614,17 +589,17 @@ export const PipelinesView: React.FC = () => {
     const loadPipelineTemplateMutation = useMutation({
         mutationFn: loadPipelineFromFile,
         onSuccess: () => {
-            toast({
+            toaster.create({
                 title: 'Pipeline template loaded',
-                status: 'success',
+                type: 'success',
                 duration: 3000
             });
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Failed to load pipeline template',
                 description: error.message,
-                status: 'error',
+                type: 'error',
                 duration: 5000
             });
         }
@@ -634,12 +609,12 @@ export const PipelinesView: React.FC = () => {
 
     return (
         <Box p={6}>
-            <VStack spacing={6} align="stretch">
+            <VStack gap={6} align="stretch">
                 <Flex align="center">
                     <Heading size="lg">Pipeline Management</Heading>
                     <Spacer />
-                    <Button colorScheme="blue" leftIcon={<AddIcon />} onClick={onCreateOpen}>
-                        New Pipeline
+                    <Button colorScheme="blue" onClick={onCreateOpen}>
+                        <LuPlus /> New Pipeline
                     </Button>
                 </Flex>
 
@@ -647,68 +622,68 @@ export const PipelinesView: React.FC = () => {
                     Manage and run SLURM job pipelines with dependencies and scheduling.
                 </Text>
 
-                <Tabs>
-                    <TabList>
-                        <Tab>Templates</Tab>
-                    </TabList>
+                <Tabs.Root defaultValue="templates">
+                    <Tabs.List>
+                        <Tabs.Trigger value="templates">Templates</Tabs.Trigger>
+                    </Tabs.List>
 
-                    <TabPanels>
-                        <TabPanel p={0} pt={4}>
-                            <Card>
-                                <CardHeader>
-                                    <Heading size="md">Pipeline Templates</Heading>
-                                </CardHeader>
-                                <CardBody>
-                                    {pipelineTemplateFiles.length === 0 ? (
-                                        <Alert status="info">
-                                            <AlertIcon />
-                                            <AlertDescription>
+                    <Tabs.Content value="templates" p={0} pt={4}>
+                        <Card.Root>
+                            <Card.Header>
+                                <Heading size="md">Pipeline Templates</Heading>
+                            </Card.Header>
+                            <Card.Body>
+                                {pipelineTemplateFiles.length === 0 ? (
+                                    <Alert.Root status="info">
+                                        <Alert.Indicator />
+                                        <Alert.Content>
+                                            <Alert.Description>
                                                 No pipeline templates saved yet. Create a pipeline and save it as a template to get started.
-                                            </AlertDescription>
-                                        </Alert>
-                                    ) : (
-                                        <VStack align="stretch" spacing={3}>
-                                            <Table variant="simple">
-                                                <Thead>
-                                                    <Tr>
-                                                        <Th>Template Name</Th>
-                                                        <Th>Actions</Th>
-                                                    </Tr>
-                                                </Thead>
-                                                <Tbody>
-                                                    {pipelineTemplateFiles.map((fileName) => (
-                                                        <Tr key={fileName}>
-                                                            <Td fontWeight="bold">{fileName}</Td>
-                                                            <Td>
-                                                                <HStack spacing={2}>
-                                                                    <Tooltip label="Load template to create new pipeline">
-                                                                        <Button
-                                                                            size="sm"
-                                                                            colorScheme="blue"
-                                                                            onClick={() => {
-                                                                                loadPipelineTemplateMutation.mutateAsync(fileName).then((templateData) => {
-                                                                                    setLoadedTemplateData(templateData);
-                                                                                    onCreateOpen(); // Open the create modal
-                                                                                });
-                                                                            }}
-                                                                            isLoading={loadPipelineTemplateMutation.isPending}
-                                                                        >
-                                                                            Open
-                                                                        </Button>
-                                                                    </Tooltip>
-                                                                </HStack>
-                                                            </Td>
-                                                        </Tr>
-                                                    ))}
-                                                </Tbody>
-                                            </Table>
-                                        </VStack>
-                                    )}
-                                </CardBody>
-                            </Card>
-                        </TabPanel>
-                    </TabPanels>
-                </Tabs>
+                                            </Alert.Description>
+                                        </Alert.Content>
+                                    </Alert.Root>
+                                ) : (
+                                    <VStack align="stretch" gap={3}>
+                                        <Table.Root variant="simple">
+                                            <Table.Header>
+                                                <Table.Row>
+                                                    <Table.ColumnHeader>Template Name</Table.ColumnHeader>
+                                                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                                                </Table.Row>
+                                            </Table.Header>
+                                            <Table.Body>
+                                                {pipelineTemplateFiles.map((fileName) => (
+                                                    <Table.Row key={fileName}>
+                                                        <Table.Cell fontWeight="bold">{fileName}</Table.Cell>
+                                                        <Table.Cell>
+                                                            <HStack gap={2}>
+                                                                <Tooltip label="Load template to create new pipeline">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        colorScheme="blue"
+                                                                        onClick={() => {
+                                                                            loadPipelineTemplateMutation.mutateAsync(fileName).then((templateData) => {
+                                                                                setLoadedTemplateData(templateData);
+                                                                                onCreateOpen(); // Open the create modal
+                                                                            });
+                                                                        }}
+                                                                        loading={loadPipelineTemplateMutation.isPending}
+                                                                    >
+                                                                        Open
+                                                                    </Button>
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Table.Cell>
+                                                    </Table.Row>
+                                                ))}
+                                            </Table.Body>
+                                        </Table.Root>
+                                    </VStack>
+                                )}
+                            </Card.Body>
+                        </Card.Root>
+                    </Tabs.Content>
+                </Tabs.Root>
             </VStack>
 
             <PipelineBuilder
@@ -726,84 +701,92 @@ export const PipelinesView: React.FC = () => {
             />
 
             {/* Pipeline Structure Modal */}
-            <Modal isOpen={!!selectedPipeline} onClose={() => setSelectedPipeline(null)} size="xl">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Pipeline Structure: {selectedPipeline?.name}</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        {selectedPipeline && (
-                            <Box border="1px" borderColor="gray.200" borderRadius="md" p={4}>
-                                <PipelineNodeDisplay node={selectedPipeline.definition} />
-                            </Box>
-                        )}
-                    </ModalBody>
-                    <ModalFooter>
-                        <Button onClick={() => setSelectedPipeline(null)}>Close</Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
+            <Dialog.Root open={!!selectedPipeline} onOpenChange={(details) => { if (!details.open) setSelectedPipeline(null); }} size="xl">
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="xl">
+                        <Dialog.Header>
+                            <Dialog.Title>Pipeline Structure: {selectedPipeline?.name}</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            {selectedPipeline && (
+                                <Box border="1px" borderColor="gray.200" borderRadius="md" p={4}>
+                                    <PipelineNodeDisplay node={selectedPipeline.definition} />
+                                </Box>
+                            )}
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button onClick={() => setSelectedPipeline(null)}>Close</Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
 
             {/* Pipeline Run Details Modal */}
-            <Modal isOpen={!!selectedRun} onClose={() => setSelectedRun(null)} size="xl">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Pipeline Run Details: {selectedRun?.id}</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        {selectedRun && (
-                            <VStack align="start" spacing={4}>
-                                <HStack>
-                                    <Text fontWeight="bold">Status:</Text>
-                                    <Badge colorScheme={getStatusColor(selectedRun.status)}>
-                                        {selectedRun.status}
-                                    </Badge>
-                                </HStack>
-                                <HStack>
-                                    <Text fontWeight="bold">Pipeline:</Text>
-                                    <Text>{selectedRun.pipeline.name}</Text>
-                                </HStack>
-                                <HStack>
-                                    <Text fontWeight="bold">Created:</Text>
-                                    <Text>{new Date(selectedRun.created_at).toLocaleString()}</Text>
-                                </HStack>
-                                {selectedRun.jobs.length > 0 && (
-                                    <Box width="100%">
-                                        <Text fontWeight="bold" mb={2}>Jobs:</Text>
-                                        <Table size="sm" variant="simple">
-                                            <Thead>
-                                                <Tr>
-                                                    <Th>Job ID</Th>
-                                                    <Th>Slurm ID</Th>
-                                                    <Th>Status</Th>
-                                                </Tr>
-                                            </Thead>
-                                            <Tbody>
-                                                {selectedRun.jobs.map((job) => (
-                                                    <Tr key={job.job_id}>
-                                                        <Td fontFamily="mono" fontSize="sm">{job.job_id}</Td>
-                                                        <Td fontFamily="mono" fontSize="sm">
-                                                            {job.slurm_jobid || '-'}
-                                                        </Td>
-                                                        <Td>
-                                                            <Badge colorScheme={getStatusColor(job.status)} size="sm">
-                                                                {job.status}
-                                                            </Badge>
-                                                        </Td>
-                                                    </Tr>
-                                                ))}
-                                            </Tbody>
-                                        </Table>
-                                    </Box>
-                                )}
-                            </VStack>
-                        )}
-                    </ModalBody>
-                    <ModalFooter>
-                        <Button onClick={() => setSelectedRun(null)}>Close</Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
+            <Dialog.Root open={!!selectedRun} onOpenChange={(details) => { if (!details.open) setSelectedRun(null); }} size="xl">
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="xl">
+                        <Dialog.Header>
+                            <Dialog.Title>Pipeline Run Details: {selectedRun?.id}</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            {selectedRun && (
+                                <VStack align="start" gap={4}>
+                                    <HStack>
+                                        <Text fontWeight="bold">Status:</Text>
+                                        <Badge colorScheme={getStatusColor(selectedRun.status)}>
+                                            {selectedRun.status}
+                                        </Badge>
+                                    </HStack>
+                                    <HStack>
+                                        <Text fontWeight="bold">Pipeline:</Text>
+                                        <Text>{selectedRun.pipeline.name}</Text>
+                                    </HStack>
+                                    <HStack>
+                                        <Text fontWeight="bold">Created:</Text>
+                                        <Text>{new Date(selectedRun.created_at).toLocaleString()}</Text>
+                                    </HStack>
+                                    {selectedRun.jobs.length > 0 && (
+                                        <Box width="100%">
+                                            <Text fontWeight="bold" mb={2}>Jobs:</Text>
+                                            <Table.Root size="sm" variant="simple">
+                                                <Table.Header>
+                                                    <Table.Row>
+                                                        <Table.ColumnHeader>Job ID</Table.ColumnHeader>
+                                                        <Table.ColumnHeader>Slurm ID</Table.ColumnHeader>
+                                                        <Table.ColumnHeader>Status</Table.ColumnHeader>
+                                                    </Table.Row>
+                                                </Table.Header>
+                                                <Table.Body>
+                                                    {selectedRun.jobs.map((job) => (
+                                                        <Table.Row key={job.job_id}>
+                                                            <Table.Cell fontFamily="mono" fontSize="sm">{job.job_id}</Table.Cell>
+                                                            <Table.Cell fontFamily="mono" fontSize="sm">
+                                                                {job.slurm_jobid || '-'}
+                                                            </Table.Cell>
+                                                            <Table.Cell>
+                                                                <Badge colorScheme={getStatusColor(job.status)} size="sm">
+                                                                    {job.status}
+                                                                </Badge>
+                                                            </Table.Cell>
+                                                        </Table.Row>
+                                                    ))}
+                                                </Table.Body>
+                                            </Table.Root>
+                                        </Box>
+                                    )}
+                                </VStack>
+                            )}
+                        </Dialog.Body>
+                        <Dialog.Footer>
+                            <Button onClick={() => setSelectedRun(null)}>Close</Button>
+                        </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     );
 };

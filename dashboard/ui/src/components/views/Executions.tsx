@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Box, Heading, Text, Badge, useToast } from '@chakra-ui/react';
+import { Box, Heading, Text, Badge } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getExecutions } from '../../services/api';
@@ -16,7 +17,6 @@ const formatDate = (dateString: string) => {
 export const Executions = () => {
     usePageTitle('Latest Executions');
 
-    const toast = useToast();
     const navigate = useNavigate();
     const { data: executions, isLoading, error } = useQuery<Execution[]>({
         queryKey: ['executions'],
@@ -82,15 +82,14 @@ export const Executions = () => {
 
     useEffect(() => {
         if (error) {
-            toast({
+            toaster.create({
                 title: 'Error loading executions',
                 description: error instanceof Error ? error.message : 'Unknown error',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         }
-    }, [error, toast]);
+    }, [error]);
 
     if (isLoading) {
         return <Loading message="Loading executions..." />;

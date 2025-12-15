@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Heading, Text, VStack, Badge, useToast } from '@chakra-ui/react';
+import { Box, Heading, Text, VStack, Badge } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import axios from 'axios';
 
 interface HtmlReportViewProps {
@@ -8,7 +9,6 @@ interface HtmlReportViewProps {
 }
 
 export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onClose }) => {
-    const toast = useToast();
     const [reportHtml, setReportHtml] = React.useState<string>('');
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -24,10 +24,10 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
                 setError(errorMessage);
-                toast({
+                toaster.create({
                     title: 'Error fetching HTML report',
                     description: errorMessage,
-                    status: 'error',
+                    type: 'error',
                     duration: 5000,
                 });
             } finally {
@@ -36,7 +36,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
         };
 
         fetchHtmlReport();
-    }, [executionId, toast]);
+    }, [executionId]);
 
     if (isLoading) {
         return (
@@ -55,13 +55,13 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
     }
 
     return (
-        <Box 
+        <Box
             p={3}
             width="100%"
             height="100vh"
             className='metric-view'
         >
-            <VStack align="stretch" spacing={0} height="100%">
+            <VStack align="stretch" gap={0} height="100%">
                 <Box
                     display="flex"
                     justifyContent="space-between"
@@ -70,7 +70,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                     borderBottom="1px solid"
                     borderColor="gray.200"
                 >
-                    <VStack align="start" spacing={1}>
+                    <VStack align="start" gap={1}>
                         <Heading size="md">HTML Report</Heading>
                         <Badge colorScheme="blue">Iframe View</Badge>
                     </VStack>
@@ -92,7 +92,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                             width: '100%',
                             height: '100%',
                             border: 'none',
-                            
+
                         }}
                         title="HTML Report"
                         sandbox="allow-same-origin allow-scripts"

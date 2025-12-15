@@ -3,23 +3,20 @@ import {
     Grid,
     VStack,
     HStack,
-    FormControl,
-    FormLabel,
+    Field,
     Input,
     NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
     Text,
     Button,
     Checkbox,
     Spacer,
     Box,
-    Select,
-    useToast,
+    NativeSelect,
+    Heading,
+    Card,
 } from '@chakra-ui/react';
-
+import { toaster } from '../ui/toaster';
+import { useColorModeValue } from '../ui/color-mode';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import AutocompleteInput from '../shared/AutocompleteInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -95,8 +92,16 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     activeJobs = [],
     onClose
 }) => {
-    const toast = useToast();
     const queryClient = useQueryClient();
+
+    // Theme-friendly colors (matching Dashboard)
+    const bgColor = useColorModeValue('white', 'gray.800');
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const headerBg = useColorModeValue('gray.50', 'gray.750');
+    const textColor = useColorModeValue('gray.700', 'gray.300');
+    const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
+    const shadow = useColorModeValue('sm', 'dark-lg');
 
     // No form state needed - we'll build the data on-demand from refs
 
@@ -113,24 +118,22 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const submitJobMutation = useMutation({
         mutationFn: submitSlurmJob,
         onSuccess: (data) => {
-            toast({
+            toaster.create({
                 title: 'Job Submitted',
                 description: `Job ${data.job_id} submitted successfully`,
-                status: 'success',
+                type: 'success',
                 duration: 5000,
-                isClosable: true,
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
             queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
             if (onClose) onClose();
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Submission Failed',
                 description: error.message || 'Failed to submit job',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         },
     });
@@ -144,12 +147,11 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             }
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Template Loading Failed',
                 description: error.message || 'Failed to load template content',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         },
     });
@@ -157,22 +159,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const saveProfileMutation = useMutation({
         mutationFn: saveSlurmProfile,
         onSuccess: (data) => {
-            toast({
+            toaster.create({
                 title: 'Profile Saved',
                 description: data.message || 'Profile saved successfully',
-                status: 'success',
+                type: 'success',
                 duration: 5000,
-                isClosable: true,
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-profiles'] });
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Profile Save Failed',
                 description: error.message || 'Failed to save profile',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         },
     });
@@ -180,22 +180,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const saveTemplateMutation = useMutation({
         mutationFn: saveSlurmTemplate,
         onSuccess: (data) => {
-            toast({
+            toaster.create({
                 title: 'Template Saved',
                 description: data.message || 'Template saved successfully',
-                status: 'success',
+                type: 'success',
                 duration: 5000,
-                isClosable: true,
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-templates'] });
         },
         onError: (error: any) => {
-            toast({
+            toaster.create({
                 title: 'Template Save Failed',
                 description: error.message || 'Failed to save template',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
-                isClosable: true,
             });
         },
     });
@@ -247,17 +245,16 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const handleSaveProfile = () => {
         const profileName = selectedProfile.trim();
         if (!profileName) {
-            toast({
+            toaster.create({
                 title: 'Profile Name Required',
                 description: 'Please select or enter a profile name to save the current configuration.',
-                status: 'warning',
+                type: 'warning',
                 duration: 5000,
-                isClosable: true,
             });
             return;
         }
 
-        const sbatch_args = [];
+        const sbatch_args: string[] = [];
         const jobName = jobNameRef.current?.value;
         const partition = partitionRef.current?.value;
         const nodesValue = nodes;
@@ -296,24 +293,22 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const handleSaveTemplate = () => {
         const templateName = selectedTemplate.trim();
         if (!templateName) {
-            toast({
+            toaster.create({
                 title: 'Template Name Required',
                 description: 'Please select or enter a template name to save the current script.',
-                status: 'warning',
+                type: 'warning',
                 duration: 5000,
-                isClosable: true,
             });
             return;
         }
 
         const scriptContent = editorRef.current?.getValue() || '';
         if (!scriptContent.trim()) {
-            toast({
+            toaster.create({
                 title: 'Script Content Required',
                 description: 'Please enter script content before saving as template.',
-                status: 'warning',
+                type: 'warning',
                 duration: 5000,
-                isClosable: true,
             });
             return;
         }
@@ -326,7 +321,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
     const handleSubmitJob = () => {
         // Build sbatch arguments from form fields
-        const sbatch_args = [];
+        const sbatch_args: string[] = [];
         const partition = partitionRef.current?.value;
         const nodesValue = nodes;
         const ntasksValue = ntasks;
@@ -465,379 +460,482 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     }, [activeJobs]);
 
     return (
-        <Box width="100%" height="100%">
-            <Grid templateColumns="repeat(2, 1fr)" gap={4} width={"100%"} height={"100%"} className="column-container">
-                <VStack align="stretch" className="column-1 slurm-options">
-                    <FormControl paddingBottom="10px">
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Slurm Profile</FormLabel>
-                            <VStack align="stretch" flex={1} spacing={2}>
-                                <HStack spacing={3}>
-                                    <AutocompleteInput
-                                        value={selectedProfile}
-                                        onChange={setSelectedProfile}
-                                        onSelect={handleProfileSelect}
-                                        suggestions={profiles.map(p => p.name)}
-                                        placeholder="Select a profile or enter custom name"
-                                        size="md"
-                                        width="100%"
-                                        renderSuggestion={(suggestion) => {
-                                            const profile = profiles.find(p => p.name === suggestion);
-                                            return (
-                                                <VStack align="start" spacing={0}>
-                                                    <Text fontWeight="medium">{suggestion}</Text>
-                                                    {profile?.description && (
-                                                        <Text fontSize="xs" color="gray.500">
-                                                            {profile.description}
-                                                        </Text>
-                                                    )}
-                                                </VStack>
-                                            );
-                                        }}
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        onClick={handleSaveProfile}
-                                        isLoading={saveProfileMutation.isPending}
-                                        size="md"
-                                    >
-                                        Save Profile
-                                    </Button>
-                                </HStack>
-                            </VStack>
-                        </HStack>
-                        <Text fontSize="sm" color="gray.600">
-                            Select an existing profile or enter a new name to create a new profile
-                        </Text>
-                    </FormControl>
+        <Box width="100%" height="100%" p={6} bg={useColorModeValue('gray.50', 'gray.900')}>
+            <VStack align="stretch" gap={6} height="100%">
+                <Heading size="lg" fontWeight="bold" color={textColor} mb={2}>
+                    Submit New Job
+                </Heading>
 
-                    <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Slurm Arguments</FormLabel>
-                    <FormControl>
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Job Name</FormLabel>
-                            <Input
-                                ref={jobNameRef}
-                                defaultValue="milabench_job"
-                                placeholder="milabench_job"
-                                flex={1}
-                            />
-                        </HStack>
-                    </FormControl>
-
-                    <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Partition</FormLabel>
-                                <Input
-                                    ref={partitionRef}
-                                    defaultValue=""
-                                    placeholder="Leave empty for default"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Nodes</FormLabel>
-                                <NumberInput
-                                    value={nodes}
-                                    onChange={(valueString) => setNodes(valueString)}
-                                    min={1}
-                                    max={100}
-                                    flex={1}
-                                >
-                                    <NumberInputField />
-                                    <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                    </NumberInputStepper>
-                                </NumberInput>
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Tasks</FormLabel>
-                                <NumberInput
-                                    value={ntasks}
-                                    onChange={(valueString) => setNtasks(valueString)}
-                                    min={1}
-                                    max={100}
-                                    flex={1}
-                                >
-                                    <NumberInputField />
-                                    <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                    </NumberInputStepper>
-                                </NumberInput>
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>CPUs per Task</FormLabel>
-                                <NumberInput
-                                    value={cpusPerTask}
-                                    onChange={(valueString) => setCpusPerTask(valueString)}
-                                    min={1}
-                                    max={1024}
-                                    flex={1}
-                                >
-                                    <NumberInputField />
-                                    <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                    </NumberInputStepper>
-                                </NumberInput>
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>GPUs per Task</FormLabel>
-                                <Input
-                                    ref={gpusPerTaskRef}
-                                    placeholder="e.g. 1, 2"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Tasks per Node</FormLabel>
-                                <NumberInput
-                                    value={ntasksPerNode}
-                                    onChange={(valueString) => setNtasksPerNode(valueString)}
-                                    min={1}
-                                    max={100}
-                                    flex={1}
-                                >
-                                    <NumberInputField />
-                                    <NumberInputStepper>
-                                        <NumberIncrementStepper />
-                                        <NumberDecrementStepper />
-                                    </NumberInputStepper>
-                                </NumberInput>
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Memory</FormLabel>
-                                <Input
-                                    ref={memRef}
-                                    placeholder="e.g. 8G, 16GB"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Time Limit</FormLabel>
-                                <Input
-                                    ref={timeLimitRef}
-                                    placeholder="e.g. 02:00:00, 1-12:00:00"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Export</FormLabel>
-                                <Input
-                                    ref={exportVarsRef}
-                                    placeholder="e.g. ALL, NONE, VAR1,VAR2"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-
-                        <FormControl>
-                            <HStack spacing={3} align="center">
-                                <FormLabel minW="120px" mb={0}>Node List</FormLabel>
-                                <Input
-                                    ref={nodelistRef}
-                                    defaultValue=""
-                                    placeholder="e.g., cn-d[003-004]"
-                                    flex={1}
-                                />
-                            </HStack>
-                        </FormControl>
-                    </Grid>
-
-                    <FormControl paddingTop="10px">
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Exclusive</FormLabel>
-                            <Checkbox
-                                ref={exclusiveRef}
-                                defaultChecked={false}
-                            >
-                                Request exclusive access to nodes
-                            </Checkbox>
-                        </HStack>
-                    </FormControl>
-
-                    <FormControl paddingTop="20px">
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" fontWeight={"bold"} mb={0}>Dependency</FormLabel>
-                            <Select
-                                ref={dependencyEventRef}
-                                defaultValue=""
-                                placeholder="Select event"
-                                flex={1}
-                            >
-                                <option value="after">After</option>
-                                <option value="afterok">After Ok</option>
-                                <option value="afterany">After Any</option>
-                                <option value="afterburstbuffer">After Burst Buffer</option>
-                                <option value="aftercorr">After Corr</option>
-                                <option value="afternotok">After Not Ok</option>
-                                <option value="singleton">Singleton</option>
-                            </Select>
-                            <Select
-                                ref={dependencyJobRef}
-                                defaultValue=""
-                                placeholder="Select job"
-                                flex={1}
-                            >
-                                {dependencyJobs.map((job) => (
-                                    <option key={job.job_id} value={job.job_id || ''}>
-                                        {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0] || 'Unknown'})
-                                    </option>
-                                ))}
-                            </Select>
-                        </HStack>
-                    </FormControl>
-
-                    {/* Script Arguments Section */}
-                    <FormControl>
-                        <VStack align="stretch" spacing={3}>
-                            <HStack justify="space-between" align="center">
-                                <FormLabel minW="120px" mb={0} paddingTop="10px" fontWeight={"bold"}>Script Arguments</FormLabel>
-                                <HStack spacing={2}>
-                                    {/* <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={refreshScriptArgs}
-                                    colorScheme="blue"
-                                >
-                                    Refresh
-                                </Button> */}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={applyScriptArgs}
-                                        colorScheme="green"
-                                        isDisabled={!scriptArgsDisplay || Object.keys(scriptArgsDisplay).length === 0}
-                                    >
-                                        Apply to Script
-                                    </Button>
-                                </HStack>
-                            </HStack>
-
-                            {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
-                                <Box pl={3} borderLeft="2px solid" borderColor="gray.200" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
-                                    <VStack align="stretch" spacing={2}>
-                                        {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
-                                            <HStack key={varName} spacing={2}>
-                                                <Text minW="150px" fontSize="sm" fontWeight="medium">
-                                                    {varName}
-                                                </Text>
-                                                <Input
-                                                    data-arg-name={varName}
-                                                    defaultValue={varValue}
-                                                    size="sm"
-                                                    flex={1}
-                                                />
+                <Grid templateColumns="repeat(2, 1fr)" gap={6} width="100%" flex="1" overflow="hidden">
+                    {/* Left Column - Slurm Options */}
+                    <VStack align="stretch" gap={4} overflowY="auto" pr={2}>
+                        {/* Profile Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            p={4}
+                        >
+                            <VStack align="stretch" gap={3}>
+                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                    Slurm Profile
+                                </Heading>
+                                <Field.Root>
+                                    <HStack gap={3} align="center">
+                                        <Field.Label minW="100px" mb={0} color={textColor}>Profile</Field.Label>
+                                        <VStack align="stretch" flex={1} gap={2}>
+                                            <HStack gap={2}>
+                                                <Box flex={1} minW={0}>
+                                                    <AutocompleteInput
+                                                        value={selectedProfile}
+                                                        onChange={setSelectedProfile}
+                                                        onSelect={handleProfileSelect}
+                                                        suggestions={profiles.map(p => p.name)}
+                                                        placeholder="Select a profile or enter custom name"
+                                                        size="md"
+                                                        width="100%"
+                                                        renderSuggestion={(suggestion) => {
+                                                            const profile = profiles.find(p => p.name === suggestion);
+                                                            return (
+                                                                <VStack align="start" gap={0}>
+                                                                    <Text fontWeight="medium" color={textColor}>{suggestion}</Text>
+                                                                    {profile?.description && (
+                                                                        <Text fontSize="xs" color={mutedTextColor}>
+                                                                            {profile.description}
+                                                                        </Text>
+                                                                    )}
+                                                                </VStack>
+                                                            );
+                                                        }}
+                                                    />
+                                                </Box>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={handleSaveProfile}
+                                                    loading={saveProfileMutation.isPending}
+                                                    size="md"
+                                                    fontWeight="medium"
+                                                    flexShrink={0}
+                                                >
+                                                    Save Profile
+                                                </Button>
                                             </HStack>
-                                        ))}
-                                    </VStack>
-                                </Box>
-                            ) : (
-                                <Box pl={3} borderLeft="2px solid" borderColor="gray.200">
-                                    <Text fontSize="sm" color="gray.500" fontStyle="italic">
-                                        No export variables found. Click "Refresh" to extract variables from your script.
+                                        </VStack>
+                                    </HStack>
+                                    <Text fontSize="sm" color={mutedTextColor} mt={1}>
+                                        Select an existing profile or enter a new name to create a new profile
                                     </Text>
-                                </Box>
-                            )}
-
-                            <Text fontSize="xs" color="gray.500">
-                                Use "Refresh" to extract export variables from your script, then "Apply to Script" to update the script with your changes.
-                            </Text>
-                        </VStack>
-                    </FormControl>
-
-                    <Spacer />
-                </VStack>
-                <VStack align="stretch" className="column-2 slurm-script" height="100%">
-                    <FormControl paddingBottom="10px">
-                        <HStack spacing={3} align="center">
-                            <FormLabel minW="120px" mb={0}>Script Template</FormLabel>
-                            <VStack align="stretch" flex={1} spacing={2}>
-                                <HStack spacing={3}>
-                                    <AutocompleteInput
-                                        value={selectedTemplate}
-                                        onChange={setSelectedTemplate}
-                                        onSelect={handleTemplateSelect}
-                                        suggestions={templates || []}
-                                        placeholder="Select a template or enter custom name"
-                                        size="md"
-                                        width="100%"
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        onClick={handleSaveTemplate}
-                                        isLoading={saveTemplateMutation.isPending}
-                                        size="md"
-                                    >
-                                        Save Template
-                                    </Button>
-                                </HStack>
+                                </Field.Root>
                             </VStack>
-                        </HStack>
-                        {selectedTemplate && (
-                            <Text fontSize="sm" color="gray.600">
-                                Template loaded: {selectedTemplate}
-                            </Text>
-                        )}
-                    </FormControl>
+                        </Card.Root>
 
-                    <FormControl height="100%">
-                        <Suspense fallback={<Box height="calc(100vh - 17em)" display="flex" alignItems="center" justifyContent="center" border="1px solid" borderColor="gray.200" borderRadius="md">
-                            <Text>Loading editor...</Text>
-                        </Box>}>
-                            <MonacoEditor
-                                height="calc(100vh - 17em)"
-                                value=""
-                                onChange={() => refreshScriptArgs()} // No-op - completely uncontrolled
-                                onMount={(editor: any) => {
-                                    console.log('Editor mounted', editor);
-                                    editorRef.current = editor;
-                                }}
-                            />
-                        </Suspense>
-                    </FormControl>
-                </VStack>
-            </Grid>
+                        {/* Slurm Arguments Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            p={4}
+                        >
+                            <VStack align="stretch" gap={4}>
+                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                    Slurm Arguments
+                                </Heading>
 
-            {/* Submit and Cancel buttons */}
-            <HStack spacing={3} justify="flex-end" pt={4} borderTop="1px solid" borderColor="gray.200">
-                <Button variant="ghost" onClick={onClose}>
-                    Cancel
-                </Button>
-                <Button
-                    colorScheme="blue"
-                    onClick={handleSubmitJob}
-                    isLoading={submitJobMutation.isPending}
+                                <Field.Root>
+                                    <HStack gap={3} align="center">
+                                        <Field.Label minW="120px" mb={0} color={textColor}>Job Name</Field.Label>
+                                        <Input
+                                            ref={jobNameRef}
+                                            defaultValue="milabench_job"
+                                            placeholder="milabench_job"
+                                            flex={1}
+                                        />
+                                    </HStack>
+                                </Field.Root>
+
+                                <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Partition</Field.Label>
+                                            <Input
+                                                ref={partitionRef}
+                                                defaultValue=""
+                                                placeholder="Leave empty for default"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Nodes</Field.Label>
+                                            <NumberInput.Root
+                                                value={nodes}
+                                                onValueChange={(details) => setNodes(details.value)}
+                                                min={1}
+                                                max={100}
+                                                flex={1}
+                                            >
+                                                <NumberInput.Input />
+                                            </NumberInput.Root>
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Tasks</Field.Label>
+                                            <NumberInput.Root
+                                                value={ntasks}
+                                                onValueChange={(details) => setNtasks(details.value)}
+                                                min={1}
+                                                max={100}
+                                                flex={1}
+                                            >
+                                                <NumberInput.Input />
+                                            </NumberInput.Root>
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>CPUs per Task</Field.Label>
+                                            <NumberInput.Root
+                                                value={cpusPerTask}
+                                                onValueChange={(details) => setCpusPerTask(details.value)}
+                                                min={1}
+                                                max={1024}
+                                                flex={1}
+                                            >
+                                                <NumberInput.Input />
+                                            </NumberInput.Root>
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>GPUs per Task</Field.Label>
+                                            <Input
+                                                ref={gpusPerTaskRef}
+                                                placeholder="e.g. 1, 2"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Tasks per Node</Field.Label>
+                                            <NumberInput.Root
+                                                value={ntasksPerNode}
+                                                onValueChange={(details) => setNtasksPerNode(details.value)}
+                                                min={1}
+                                                max={100}
+                                                flex={1}
+                                            >
+                                                <NumberInput.Input />
+                                            </NumberInput.Root>
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Memory</Field.Label>
+                                            <Input
+                                                ref={memRef}
+                                                placeholder="e.g. 8G, 16GB"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Time Limit</Field.Label>
+                                            <Input
+                                                ref={timeLimitRef}
+                                                placeholder="e.g. 02:00:00, 1-12:00:00"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Export</Field.Label>
+                                            <Input
+                                                ref={exportVarsRef}
+                                                placeholder="e.g. ALL, NONE, VAR1,VAR2"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root>
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color={textColor}>Node List</Field.Label>
+                                            <Input
+                                                ref={nodelistRef}
+                                                defaultValue=""
+                                                placeholder="e.g., cn-d[003-004]"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+                                </Grid>
+                            </VStack>
+                        </Card.Root>
+
+                        {/* Exclusive and Dependency Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            p={4}
+                        >
+                            <VStack align="stretch" gap={4}>
+                                <Field.Root>
+                                    <HStack gap={3} align="center">
+                                        <Field.Label minW="120px" mb={0} color={textColor}>Exclusive</Field.Label>
+                                        <Checkbox.Root>
+                                            <Checkbox.HiddenInput />
+                                            <Checkbox.Control ref={exclusiveRef} defaultChecked={false} />
+                                            <Checkbox.Label color={textColor}>Request exclusive access to nodes</Checkbox.Label>
+                                        </Checkbox.Root>
+                                    </HStack>
+                                </Field.Root>
+
+                                <Field.Root>
+                                    <HStack gap={3} align="center">
+                                        <Field.Label minW="120px" fontWeight="semibold" mb={0} color={textColor}>Dependency</Field.Label>
+                                        <NativeSelect.Root flex={1}>
+                                            <NativeSelect.Field ref={dependencyEventRef}
+                                                defaultValue=""
+                                                placeholder="Select event"
+                                            >
+                                                <option value="after">After</option>
+                                                <option value="afterok">After Ok</option>
+                                                <option value="afterany">After Any</option>
+                                                <option value="afterburstbuffer">After Burst Buffer</option>
+                                                <option value="aftercorr">After Corr</option>
+                                                <option value="afternotok">After Not Ok</option>
+                                                <option value="singleton">Singleton</option>
+                                            </NativeSelect.Field>
+                                        </NativeSelect.Root>
+                                        <NativeSelect.Root flex={1}>
+                                            <NativeSelect.Field
+                                                ref={dependencyJobRef}
+                                                defaultValue=""
+                                                placeholder="Select job"
+                                            >
+                                                {dependencyJobs.map((job) => (
+                                                    <option key={job.job_id} value={job.job_id || ''}>
+                                                        {job.job_id} - {job.name || job.job_name || 'Unnamed'} ({job.job_state?.[0] || 'Unknown'})
+                                                    </option>
+                                                ))}
+                                            </NativeSelect.Field>
+                                        </NativeSelect.Root>
+                                    </HStack>
+                                </Field.Root>
+                            </VStack>
+                        </Card.Root>
+
+                        {/* Script Arguments Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            p={4}
+                        >
+                            <VStack align="stretch" gap={3}>
+                                <HStack justify="space-between" align="center">
+                                    <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                        Script Arguments
+                                    </Heading>
+                                    <HStack gap={2}>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={applyScriptArgs}
+                                            colorScheme="green"
+                                            disabled={!scriptArgsDisplay || Object.keys(scriptArgsDisplay).length === 0}
+                                            fontWeight="medium"
+                                        >
+                                            Apply to Script
+                                        </Button>
+                                    </HStack>
+                                </HStack>
+
+                                {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
+                                    <Box pl={3} borderLeft="2px solid" borderColor={borderColor} id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
+                                        <VStack align="stretch" gap={2}>
+                                            {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
+                                                <HStack key={varName} gap={2}>
+                                                    <Text minW="150px" fontSize="sm" fontWeight="medium" color={textColor}>
+                                                        {varName}
+                                                    </Text>
+                                                    <Input
+                                                        data-arg-name={varName}
+                                                        defaultValue={varValue}
+                                                        size="sm"
+                                                        flex={1}
+                                                    />
+                                                </HStack>
+                                            ))}
+                                        </VStack>
+                                    </Box>
+                                ) : (
+                                    <Box pl={3} borderLeft="2px solid" borderColor={borderColor}>
+                                        <Text fontSize="sm" color={mutedTextColor} fontStyle="italic">
+                                            No export variables found. Variables will be extracted automatically from your script.
+                                        </Text>
+                                    </Box>
+                                )}
+
+                                <Text fontSize="xs" color={mutedTextColor}>
+                                    Export variables are extracted automatically. Use "Apply to Script" to update the script with your changes.
+                                </Text>
+                            </VStack>
+                        </Card.Root>
+                    </VStack>
+
+                    {/* Right Column - Script Editor */}
+                    <VStack align="stretch" gap={4} height="100%" overflow="hidden">
+                        {/* Template Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            p={4}
+                        >
+                            <VStack align="stretch" gap={3}>
+                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                    Script Template
+                                </Heading>
+                                <Field.Root>
+                                    <HStack gap={3} align="center">
+                                        <Field.Label minW="100px" mb={0} color={textColor}>Template</Field.Label>
+                                        <VStack align="stretch" flex={1} gap={2}>
+                                            <HStack gap={2}>
+                                                <Box flex={1} minW={0}>
+                                                    <AutocompleteInput
+                                                        value={selectedTemplate}
+                                                        onChange={setSelectedTemplate}
+                                                        onSelect={handleTemplateSelect}
+                                                        suggestions={templates || []}
+                                                        placeholder="Select a template or enter custom name"
+                                                        size="md"
+                                                        width="100%"
+                                                    />
+                                                </Box>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={handleSaveTemplate}
+                                                    loading={saveTemplateMutation.isPending}
+                                                    size="md"
+                                                    fontWeight="medium"
+                                                    flexShrink={0}
+                                                >
+                                                    Save Template
+                                                </Button>
+                                            </HStack>
+                                        </VStack>
+                                    </HStack>
+                                    {selectedTemplate && (
+                                        <Text fontSize="sm" color={mutedTextColor} mt={1}>
+                                            Template loaded: {selectedTemplate}
+                                        </Text>
+                                    )}
+                                </Field.Root>
+                            </VStack>
+                        </Card.Root>
+
+                        {/* Editor Section */}
+                        <Card.Root
+                            bg={cardBg}
+                            borderWidth="1px"
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={shadow}
+                            flex="1"
+                            overflow="hidden"
+                            display="flex"
+                            flexDirection="column"
+                            minH={0}
+                        >
+                            <Box flex="1" display="flex" flexDirection="column" minH={0} overflow="hidden">
+                                <Suspense fallback={
+                                    <Box
+                                        flex="1"
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="center"
+                                        borderWidth="1px"
+                                        borderColor={borderColor}
+                                        borderRadius="md"
+                                        bg={headerBg}
+                                        minH="400px"
+                                    >
+                                        <Text color={textColor}>Loading editor...</Text>
+                                    </Box>
+                                }>
+                                    <Box flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
+                                        <MonacoEditor
+                                            height="100%"
+                                            value=""
+                                            onChange={() => refreshScriptArgs()}
+                                            onMount={(editor: any) => {
+                                                console.log('Editor mounted', editor);
+                                                editorRef.current = editor;
+                                            }}
+                                        />
+                                    </Box>
+                                </Suspense>
+                            </Box>
+                        </Card.Root>
+                    </VStack>
+                </Grid>
+
+                {/* Submit and Cancel buttons */}
+                <HStack
+                    gap={3}
+                    justify="flex-end"
+                    pt={4}
+                    borderTopWidth="1px"
+                    borderTopColor={borderColor}
                 >
-                    Submit Job
-                </Button>
-            </HStack>
+                    <Button
+                        variant="ghost"
+                        onClick={onClose}
+                        fontWeight="medium"
+                        color={textColor}
+                        _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        colorScheme="blue"
+                        onClick={handleSubmitJob}
+                        loading={submitJobMutation.isPending}
+                        fontWeight="medium"
+                        size="md"
+                        bg={useColorModeValue('blue.500', 'blue.600')}
+                        color="white"
+                        _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                    >
+                        Submit Job
+                    </Button>
+                </HStack>
+            </VStack>
         </Box>
     );
 };

@@ -10,24 +10,18 @@ import {
     Text,
     Heading,
     Button,
-    useToast,
-    useDisclosure,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalBody,
-    ModalCloseButton,
-    FormControl,
-    FormLabel,
+    Dialog,
     Select,
     Input,
     Badge,
     Grid,
     GridItem,
     ButtonGroup,
+    useToken,
 } from '@chakra-ui/react';
-import { AddIcon } from '@chakra-ui/icons';
+import { toaster } from '../ui/toaster';
+import { useColorModeValue } from '../ui/color-mode';
+import { LuPlus } from 'react-icons/lu';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
 import { PivotIframeView } from './PivotIframeView';
@@ -55,8 +49,9 @@ interface EditableFilter {
 export const PivotView = () => {
     usePageTitle('Pivot View');
 
-    const toast = useToast();
-    const { isOpen, onOpen, onClose } = useDisclosure();
+    const [isOpen, setIsOpen] = useState(false);
+    const onOpen = () => setIsOpen(true);
+    const onClose = () => setIsOpen(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedField, setSelectedField] = useState<PivotField | null>(null);
     const [isRelativePivot, setIsRelativePivot] = useState(() => {
@@ -79,14 +74,34 @@ export const PivotView = () => {
     const [executionTime, setExecutionTime] = useState<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
 
+    // Theme colors for drag handlers
+    const [blue500, blue400] = useToken('colors', ['blue.500', 'blue.400']);
+    // Helper to convert hex to rgba
+    const hexToRgba = (hex: string, alpha: number): string => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (result) {
+            const r = parseInt(result[1], 16);
+            const g = parseInt(result[2], 16);
+            const b = parseInt(result[3], 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(59, 130, 246, ${alpha})`; // fallback
+    };
+    const dragOverBg = useColorModeValue(hexToRgba(blue500, 0.1), hexToRgba(blue400, 0.1));
+    const dragOverBorder = useColorModeValue(blue500, blue400);
+
     // Save/Load modal state
     const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
     const { isOpen: isLoadModalOpen, onOpen: onLoadModalOpen, onClose: onLoadModalClose } = useDisclosure();
     const [saveQueryName, setSaveQueryName] = useState<string>('');
 
     // Edit modals state
-    const { isOpen: isEditValueOpen, onOpen: onEditValueOpen, onClose: onEditValueClose } = useDisclosure();
-    const { isOpen: isEditFilterOpen, onOpen: onEditFilterOpen, onClose: onEditFilterClose } = useDisclosure();
+    const [isEditValueOpen, setIsEditValueOpen] = useState(false);
+    const onEditValueOpen = () => setIsEditValueOpen(true);
+    const onEditValueClose = () => setIsEditValueOpen(false);
+    const [isEditFilterOpen, setIsEditFilterOpen] = useState(false);
+    const onEditFilterOpen = () => setIsEditFilterOpen(true);
+    const onEditFilterClose = () => setIsEditFilterOpen(false);
     const [editingValueIndex, setEditingValueIndex] = useState<number>(-1);
     const [editingFilterIndex, setEditingFilterIndex] = useState<number>(-1);
     const [editableValue, setEditableValue] = useState<EditableValue>({ field: '', aggregators: ['avg'] });
@@ -575,8 +590,8 @@ export const PivotView = () => {
         e.preventDefault();
         e.stopPropagation();
         const target = e.currentTarget as HTMLElement;
-        target.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-        target.style.borderTop = '2px solid #3b82f6';
+        target.style.backgroundColor = dragOverBg;
+        target.style.borderTop = `2px solid ${dragOverBorder}`;
     };
 
     const handleFieldDragLeave = (e: React.DragEvent) => {
@@ -590,10 +605,10 @@ export const PivotView = () => {
 
     const handleSaveQuery = async () => {
         if (!saveQueryName.trim()) {
-            toast({
+            toaster.create({
                 title: 'Query name required',
                 description: 'Please enter a name for your saved query',
-                status: 'warning',
+                type: 'warning',
                 duration: 3000,
             });
             return;
@@ -623,20 +638,20 @@ export const PivotView = () => {
 
             await saveQuery(saveQueryName, queryData);
 
-            toast({
+            toaster.create({
                 title: 'Query saved successfully',
                 description: `Your query "${saveQueryName}" has been saved`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
 
             onSaveModalClose();
             setSaveQueryName('');
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error saving query',
                 description: error instanceof Error ? error.message : 'Failed to save query',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         }
@@ -721,10 +736,10 @@ export const PivotView = () => {
 
             // Fields are automatically used by child components
 
-            toast({
+            toaster.create({
                 title: 'Query loaded',
                 description: `"${query.name}" has been loaded successfully`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } else {
@@ -747,11 +762,11 @@ export const PivotView = () => {
         <Box p={4} h="100vh" display="flex" flexDirection="column">
             <HStack justify="space-between" mb={6}>
                 <Heading>Pivot View</Heading>
-                <HStack spacing={4}>
+                <HStack gap={4}>
                     <Button
                         colorScheme="green"
                         onClick={onSaveModalOpen}
-                        leftIcon={<AddIcon />}
+                        leftIcon={<LuPlus />}
                     >
                         Save Query
                     </Button>
@@ -767,7 +782,7 @@ export const PivotView = () => {
             <Grid templateColumns="360px 1fr" gap={6} templateRows="200px 50px auto" flex="1" minH="0" className="pivot-view-grid" width="99%">
                 {/* Fields Panel */}
                 <GridItem rowSpan={3} colSpan={1} className="pivot-fields">
-                    <VStack align="stretch" spacing={4}>
+                    <VStack align="stretch" gap={4}>
                         <Heading size="md" color="gray.700">Available Fields</Heading>
                         <Box
                             h="calc(100vh - 170px)"
@@ -778,7 +793,7 @@ export const PivotView = () => {
                             borderWidth={1}
                             borderColor="gray.200"
                         >
-                            <VStack align="stretch" spacing={2}>
+                            <VStack align="stretch" gap={2}>
                                 {availableFields?.map((field: string) => (
                                     <Box
                                         key={field}
@@ -813,9 +828,9 @@ export const PivotView = () => {
                 </GridItem>
 
                 <GridItem colStart={2} rowSpan={1} className="pivot-builder">
-                    <HStack align="stretch" spacing={4}>
+                    <HStack align="stretch" gap={4}>
                         {/* Rows */}
-                        <VStack align="stretch" flex="1" spacing={2}>
+                        <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color="blue.600">Rows</Heading>
                             <Box
                                 ref={el => dropZonesRef.current['row'] = el}
@@ -840,7 +855,7 @@ export const PivotView = () => {
                                     .map((field, index) => {
                                         const globalIndex = fields.findIndex(f => f === field);
                                         return (
-                                            <HStack key={`row-${index}`} align="center" spacing={0}>
+                                            <HStack key={`row-${index}`} align="center" gap={0}>
                                                 {/* Drop zone before field */}
                                                 <Box
                                                     w={2}
@@ -893,7 +908,7 @@ export const PivotView = () => {
                         </VStack>
 
                         {/* Columns */}
-                        <VStack align="stretch" flex="1" spacing={2}>
+                        <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color="green.600">Columns</Heading>
                             <Box
                                 ref={el => dropZonesRef.current['column'] = el}
@@ -918,7 +933,7 @@ export const PivotView = () => {
                                     .map((field, index) => {
                                         const globalIndex = fields.findIndex(f => f === field);
                                         return (
-                                            <HStack key={`column-${index}`} align="center" spacing={0}>
+                                            <HStack key={`column-${index}`} align="center" gap={0}>
                                                 {/* Drop zone before field */}
                                                 <Box
                                                     w={2}
@@ -970,7 +985,7 @@ export const PivotView = () => {
                             </Box>
                         </VStack>
 
-                        <VStack align="stretch" flex="1" spacing={2}>
+                        <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color="purple.600">Values</Heading>
                             <Box
                                 ref={el => dropZonesRef.current['value'] = el}
@@ -995,7 +1010,7 @@ export const PivotView = () => {
                                     .map((field, index) => {
                                         const fieldIndex = fields.findIndex(f => f === field);
                                         return (
-                                            <VStack key={`value-${index}`} align="stretch" spacing={0}>
+                                            <VStack key={`value-${index}`} align="stretch" gap={0}>
                                                 {/* Drop zone before field */}
                                                 <Box
                                                     w="100%"
@@ -1022,8 +1037,8 @@ export const PivotView = () => {
                                                     onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'value')}
                                                     onDragEnd={handleFieldDragEnd}
                                                 >
-                                                    <VStack align="stretch" spacing={2}>
-                                                        <HStack spacing={2} justify="space-between">
+                                                    <VStack align="stretch" gap={2}>
+                                                        <HStack gap={2} justify="space-between">
                                                             <Badge
                                                                 colorScheme="purple"
                                                                 variant="solid"
@@ -1066,7 +1081,7 @@ export const PivotView = () => {
                                                                 ×
                                                             </Badge>
                                                         </HStack>
-                                                        <HStack spacing={1} flexWrap="wrap">
+                                                        <HStack gap={1} flexWrap="wrap">
                                                             {(field.aggregators || ['avg']).map((aggregator, aggIndex) => (
                                                                 <Badge
                                                                     key={`${field.field}-${aggregator}-${aggIndex}`}
@@ -1105,7 +1120,7 @@ export const PivotView = () => {
                             </Box>
                         </VStack>
 
-                        <VStack align="stretch" flex="1" spacing={2}>
+                        <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color="orange.600">Filters</Heading>
                             <Box
                                 ref={el => dropZonesRef.current['filter'] = el}
@@ -1130,7 +1145,7 @@ export const PivotView = () => {
                                     .map((field, index) => {
                                         const fieldIndex = fields.findIndex(f => f === field);
                                         return (
-                                            <VStack key={`filter-${index}`} align="stretch" spacing={0}>
+                                            <VStack key={`filter-${index}`} align="stretch" gap={0}>
                                                 {/* Drop zone before field */}
                                                 <Box
                                                     w="100%"
@@ -1157,7 +1172,7 @@ export const PivotView = () => {
                                                     onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'filter')}
                                                     onDragEnd={handleFieldDragEnd}
                                                 >
-                                                    <HStack spacing={2} justify="space-between">
+                                                    <HStack gap={2} justify="space-between">
                                                         <Badge
                                                             colorScheme="orange"
                                                             variant="solid"
@@ -1226,7 +1241,7 @@ export const PivotView = () => {
                 </GridItem>
 
                 <GridItem colStart={2} rowSpan={1} className="pivot-options">
-                    <HStack spacing={4} align="stretch" flex="1">
+                    <HStack gap={4} align="stretch" flex="1">
                         <ButtonGroup size="sm" isAttached variant="outline">
                             <Button
                                 colorScheme={viewMode === 'iframe' ? 'blue' : 'gray'}
@@ -1249,11 +1264,11 @@ export const PivotView = () => {
                             {!isRelativePivot ? "Relative View" : "Normal View"}
                         </Button>
 
-                        <Button size="sm" onClick={generatePivot} isLoading={isGenerating}>
+                        <Button size="sm" onClick={generatePivot} loading={isGenerating}>
                             Execute Query
                         </Button>
                         {executionTime !== null && (
-                            <HStack spacing={1} ml={2}>
+                            <HStack gap={1} ml={2}>
                                 <Text fontSize="sm" color="green.600" fontWeight="semibold">
                                     ✓
                                 </Text>
@@ -1263,7 +1278,7 @@ export const PivotView = () => {
                             </HStack>
                         )}
                         {isGenerating && executionTime === null && (
-                            <HStack spacing={1} ml={2}>
+                            <HStack gap={1} ml={2}>
                                 <Text fontSize="sm" color="blue.600" fontWeight="medium">
                                     Generating...
                                 </Text>
@@ -1296,227 +1311,19 @@ export const PivotView = () => {
             </Grid>
 
             {/* Filter Dialog */}
-            <Modal isOpen={isOpen} onClose={onClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Add Filter</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody>
-                        <VStack spacing={4} pb={4}>
-                            <Select
-                                placeholder="Select operator"
-                                onChange={(e) => setSelectedField({ ...selectedField!, operator: e.target.value })}
-                            >
-                                <option value="==">Equals (==)</option>
-                                <option value="!=">Not Equals (!=)</option>
-                                <option value=">">Greater Than (&gt;)</option>
-                                <option value=">=">Greater Than or Equal (&gt;=)</option>
-                                <option value="<">Less Than (&lt;)</option>
-                                <option value="<=">Less Than or Equal (&lt;=)</option>
-                                <option value="in">In List (in)</option>
-                                <option value="not in">Not In List (not in)</option>
-                                <option value="like">Like</option>
-                                <option value="not like">Not Like</option>
-                                <option value="is">Is</option>
-                                <option value="is not">Is Not</option>
-                            </Select>
-                            <Input
-                                placeholder="Enter filter value"
-                                onChange={(e) => setSelectedField({ ...selectedField!, value: e.target.value })}
-                            />
-                            <Button
-                                colorScheme="blue"
-                                onClick={() => {
-                                    if (selectedField?.operator && selectedField?.value) {
-                                        handleFilterApply(selectedField.operator, selectedField.value);
-                                    }
-                                }}
-                            >
-                                Apply Filter
-                            </Button>
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
-
-            {/* Save Query Modal */}
-            <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Save Query</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4}>
-                            <FormControl>
-                                <FormLabel>Query Name</FormLabel>
-                                <Input
-                                    value={saveQueryName}
-                                    onChange={(e) => setSaveQueryName(e.target.value)}
-                                    placeholder="Enter a name for your query"
-                                />
-                            </FormControl>
-                            <HStack spacing={4} width="100%">
-                                <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
-                                    Save
-                                </Button>
-                                <Button onClick={onSaveModalClose} width="100%">
-                                    Cancel
-                                </Button>
-                            </HStack>
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
-
-            {/* Load Query Modal */}
-            <Modal isOpen={isLoadModalOpen} onClose={onLoadModalClose} size="lg">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Load Saved Query</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4} align="stretch">
-                            {savedQueries && savedQueries.length > 0 ? (
-                                savedQueries
-                                    .filter((query: any) => query.query.url === '/pivot')
-                                    .map((query: any) => (
-                                        <Box
-                                            key={query._id}
-                                            p={4}
-                                            borderWidth={1}
-                                            borderRadius="md"
-                                            cursor="pointer"
-                                            _hover={{ bg: 'gray.50' }}
-                                            onClick={() => handleLoadQuery(query)}
-                                        >
-                                            <HStack justify="space-between">
-                                                <VStack align="start" spacing={1}>
-                                                    <Text fontWeight="medium">{query.name}</Text>
-                                                    <Text fontSize="sm" color="gray.600">
-                                                        Pivot View
-                                                    </Text>
-                                                    <Text fontSize="sm" color="gray.600">
-                                                        Created: {new Date(query.created_time).toLocaleString()}
-                                                    </Text>
-                                                </VStack>
-                                                <Button size="sm" colorScheme="blue">
-                                                    Load
-                                                </Button>
-                                            </HStack>
-                                        </Box>
-                                    ))
-                            ) : (
-                                <Text color="gray.500" textAlign="center">
-                                    No saved queries found
-                                </Text>
-                            )}
-                            {savedQueries && savedQueries.filter((query: any) => query.query.url === '/pivot').length === 0 && savedQueries.length > 0 && (
-                                <Text color="gray.500" textAlign="center">
-                                    No saved pivot queries found. Save queries from this view to see them here.
-                                </Text>
-                            )}
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
-
-            {/* Edit Value Modal */}
-            <Modal isOpen={isEditValueOpen} onClose={onEditValueClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Edit Value Field</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4}>
-                            <FormControl>
-                                <FormLabel>Field</FormLabel>
-                                <Input
-                                    value={editableValue.field}
-                                    isDisabled
-                                    bg="gray.100"
-                                />
-                            </FormControl>
-                            <FormControl>
-                                <FormLabel>Aggregator Functions</FormLabel>
-                                <VStack spacing={2} align="stretch">
-                                    {editableValue.aggregators.map((aggregator, index) => (
-                                        <HStack key={index} spacing={2}>
-                                            <Select
-                                                value={aggregator}
-                                                onChange={(e) => {
-                                                    const newAggregators = [...editableValue.aggregators];
-                                                    newAggregators[index] = e.target.value;
-                                                    setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                                }}
-                                                flex="1"
-                                            >
-                                                {aggregatorOptions.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </Select>
-                                            <Button
-                                                colorScheme="red"
-                                                size="sm"
-                                                onClick={() => {
-                                                    const newAggregators = [...editableValue.aggregators];
-                                                    newAggregators.splice(index, 1);
-                                                    setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                                }}
-                                                disabled={editableValue.aggregators.length === 1}
-                                            >
-                                                ×
-                                            </Button>
-                                        </HStack>
-                                    ))}
-                                    <Button
-                                        colorScheme="green"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            const newAggregators = [...editableValue.aggregators, 'avg'];
-                                            setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                        }}
-                                    >
-                                        + Add Aggregator
-                                    </Button>
-                                </VStack>
-                            </FormControl>
-                            <HStack spacing={4} width="100%">
-                                <Button colorScheme="blue" onClick={handleValueSave} width="100%">
-                                    Save
-                                </Button>
-                                <Button onClick={onEditValueClose} width="100%">
-                                    Cancel
-                                </Button>
-                            </HStack>
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
-
-            {/* Edit Filter Modal */}
-            <Modal isOpen={isEditFilterOpen} onClose={onEditFilterClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Edit Filter</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4}>
-                            <FormControl>
-                                <FormLabel>Field</FormLabel>
-                                <Input
-                                    value={editableFilter.field}
-                                    isDisabled
-                                    bg="gray.100"
-                                />
-                            </FormControl>
-                            <FormControl>
-                                <FormLabel>Operator</FormLabel>
+            <Dialog.Root open={isOpen} onOpenChange={(details) => setIsOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Add Filter</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body>
+                            <VStack gap={4} pb={4}>
                                 <Select
-                                    value={editableFilter.operator}
-                                    onChange={(e) => setEditableFilter({ ...editableFilter, operator: e.target.value })}
+                                    placeholder="Select operator"
+                                    onChange={(e) => setSelectedField({ ...selectedField!, operator: e.target.value })}
                                 >
                                     <option value="==">Equals (==)</option>
                                     <option value="!=">Not Equals (!=)</option>
@@ -1531,27 +1338,255 @@ export const PivotView = () => {
                                     <option value="is">Is</option>
                                     <option value="is not">Is Not</option>
                                 </Select>
-                            </FormControl>
-                            <FormControl>
-                                <FormLabel>Value</FormLabel>
                                 <Input
-                                    value={editableFilter.value}
-                                    onChange={(e) => setEditableFilter({ ...editableFilter, value: e.target.value })}
                                     placeholder="Enter filter value"
+                                    onChange={(e) => setSelectedField({ ...selectedField!, value: e.target.value })}
                                 />
-                            </FormControl>
-                            <HStack spacing={4} width="100%">
-                                <Button colorScheme="blue" onClick={handleFilterSave} width="100%">
-                                    Save
+                                <Button
+                                    colorScheme="blue"
+                                    onClick={() => {
+                                        if (selectedField?.operator && selectedField?.value) {
+                                            handleFilterApply(selectedField.operator, selectedField.value);
+                                        }
+                                    }}
+                                >
+                                    Apply Filter
                                 </Button>
-                                <Button onClick={onEditFilterClose} width="100%">
-                                    Cancel
-                                </Button>
-                            </HStack>
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* Save Query Modal */}
+            <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setIsSaveModalOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Save Query</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4}>
+                                <Field.Root>
+                                    <Field.Label>Query Name</Field.Label>
+                                    <Input
+                                        value={saveQueryName}
+                                        onChange={(e) => setSaveQueryName(e.target.value)}
+                                        placeholder="Enter a name for your query"
+                                    />
+                                </Field.Root>
+                                <HStack gap={4} width="100%">
+                                    <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
+                                        Save
+                                    </Button>
+                                    <Button onClick={onSaveModalClose} width="100%">
+                                        Cancel
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* Load Query Modal */}
+            <Dialog.Root open={isLoadModalOpen} onOpenChange={(details) => setIsLoadModalOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="lg">
+                        <Dialog.Header>
+                            <Dialog.Title>Load Saved Query</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4} align="stretch">
+                                {savedQueries && savedQueries.length > 0 ? (
+                                    savedQueries
+                                        .filter((query: any) => query.query.url === '/pivot')
+                                        .map((query: any) => (
+                                            <Box
+                                                key={query._id}
+                                                p={4}
+                                                borderWidth={1}
+                                                borderRadius="md"
+                                                cursor="pointer"
+                                                _hover={{ bg: 'gray.50' }}
+                                                onClick={() => handleLoadQuery(query)}
+                                            >
+                                                <HStack justify="space-between">
+                                                    <VStack align="start" gap={1}>
+                                                        <Text fontWeight="medium">{query.name}</Text>
+                                                        <Text fontSize="sm" color="gray.600">
+                                                            Pivot View
+                                                        </Text>
+                                                        <Text fontSize="sm" color="gray.600">
+                                                            Created: {new Date(query.created_time).toLocaleString()}
+                                                        </Text>
+                                                    </VStack>
+                                                    <Button size="sm" colorScheme="blue">
+                                                        Load
+                                                    </Button>
+                                                </HStack>
+                                            </Box>
+                                        ))
+                                ) : (
+                                    <Text color="gray.500" textAlign="center">
+                                        No saved queries found
+                                    </Text>
+                                )}
+                                {savedQueries && savedQueries.filter((query: any) => query.query.url === '/pivot').length === 0 && savedQueries.length > 0 && (
+                                    <Text color="gray.500" textAlign="center">
+                                        No saved pivot queries found. Save queries from this view to see them here.
+                                    </Text>
+                                )}
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* Edit Value Modal */}
+            <Dialog.Root open={isEditValueOpen} onOpenChange={(details) => setIsEditValueOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Edit Value Field</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4}>
+                                <Field.Root>
+                                    <Field.Label>Field</Field.Label>
+                                    <Input
+                                        value={editableValue.field}
+                                        isDisabled
+                                        bg="gray.100"
+                                    />
+                                </Field.Root>
+                                <Field.Root>
+                                    <Field.Label>Aggregator Functions</Field.Label>
+                                    <VStack gap={2} align="stretch">
+                                        {editableValue.aggregators.map((aggregator, index) => (
+                                            <HStack key={index} gap={2}>
+                                                <Select
+                                                    value={aggregator}
+                                                    onChange={(e) => {
+                                                        const newAggregators = [...editableValue.aggregators];
+                                                        newAggregators[index] = e.target.value;
+                                                        setEditableValue({ ...editableValue, aggregators: newAggregators });
+                                                    }}
+                                                    flex="1"
+                                                >
+                                                    {aggregatorOptions.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </Select>
+                                                <Button
+                                                    colorScheme="red"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        const newAggregators = [...editableValue.aggregators];
+                                                        newAggregators.splice(index, 1);
+                                                        setEditableValue({ ...editableValue, aggregators: newAggregators });
+                                                    }}
+                                                    disabled={editableValue.aggregators.length === 1}
+                                                >
+                                                    ×
+                                                </Button>
+                                            </HStack>
+                                        ))}
+                                        <Button
+                                            colorScheme="green"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                const newAggregators = [...editableValue.aggregators, 'avg'];
+                                                setEditableValue({ ...editableValue, aggregators: newAggregators });
+                                            }}
+                                        >
+                                            + Add Aggregator
+                                        </Button>
+                                    </VStack>
+                                </Field.Root>
+                                <HStack gap={4} width="100%">
+                                    <Button colorScheme="blue" onClick={handleValueSave} width="100%">
+                                        Save
+                                    </Button>
+                                    <Button onClick={onEditValueClose} width="100%">
+                                        Cancel
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* Edit Filter Modal */}
+            <Dialog.Root open={isEditFilterOpen} onOpenChange={(details) => setIsEditFilterOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Edit Filter</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4}>
+                                <Field.Root>
+                                    <Field.Label>Field</Field.Label>
+                                    <Input
+                                        value={editableFilter.field}
+                                        isDisabled
+                                        bg="gray.100"
+                                    />
+                                </Field.Root>
+                                <Field.Root>
+                                    <Field.Label>Operator</Field.Label>
+                                    <Select
+                                        value={editableFilter.operator}
+                                        onChange={(e) => setEditableFilter({ ...editableFilter, operator: e.target.value })}
+                                    >
+                                        <option value="==">Equals (==)</option>
+                                        <option value="!=">Not Equals (!=)</option>
+                                        <option value=">">Greater Than (&gt;)</option>
+                                        <option value=">=">Greater Than or Equal (&gt;=)</option>
+                                        <option value="<">Less Than (&lt;)</option>
+                                        <option value="<=">Less Than or Equal (&lt;=)</option>
+                                        <option value="in">In List (in)</option>
+                                        <option value="not in">Not In List (not in)</option>
+                                        <option value="like">Like</option>
+                                        <option value="not like">Not Like</option>
+                                        <option value="is">Is</option>
+                                        <option value="is not">Is Not</option>
+                                    </Select>
+                                </Field.Root>
+                                <Field.Root>
+                                    <Field.Label>Value</Field.Label>
+                                    <Input
+                                        value={editableFilter.value}
+                                        onChange={(e) => setEditableFilter({ ...editableFilter, value: e.target.value })}
+                                        placeholder="Enter filter value"
+                                    />
+                                </Field.Root>
+                                <HStack gap={4} width="100%">
+                                    <Button colorScheme="blue" onClick={handleFilterSave} width="100%">
+                                        Save
+                                    </Button>
+                                    <Button onClick={onEditFilterClose} width="100%">
+                                        Cancel
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     );
 };

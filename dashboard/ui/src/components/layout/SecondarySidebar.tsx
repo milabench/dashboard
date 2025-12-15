@@ -1,5 +1,5 @@
 import { Box, VStack, Text, IconButton } from '@chakra-ui/react';
-import { CloseIcon } from '@chakra-ui/icons';
+import { LuX } from 'react-icons/lu';
 
 interface SecondarySidebarProps {
     isOpen: boolean;
@@ -34,7 +34,7 @@ export const SecondarySidebar = ({ isOpen, onClose, title, children }: Secondary
                     variant="ghost"
                     colorScheme="whiteAlpha"
                 >
-                    <CloseIcon />
+                    <LuX />
                 </IconButton>
                 <Text fontSize="xl" fontWeight="bold" mb={6}>
                     {title}

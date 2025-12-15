@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import {
     Box,
     HStack,
-    Select,
-    FormControl,
-    FormLabel,
+    NativeSelect,
+    Field,
 } from '@chakra-ui/react';
 import { usePageTitle } from '../../hooks/usePageTitle';
 
@@ -26,30 +25,36 @@ const Scaling = () => {
 
     return (
         <Box p={4} height="100vh" display="flex" flexDirection="column" className='scaling-container'>
-            <HStack spacing={4} mb={4} width="100%">
-                <FormControl flex="1">
-                    <FormLabel>X Axis</FormLabel>
-                    <Select value={xAxis} onChange={handleXAxisChange}>
-                        <option value="batch_size">batch_size</option>
-                        <option value="memory">memory</option>
-                        <option value="gpu">gpu</option>
-                        <option value="cpu">cpu</option>
-                        <option value="perf">perf</option>
-                        {/* <option value="bench">bench</option>
-                        <option value="time">time</option> */}
-                    </Select>
-                </FormControl>
+            <HStack gap={4} mb={4} width="100%">
+                <Field.Root flex="1">
+                    <Field.Label>X Axis</Field.Label>
+                    <NativeSelect.Root>
+                        <NativeSelect.Field value={xAxis} onChange={handleXAxisChange}>
+                            <option value="batch_size">batch_size</option>
+                            <option value="memory">memory</option>
+                            <option value="gpu">gpu</option>
+                            <option value="cpu">cpu</option>
+                            <option value="perf">perf</option>
+                            {/* <option value="bench">bench</option>
+                            <option value="time">time</option> */}
+                        </NativeSelect.Field>
+                        <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                </Field.Root>
 
-                <FormControl flex="1">
-                    <FormLabel>Y Axis</FormLabel>
-                    <Select value={yAxis} onChange={handleYAxisChange}>
-                        <option value="batch_size">batch_size</option>
-                        <option value="memory">memory</option>
-                        <option value="gpu">gpu</option>
-                        <option value="cpu">cpu</option>
-                        <option value="perf">perf</option>
-                    </Select>
-                </FormControl>
+                <Field.Root flex="1">
+                    <Field.Label>Y Axis</Field.Label>
+                    <NativeSelect.Root>
+                        <NativeSelect.Field value={yAxis} onChange={handleYAxisChange}>
+                            <option value="batch_size">batch_size</option>
+                            <option value="memory">memory</option>
+                            <option value="gpu">gpu</option>
+                            <option value="cpu">cpu</option>
+                            <option value="perf">perf</option>
+                        </NativeSelect.Field>
+                        <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                </Field.Root>
             </HStack>
 
             <Box flex="1">

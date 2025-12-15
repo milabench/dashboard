@@ -5,22 +5,14 @@ import {
     Text,
     VStack,
     Badge,
-    useToast,
     Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
-    TableContainer,
     Switch,
-    FormControl,
-    FormLabel,
     HStack,
     Select,
     Button
 } from '@chakra-ui/react';
-import { CopyIcon } from '@chakra-ui/icons';
+import { toaster } from '../ui/toaster';
+import { LuCopy } from 'react-icons/lu';
 import axios from 'axios';
 
 interface FastReportViewProps {
@@ -116,7 +108,6 @@ const columnPriority = {
 }
 
 export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onClose }) => {
-    const toast = useToast();
     const [reportData, setReportData] = React.useState<any>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -139,10 +130,10 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown error';
             setError(errorMessage);
-            toast({
+            toaster.create({
                 title: 'Error fetching fast report',
                 description: errorMessage,
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {
@@ -152,7 +143,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
 
     React.useEffect(() => {
         fetchFastReport(dropMinMax);
-    }, [executionId, dropMinMax, toast]);
+    }, [executionId, dropMinMax]);
 
     const handleDropMinMaxToggle = (value: boolean) => {
         setDropMinMax(value);
@@ -178,17 +169,17 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
 
             await navigator.clipboard.writeText(csvContent);
 
-            toast({
+            toaster.create({
                 title: 'Table copied to clipboard',
                 description: 'The table data has been copied as comma separated values',
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (err) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy table',
                 description: 'Unable to copy table data to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -201,17 +192,17 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
 
             await navigator.clipboard.writeText(jsonContent);
 
-            toast({
+            toaster.create({
                 title: 'JSON copied to clipboard',
                 description: 'The raw JSON data has been copied to clipboard',
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (err) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy JSON',
                 description: 'Unable to copy JSON data to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -278,14 +269,14 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
 
     return (
         <Box>
-            <VStack align="stretch" spacing={4} p={4}>
-                <HStack spacing={4}>
-                    <FormControl>
+            <VStack align="stretch" gap={4} p={4}>
+                <HStack gap={4}>
+                    <Box>
                         <HStack>
                             <HStack borderWidth="1px" borderRadius="md" p={2}>
-                                <FormLabel htmlFor="drop-min-max" fontSize="sm" mb={0}>
+                                <Field.Label htmlFor="drop-min-max" fontSize="sm" mb={0}>
                                     Drop Min/Max Values
-                                </FormLabel>
+                                </Field.Label>
                                 <Switch
                                     id="drop-min-max"
                                     isChecked={dropMinMax}
@@ -294,9 +285,9 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                 />
                             </HStack>
                             <HStack borderWidth="1px" borderRadius="md" p={2}>
-                                <FormLabel htmlFor="filter-type" fontSize="sm" mb={0}>
+                                <Field.Label htmlFor="filter-type" fontSize="sm" mb={0}>
                                     Filter
-                                </FormLabel>
+                                </Field.Label>
                                 <Select
                                     id="filter-type"
                                     value={filterType}
@@ -312,7 +303,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                             <HStack>
                                 <Button
                                     size="sm"
-                                    leftIcon={<CopyIcon />}
+                                    leftIcon={<LuCopy />}
                                     onClick={copyTableToClipboard}
                                     colorScheme="blue"
                                     variant="outline"
@@ -321,7 +312,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                 </Button>
                                 <Button
                                     size="sm"
-                                    leftIcon={<CopyIcon />}
+                                    leftIcon={<LuCopy />}
                                     onClick={copyJsonToClipboard}
                                     colorScheme="green"
                                     variant="outline"
@@ -330,7 +321,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                 </Button>
                             </HStack>
                         </HStack>
-                    </FormControl>
+                    </Box>
                 </HStack>
 
                 <Box
@@ -339,18 +330,18 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                     border="1px solid"
                     borderColor="gray.200"
                 >
-                    <TableContainer>
-                        <Table variant="simple" size="sm">
-                            <Thead>
-                                <Tr>
+                    <Table.ScrollArea>
+                        <Table.Root variant="simple" size="sm">
+                            <Table.Header>
+                                <Table.Row>
                                     {columns.map((column) => (
-                                        <Th key={column} fontSize="xs" px={2} py={2}>
+                                        <Table.ColumnHeader key={column} fontSize="xs" px={2} py={2}>
                                             {column}
-                                        </Th>
+                                        </Table.ColumnHeader>
                                     ))}
-                                </Tr>
-                            </Thead>
-                            <Tbody>
+                                </Table.Row>
+                            </Table.Header>
+                            <Table.Body>
                                 {filteredDataArray.map((row, rowIndex) => {
                                     let classNames = [
                                         row.enabled ? 'bench-enabled' : 'bench-disabled',
@@ -361,20 +352,20 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                     ];
 
                                     return (
-                                        <Tr key={rowIndex} _hover={{ bg: 'gray.50' }} className={classNames.join(' ')} >
+                                        <Table.Row key={rowIndex} _hover={{ bg: 'gray.50' }} className={classNames.join(' ')} >
                                             {columns.map((column) => (
-                                                <Td key={column} fontSize="xs" px={2} py={2}>
+                                                <Table.Cell key={column} fontSize="xs" px={2} py={2}>
                                                     <Text fontSize="xs" noOfLines={2}>
                                                         {renderCellValue((row as any)[column], column)}
                                                     </Text>
-                                                </Td>
+                                                </Table.Cell>
                                             ))}
-                                        </Tr>
+                                        </Table.Row>
                                     )
                                 })}
-                            </Tbody>
-                        </Table>
-                    </TableContainer>
+                            </Table.Body>
+                        </Table.Root>
+                    </Table.ScrollArea>
                 </Box>
 
                 <Box

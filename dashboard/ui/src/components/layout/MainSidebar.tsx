@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, VStack, Text, useColorModeValue, Badge } from '@chakra-ui/react';
+import { useColorModeValue } from '../ui/color-mode';
+import { Box, VStack, Text, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
+import { ColorModeButton } from "../ui/color-mode"
 
 interface NavItem {
     label: string;
@@ -76,11 +78,11 @@ export const MainSidebar: React.FC = () => {
                         borderColor="gray.600"
                         mb={2}
                     >
-                        <Text fontSize="sm" fontWeight="semibold" textTransform="uppercase" letterSpacing="wide">
+                        <Text fontSize="sm" fontWeight="semibold" textTransform="uppercase" lettergap="wide">
                             {item.label}
                         </Text>
                     </Box>
-                    <VStack spacing={1} align="stretch" ml={4} mb={4}>
+                    <VStack gap={1} align="stretch" ml={4} mb={4}>
                         {item.routes.map((route) => renderNavItem(route, true))}
                     </VStack>
                 </Box>
@@ -118,12 +120,13 @@ export const MainSidebar: React.FC = () => {
             borderColor="gray.700"
         >
             <Text fontSize="2xl" fontWeight="bold" mb={8} display="flex" alignItems="center" gap={2}>
+                <ColorModeButton />
                 Milabench
                 <Badge colorScheme="blue" fontSize="sm">
                     {currentProfile}
                 </Badge>
             </Text>
-            <VStack spacing={2} align="stretch">
+            <VStack gap={2} align="stretch">
                 {navItems.map((item) => renderNavItem(item))}
             </VStack>
         </Box>

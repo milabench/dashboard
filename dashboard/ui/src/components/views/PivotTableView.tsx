@@ -2,22 +2,18 @@ import { useState, useEffect } from 'react';
 import {
     Box,
     Table,
-    Tbody,
-    Tr,
-    Th,
-    Td,
     Text,
     VStack,
     HStack,
-    useToast,
     IconButton,
     Alert,
-    AlertIcon,
     Select,
-    TableContainer,
     Tooltip,
+    useToken,
 } from '@chakra-ui/react';
-import { CopyIcon, DownloadIcon } from '@chakra-ui/icons';
+import { toaster } from '../ui/toaster';
+import { useColorModeValue } from '../ui/color-mode';
+import { LuCopy, LuDownload } from 'react-icons/lu';
 import axios from 'axios';
 
 interface PivotField {
@@ -38,10 +34,23 @@ interface PivotTableViewProps {
 }
 
 export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotTableViewProps) => {
-    const toast = useToast();
     const [pivotData, setPivotData] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
+
+    // Theme colors for cell styling
+    const [blue500, green500, red500] = useToken('colors', ['blue.500', 'green.500', 'red.500']);
+    // Helper to convert hex to rgba
+    const hexToRgba = (hex: string, alpha: number): string => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (result) {
+            const r = parseInt(result[1], 16);
+            const g = parseInt(result[2], 16);
+            const b = parseInt(result[3], 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return `rgba(59, 130, 246, ${alpha})`; // fallback
+    };
 
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
@@ -90,10 +99,10 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             setError(errorMessage);
-            toast({
+            toaster.create({
                 title: 'Error generating pivot',
                 description: errorMessage,
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         } finally {
@@ -357,17 +366,17 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 document.body.removeChild(textArea);
             }
 
-            toast({
+            toaster.create({
                 title: 'JSON copied to clipboard',
                 description: `${sortedData.length} rows copied as JSON`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy JSON',
                 description: 'Could not copy data to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -376,10 +385,10 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
     const copyTableToClipboard = async () => {
         try {
             if (sortedData.length === 0) {
-                toast({
+                toaster.create({
                     title: 'No data to copy',
                     description: 'Generate pivot data first',
-                    status: 'warning',
+                    type: 'warning',
                     duration: 3000,
                 });
                 return;
@@ -418,17 +427,17 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 document.body.removeChild(textArea);
             }
 
-            toast({
+            toaster.create({
                 title: 'Table copied to clipboard',
                 description: `${sortedData.length} rows copied as tab-separated values`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy table',
                 description: 'Could not copy table to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -452,17 +461,17 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             // Highlight baseline column
             if (columnName === selectedBaselineColumn) {
                 return {
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)', // blue background
-                    border: '2px solid rgba(59, 130, 246, 0.6)',
+                    backgroundColor: hexToRgba(blue500, 0.2),
+                    border: `2px solid ${hexToRgba(blue500, 0.6)}`,
                     fontWeight: 'bold'
                 };
             }
 
             const intensity = Math.min(Math.abs(value - 1), 0.5) * 2;
             if (value > 1) {
-                return { backgroundColor: `rgba(0, 255, 0, ${intensity * 0.3})` };
+                return { backgroundColor: hexToRgba(green500, intensity * 0.3) };
             } else if (value < 1) {
-                return { backgroundColor: `rgba(255, 0, 0, ${intensity * 0.3})` };
+                return { backgroundColor: hexToRgba(red500, intensity * 0.3) };
             }
         }
         return {};
@@ -473,10 +482,10 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             <Box h="100%" display="flex" flexDirection="column">
                 <HStack mb={4} justify="space-between">
                     {sortedData.length > 0 && (
-                        <HStack spacing={2}>
+                        <HStack gap={2}>
                             <Tooltip label="Copy JSON data to clipboard">
                                 <IconButton
-                                    icon={<CopyIcon />}
+                                    icon={<LuCopy />}
                                     size="sm"
                                     colorScheme="blue"
                                     variant="outline"
@@ -486,7 +495,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                             </Tooltip>
                             <Tooltip label="Copy table data to clipboard">
                                 <IconButton
-                                    icon={<DownloadIcon />}
+                                    icon={<LuDownload />}
                                     size="sm"
                                     colorScheme="green"
                                     variant="outline"
@@ -497,10 +506,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                         </HStack>
                     )}
                 </HStack>
-                <Alert status="error">
-                    <AlertIcon />
-                    {error}
-                </Alert>
+                <Alert.Root status="error">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                        <Alert.Description>{error}</Alert.Description>
+                    </Alert.Content>
+                </Alert.Root>
             </Box>
         );
     }
@@ -517,7 +528,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             {/* Baseline column selector for relative pivot */}
             {isRelativePivot && sortedData.length > 0 && (
                 <Box mb={4} p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
-                    <VStack spacing={2} align="start">
+                    <VStack gap={2} align="start">
                         <Text fontSize="sm" fontWeight="semibold" color="blue.800">
                             Select Baseline Column for Relative Values:
                         </Text>
@@ -577,7 +588,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                     >
                         <Tooltip label="Copy JSON data to clipboard" placement="left">
                             <IconButton
-                                icon={<CopyIcon />}
+                                icon={<LuCopy />}
                                 size="sm"
                                 colorScheme="blue"
                                 variant="outline"
@@ -591,7 +602,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                         </Tooltip>
                         <Tooltip label="Copy table data to clipboard" placement="left">
                             <IconButton
-                                icon={<DownloadIcon />}
+                                icon={<LuDownload />}
                                 size="sm"
                                 colorScheme="green"
                                 variant="outline"
@@ -605,18 +616,18 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                         </Tooltip>
                     </Box>
 
-                    <TableContainer>
-                        <Table variant="simple" size="sm" width="auto" height="100%">
-                            <Tbody>
+                    <Table.ScrollArea>
+                        <Table.Root variant="simple" size="sm" width="auto" height="100%">
+                            <Table.Body>
                                 {/* Create transposed header rows for column fields */}
                                 {(() => {
                                     if (columnStructure.backendValueStructures.length === 0) {
                                         // Simple table without structured columns
                                         return (
                                             <>
-                                                <Tr>
+                                                <Table.Row>
                                                     {backendColumnNames.map((columnName, index) => (
-                                                        <Th
+                                                        <Table.ColumnHeader
                                                             key={index}
                                                             fontSize="sm"
                                                             px={4}
@@ -629,12 +640,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                             textAlign="left"
                                                         >
                                                             {columnName.replace(/_/g, ':')}
-                                                        </Th>
+                                                        </Table.ColumnHeader>
                                                     ))}
-                                                </Tr>
+                                                </Table.Row>
                                                 {/* Separator row */}
-                                                <Tr>
-                                                    <Td
+                                                <Table.Row>
+                                                    <Table.Cell
                                                         colSpan={backendColumnNames.length}
                                                         borderBottomWidth={3}
                                                         borderBottomColor="blue.300"
@@ -643,7 +654,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         p={0}
                                                         position="relative"
                                                     />
-                                                </Tr>
+                                                </Table.Row>
                                             </>
                                         );
                                     }
@@ -678,9 +689,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                     return (
                                         <>
                                             {fieldRows.map((fieldRow, rowIndex) => (
-                                                <Tr key={`header-${rowIndex}`}>
+                                                <Table.Row key={`header-${rowIndex}`}>
                                                     {/* Field name label spanning row columns only */}
-                                                    <Th
+                                                    <Table.ColumnHeader
                                                         colSpan={columnStructure.rowColumns.length}
                                                         fontSize="sm"
                                                         px={4}
@@ -696,11 +707,11 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         borderRightColor={fieldRow.name === 'Aggregator' ? 'purple.200' : 'green.200'}
                                                     >
                                                         {fieldRow.name}
-                                                    </Th>
+                                                    </Table.ColumnHeader>
 
                                                     {/* Values for this field across all columns */}
                                                     {fieldRow.values.map((value, colIndex) => (
-                                                        <Td
+                                                        <Table.Cell
                                                             key={colIndex}
                                                             fontSize="sm"
                                                             px={4}
@@ -723,16 +734,16 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                             transition="background-color 0.2s"
                                                         >
                                                             {value.replace(/_/g, ':')}
-                                                        </Td>
+                                                        </Table.Cell>
                                                     ))}
-                                                </Tr>
+                                                </Table.Row>
                                             ))}
 
                                             {/* Row column headers row */}
-                                            <Tr>
+                                            <Table.Row>
                                                 {/* Row column headers */}
                                                 {columnStructure.rowColumns.map((rowColumn, colIndex) => (
-                                                    <Th
+                                                    <Table.ColumnHeader
                                                         key={`row-header-${colIndex}`}
                                                         fontSize="sm"
                                                         px={4}
@@ -747,12 +758,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "blue.200" : "gray.200"}
                                                     >
                                                         {rowColumn.replace(/_/g, ':')}
-                                                    </Th>
+                                                    </Table.ColumnHeader>
                                                 ))}
 
                                                 {/* Empty cells for value columns */}
                                                 {columnStructure.valueColumns.map((columnName, colIndex) => (
-                                                    <Th
+                                                    <Table.ColumnHeader
                                                         key={`empty-value-${colIndex}`}
                                                         fontSize="sm"
                                                         px={4}
@@ -778,13 +789,13 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                                 BASELINE
                                                             </Box>
                                                         )}
-                                                    </Th>
+                                                    </Table.ColumnHeader>
                                                 ))}
-                                            </Tr>
+                                            </Table.Row>
 
                                             {/* Separator row */}
-                                            <Tr>
-                                                <Td
+                                            <Table.Row>
+                                                <Table.Cell
                                                     colSpan={columnStructure.rowColumns.length + columnStructure.valueColumns.length}
                                                     borderBottomWidth={3}
                                                     borderBottomColor="blue.300"
@@ -793,14 +804,14 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                     p={0}
                                                     position="relative"
                                                 />
-                                            </Tr>
+                                            </Table.Row>
                                         </>
                                     );
                                 })()}
 
                                 {/* Data rows */}
                                 {sortedData.map((row, rowIndex) => (
-                                    <Tr
+                                    <Table.Row
                                         key={rowIndex}
                                         _hover={{
                                             bg: 'gray.50'
@@ -810,7 +821,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                     >
                                         {/* Row column values */}
                                         {columnStructure.rowColumns.map((rowColumn, colIndex) => (
-                                            <Td
+                                            <Table.Cell
                                                 key={`row-${colIndex}`}
                                                 fontSize="sm"
                                                 fontWeight="semibold"
@@ -825,12 +836,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                 py={3}
                                             >
                                                 {formatValue(row[rowColumn])}
-                                            </Td>
+                                            </Table.Cell>
                                         ))}
 
                                         {/* Value columns */}
                                         {columnStructure.valueColumns.map((columnName, colIndex) => (
-                                            <Td
+                                            <Table.Cell
                                                 key={colIndex}
                                                 fontSize="sm"
                                                 style={getCellStyle(row[columnName], columnName)}
@@ -846,13 +857,13 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                 transition="background-color 0.2s"
                                             >
                                                 {formatValue(row[columnName])}
-                                            </Td>
+                                            </Table.Cell>
                                         ))}
-                                    </Tr>
+                                    </Table.Row>
                                 ))}
-                            </Tbody>
-                        </Table>
-                    </TableContainer>
+                            </Table.Body>
+                        </Table.Root>
+                    </Table.ScrollArea>
                 </Box>
             )}
 

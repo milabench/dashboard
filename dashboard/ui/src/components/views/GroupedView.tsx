@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { Box, Select, FormControl, FormLabel, HStack, Input, VStack, Button, useToast, Text, Heading, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, useDisclosure, Switch, Tooltip } from '@chakra-ui/react';
+import { Box, Select, Field, HStack, Input, VStack, Button, Text, Heading, Dialog, Switch, Tooltip } from '@chakra-ui/react';
+import { toaster } from '../ui/toaster';
 import axios from 'axios';
-import { AddIcon, DeleteIcon, CopyIcon, DownloadIcon } from '@chakra-ui/icons';
+import { LuPlus, LuTrash2, LuCopy, LuDownload } from 'react-icons/lu';
 import { saveQuery, getAllSavedQueries } from '../../services/api';
 
 interface ExtraField {
@@ -16,7 +17,6 @@ const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
 
     const [searchParams, setSearchParams] = useSearchParams();
-    const toast = useToast();
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
     const [selectedField, setSelectedField] = useState<string>('');
     const [fieldAlias, setFieldAlias] = useState<string>('');
@@ -26,7 +26,9 @@ const GroupedView: React.FC = () => {
     const [saveQueryName, setSaveQueryName] = useState<string>('');
 
     // Load modal state
-    const { isOpen: isLoadModalOpen, onOpen: onLoadModalOpen, onClose: onLoadModalClose } = useDisclosure();
+    const [isLoadModalOpen, setIsLoadModalOpen] = React.useState(false);
+    const onLoadModalOpen = () => setIsLoadModalOpen(true);
+    const onLoadModalClose = () => setIsLoadModalOpen(false);
 
     // Relative view state
     const [isRelativeView, setIsRelativeView] = useState<boolean>(false);
@@ -392,10 +394,10 @@ const GroupedView: React.FC = () => {
 
     const addExtraField = () => {
         if (!selectedField) {
-            toast({
+            toaster.create({
                 title: 'No field selected',
                 description: 'Please select a field to add',
-                status: 'warning',
+                type: 'warning',
                 duration: 3000,
             });
             return;
@@ -437,10 +439,10 @@ const GroupedView: React.FC = () => {
 
     const handleSaveQuery = async () => {
         if (!saveQueryName.trim()) {
-            toast({
+            toaster.create({
                 title: 'Query name required',
                 description: 'Please enter a name for your saved query',
-                status: 'warning',
+                type: 'warning',
                 duration: 3000,
             });
             return;
@@ -470,20 +472,20 @@ const GroupedView: React.FC = () => {
 
             await saveQuery(saveQueryName, queryData);
 
-            toast({
+            toaster.create({
                 title: 'Query saved successfully',
                 description: `Your query "${saveQueryName}" has been saved`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
 
             onSaveModalClose();
             setSaveQueryName('');
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Error saving query',
                 description: error instanceof Error ? error.message : 'Failed to save query',
-                status: 'error',
+                type: 'error',
                 duration: 5000,
             });
         }
@@ -540,10 +542,10 @@ const GroupedView: React.FC = () => {
             setExtraFields(fields);
         }
 
-        toast({
+        toaster.create({
             title: 'Query loaded',
             description: `"${query.name}" has been loaded successfully`,
-            status: 'success',
+            type: 'success',
             duration: 3000,
         });
 
@@ -553,10 +555,10 @@ const GroupedView: React.FC = () => {
     const copyJsonToClipboard = async () => {
         try {
             if (!relativeData || relativeData.length === 0) {
-                toast({
+                toaster.create({
                     title: 'No data to copy',
                     description: 'Please configure and load data first',
-                    status: 'warning',
+                    type: 'warning',
                     duration: 3000,
                 });
                 return;
@@ -580,17 +582,17 @@ const GroupedView: React.FC = () => {
                 document.body.removeChild(textArea);
             }
 
-            toast({
+            toaster.create({
                 title: 'JSON copied to clipboard',
                 description: `${relativeData.length} rows copied as JSON`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy JSON',
                 description: 'Could not copy data to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -599,10 +601,10 @@ const GroupedView: React.FC = () => {
     const copyCsvToClipboard = async () => {
         try {
             if (!relativeData || relativeData.length === 0) {
-                toast({
+                toaster.create({
                     title: 'No data to copy',
                     description: 'Please configure and load data first',
-                    status: 'warning',
+                    type: 'warning',
                     duration: 3000,
                 });
                 return;
@@ -641,17 +643,17 @@ const GroupedView: React.FC = () => {
                 document.body.removeChild(textArea);
             }
 
-            toast({
+            toaster.create({
                 title: 'CSV copied to clipboard',
                 description: `${relativeData.length} rows copied as CSV`,
-                status: 'success',
+                type: 'success',
                 duration: 3000,
             });
         } catch (error) {
-            toast({
+            toaster.create({
                 title: 'Failed to copy CSV',
                 description: 'Could not copy data to clipboard',
-                status: 'error',
+                type: 'error',
                 duration: 3000,
             });
         }
@@ -659,10 +661,10 @@ const GroupedView: React.FC = () => {
 
     return (
         <Box p={4} height="100vh" display="flex" flexDirection="column">
-            <VStack align="stretch" spacing={6} height="100%">
-                <HStack spacing={4} mb={4} width="100%">
-                    <FormControl flex="1">
-                        <FormLabel>Column Field</FormLabel>
+            <VStack align="stretch" gap={6} height="100%">
+                <HStack gap={4} mb={4} width="100%">
+                    <Field.Root flex="1">
+                        <Field.Label>Column Field</Field.Label>
                         <Select value={g1Value} onChange={handleG1Change}>
                             <option value="">None</option>
                             <option value="group1">group1</option>
@@ -670,15 +672,15 @@ const GroupedView: React.FC = () => {
                             <option value="group3">group3</option>
                             <option value="group4">group4</option>
                         </Select>
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Column Label</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Column Label</Field.Label>
                         <Input value={n1Value} onChange={handleN1Change} placeholder="Enter group 1 label" />
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Row Field</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Row Field</Field.Label>
                         <Select value={g2Value} onChange={handleG2Change}>
                             <option value="">None</option>
                             <option value="group1">group1</option>
@@ -686,15 +688,15 @@ const GroupedView: React.FC = () => {
                             <option value="group3">group3</option>
                             <option value="group4">group4</option>
                         </Select>
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Row Label</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Row Label</Field.Label>
                         <Input value={n2Value} onChange={handleN2Change} placeholder="Enter group 2 label" />
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Metric</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Metric</Field.Label>
                         <Select value={metricValue} onChange={handleMetricChange}>
                             <option value="rate">rate</option>
                             <option value="memory">memory</option>
@@ -702,44 +704,44 @@ const GroupedView: React.FC = () => {
                             <option value="cpu">cpu</option>
                             <option value="perf">perf</option>
                         </Select>
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Color Field</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Color Field</Field.Label>
                         <Input value={colorValue} onChange={handleColorChange} placeholder="Enter color field" />
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Invert X-Y Axis</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Invert X-Y Axis</Field.Label>
                         <Switch
                             isChecked={invertedValue}
                             onChange={handleInvertedChange}
                             colorScheme="blue"
                         />
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Weighted</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Weighted</Field.Label>
                         <Switch
                             isChecked={weightedValue}
                             onChange={handleWeightedChange}
                             colorScheme="blue"
                         />
-                    </FormControl>
+                    </Field.Root>
                 </HStack>
 
-                <HStack spacing={4}>
-                    <FormControl flex="2">
+                <HStack gap={4}>
+                    <Field.Root flex="2">
                         <Heading size="md">Execution IDs (comma-separated)</Heading>
                         <Input
                             value={execIdsValue}
                             onChange={handleExecIdsChange}
                             placeholder="Enter execution IDs (e.g., 1,2,3)"
                         />
-                    </FormControl>
+                    </Field.Root>
 
-                    <FormControl flex="1">
-                        <FormLabel>Profile</FormLabel>
+                    <Field.Root flex="1">
+                        <Field.Label>Profile</Field.Label>
                         <Select value={profileValue} onChange={handleProfileChange}>
                             {availableProfiles?.map((profile: string) => (
                                 <option key={profile} value={profile}>
@@ -747,18 +749,18 @@ const GroupedView: React.FC = () => {
                                 </option>
                             ))}
                         </Select>
-                    </FormControl>
+                    </Field.Root>
                 </HStack>
 
 
                 <HStack>
                     {/* Extra Fields Section */}
                     <Box borderWidth={1} borderRadius="md" width="50%" p={4}>
-                        <VStack align="stretch" spacing={4}>
+                        <VStack align="stretch" gap={4}>
                             <Heading size="md">Extra Fields</Heading>
                             {/* Add Field Form as the first row */}
                             <HStack>
-                                <FormControl>
+                                <Field.Root>
                                     <Select
                                         value={selectedField}
                                         onChange={(e) => setSelectedField(e.target.value)}
@@ -770,16 +772,16 @@ const GroupedView: React.FC = () => {
                                             </option>
                                         ))}
                                     </Select>
-                                </FormControl>
-                                <FormControl>
+                                </Field.Root>
+                                <Field.Root>
                                     <Input
                                         value={fieldAlias}
                                         onChange={(e) => setFieldAlias(e.target.value)}
                                         placeholder="Field Alias (optional)"
                                     />
-                                </FormControl>
+                                </Field.Root>
                                 <Button
-                                    leftIcon={<AddIcon />}
+                                    leftIcon={<LuPlus />}
                                     onClick={addExtraField}
                                     colorScheme="blue"
                                     whiteSpace="nowrap"
@@ -800,7 +802,7 @@ const GroupedView: React.FC = () => {
                                                 <b>{field.field}</b> as <b>{field.alias}</b>
                                             </Text>
                                             <Button
-                                                leftIcon={<DeleteIcon />}
+                                                leftIcon={<LuTrash2 />}
                                                 onClick={() => removeExtraField(index)}
                                                 size="sm"
                                                 colorScheme="red"
@@ -818,22 +820,22 @@ const GroupedView: React.FC = () => {
                     {/* Relative View Configuration Form */}
                     {(
                         <Box borderWidth={1} borderRadius="md" width="50%" height="100%" p={4} bg="gray.50">
-                            <VStack align="stretch" spacing={4}>
-                                <HStack spacing={4}>
+                            <VStack align="stretch" gap={4}>
+                                <HStack gap={4}>
                                     <Heading size="md">Relative View Configuration</Heading>
                                     <Switch
                                         id="relative-view-toggle"
                                         isChecked={isRelativeView}
                                         onChange={handleRelativeViewToggle}
-                                        isDisabled={false}
+                                        disabled={false}
                                         colorScheme="green"
                                         size="md"
                                     />
                                 </HStack>
 
-                                <HStack spacing={4}>
-                                    <FormControl flex="1">
-                                        <FormLabel>Relative Column</FormLabel>
+                                <HStack gap={4}>
+                                    <Field.Root flex="1">
+                                        <Field.Label>Relative Column</Field.Label>
                                         <Select
                                             value={relativeColumn}
                                             onChange={handleRelativeColumnChange}
@@ -845,14 +847,14 @@ const GroupedView: React.FC = () => {
                                                 </option>
                                             ))}
                                         </Select>
-                                    </FormControl>
-                                    <FormControl flex="1">
-                                        <FormLabel>Baseline Value</FormLabel>
+                                    </Field.Root>
+                                    <Field.Root flex="1">
+                                        <Field.Label>Baseline Value</Field.Label>
                                         <Select
                                             value={relativeBaseline}
                                             onChange={handleRelativeBaselineChange}
                                             placeholder="Select baseline value"
-                                            isDisabled={!relativeColumn}
+                                            disabled={!relativeColumn}
                                         >
                                             {availableBaselineValues.map((value) => (
                                                 <option key={String(value)} value={String(value)}>
@@ -860,7 +862,7 @@ const GroupedView: React.FC = () => {
                                                 </option>
                                             ))}
                                         </Select>
-                                    </FormControl>
+                                    </Field.Root>
                                 </HStack>
                                 {relativeColumn && relativeBaseline && (
                                     <Text fontSize="sm" color="gray.600">
@@ -877,7 +879,7 @@ const GroupedView: React.FC = () => {
 
 
                 {/* Save Query Button */}
-                <HStack justify="center" spacing={4}>
+                <HStack justify="center" gap={4}>
                     <Button
                         colorScheme="green"
                         onClick={onSaveModalOpen}
@@ -894,24 +896,24 @@ const GroupedView: React.FC = () => {
                     </Button>
                     <Tooltip label="Copy data as JSON">
                         <Button
-                            leftIcon={<CopyIcon />}
+                            leftIcon={<LuCopy />}
                             onClick={copyJsonToClipboard}
                             colorScheme="blue"
                             variant="outline"
                             size="md"
-                            isDisabled={!relativeData || relativeData.length === 0}
+                            disabled={!relativeData || relativeData.length === 0}
                         >
                             Copy as JSON
                         </Button>
                     </Tooltip>
                     <Tooltip label="Copy data as CSV">
                         <Button
-                            leftIcon={<DownloadIcon />}
+                            leftIcon={<LuDownload />}
                             onClick={copyCsvToClipboard}
                             colorScheme="green"
                             variant="outline"
                             size="md"
-                            isDisabled={!relativeData || relativeData.length === 0}
+                            disabled={!relativeData || relativeData.length === 0}
                         >
                             Copy as CSV
                         </Button>
@@ -941,77 +943,85 @@ const GroupedView: React.FC = () => {
             </VStack>
 
             {/* Save Query Modal */}
-            <Modal isOpen={isSaveModalOpen} onClose={onSaveModalClose}>
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Save Query</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4}>
-                            <FormControl>
-                                <FormLabel>Query Name</FormLabel>
-                                <Input
-                                    value={saveQueryName}
-                                    onChange={(e) => setSaveQueryName(e.target.value)}
-                                    placeholder="Enter a name for your query"
-                                />
-                            </FormControl>
-                            <HStack spacing={4} width="100%">
-                                <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
-                                    Save
-                                </Button>
-                                <Button onClick={onSaveModalClose} width="100%">
-                                    Cancel
-                                </Button>
-                            </HStack>
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
+            <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setIsSaveModalOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content>
+                        <Dialog.Header>
+                            <Dialog.Title>Save Query</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4}>
+                                <Field.Root>
+                                    <Field.Label>Query Name</Field.Label>
+                                    <Input
+                                        value={saveQueryName}
+                                        onChange={(e) => setSaveQueryName(e.target.value)}
+                                        placeholder="Enter a name for your query"
+                                    />
+                                </Field.Root>
+                                <HStack gap={4} width="100%">
+                                    <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
+                                        Save
+                                    </Button>
+                                    <Button onClick={onSaveModalClose} width="100%">
+                                        Cancel
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
 
             {/* Load Query Modal */}
-            <Modal isOpen={isLoadModalOpen} onClose={onLoadModalClose} size="lg">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Load Saved Query</ModalHeader>
-                    <ModalCloseButton />
-                    <ModalBody pb={6}>
-                        <VStack spacing={4} align="stretch">
-                            {savedQueries && savedQueries.length > 0 ? (
-                                savedQueries
-                                    .filter((query: any) => query.query.url === '/grouped')
-                                    .map((query: any) => (
-                                        <Box
-                                            key={query._id}
-                                            p={4}
-                                            borderWidth={1}
-                                            borderRadius="md"
-                                            cursor="pointer"
-                                            _hover={{ bg: 'gray.50' }}
-                                            onClick={() => handleLoadQuery(query)}
-                                        >
-                                            <HStack justify="space-between">
-                                                <VStack align="start" spacing={1}>
-                                                    <Text fontWeight="medium">{query.name}</Text>
-                                                    <Text fontSize="sm" color="gray.600">
-                                                        Created: {new Date(query.created_time).toLocaleString()}
-                                                    </Text>
-                                                </VStack>
-                                                <Button size="sm" colorScheme="blue">
-                                                    Load
-                                                </Button>
-                                            </HStack>
-                                        </Box>
-                                    ))
-                            ) : (
-                                <Text color="gray.500" textAlign="center">
-                                    No saved queries found
-                                </Text>
-                            )}
-                        </VStack>
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
+            <Dialog.Root open={isLoadModalOpen} onOpenChange={(details) => setIsLoadModalOpen(details.open)}>
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="lg">
+                        <Dialog.Header>
+                            <Dialog.Title>Load Saved Query</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body pb={6}>
+                            <VStack gap={4} align="stretch">
+                                {savedQueries && savedQueries.length > 0 ? (
+                                    savedQueries
+                                        .filter((query: any) => query.query.url === '/grouped')
+                                        .map((query: any) => (
+                                            <Box
+                                                key={query._id}
+                                                p={4}
+                                                borderWidth={1}
+                                                borderRadius="md"
+                                                cursor="pointer"
+                                                _hover={{ bg: 'gray.50' }}
+                                                onClick={() => handleLoadQuery(query)}
+                                            >
+                                                <HStack justify="space-between">
+                                                    <VStack align="start" gap={1}>
+                                                        <Text fontWeight="medium">{query.name}</Text>
+                                                        <Text fontSize="sm" color="gray.600">
+                                                            Created: {new Date(query.created_time).toLocaleString()}
+                                                        </Text>
+                                                    </VStack>
+                                                    <Button size="sm" colorScheme="blue">
+                                                        Load
+                                                    </Button>
+                                                </HStack>
+                                            </Box>
+                                        ))
+                                ) : (
+                                    <Text color="gray.500" textAlign="center">
+                                        No saved queries found
+                                    </Text>
+                                )}
+                            </VStack>
+                        </Dialog.Body>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
         </Box>
     );
 };
