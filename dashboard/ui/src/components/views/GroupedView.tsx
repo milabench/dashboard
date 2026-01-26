@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { Box, Select, Field, HStack, Input, VStack, Button, Text, Heading, Dialog, Switch, Tooltip } from '@chakra-ui/react';
+import { Box, Select, Field, HStack, Input, VStack, Button, Text, Heading, Dialog, Switch, useDisclosure, useListCollection } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
+import { useColorModeValue } from '../ui/color-mode';
 import axios from 'axios';
 import { LuPlus, LuTrash2, LuCopy, LuDownload } from 'react-icons/lu';
 import { saveQuery, getAllSavedQueries } from '../../services/api';
+import { Tooltip } from "../../components/ui/tooltip"
 
 interface ExtraField {
     field: string;
@@ -16,13 +18,31 @@ interface ExtraField {
 const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
 
+    // Theme-aware colors - all hooks must be called at the top level
+    const pageBg = useColorModeValue('gray.50', 'gray.900');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
+    const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
+    const greenButtonBg = useColorModeValue('green.500', 'green.600');
+    const greenButtonHoverBg = useColorModeValue('green.600', 'green.500');
+    const blueButtonBg = useColorModeValue('blue.500', 'blue.600');
+    const blueButtonHoverBg = useColorModeValue('blue.600', 'blue.500');
+    const redButtonHoverBg = useColorModeValue('red.50', 'red.900');
+    const cardHoverBg = useColorModeValue('gray.50', 'gray.700');
+    const inputBg = useColorModeValue('white', 'gray.800');
+    const selectBg = useColorModeValue('white', 'gray.800');
+    const relativeViewBg = useColorModeValue('gray.50', 'gray.800');
+
     const [searchParams, setSearchParams] = useSearchParams();
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
     const [selectedField, setSelectedField] = useState<string>('');
     const [fieldAlias, setFieldAlias] = useState<string>('');
 
     // Save modal state
-    const { isOpen: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose } = useDisclosure();
+    const { open: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose, setOpen: setSaveModalOpen } = useDisclosure();
     const [saveQueryName, setSaveQueryName] = useState<string>('');
 
     // Load modal state
@@ -162,6 +182,57 @@ const GroupedView: React.FC = () => {
         return values.filter(value => value !== null && value !== undefined);
     }, [groupedData, relativeColumn]);
 
+    // Collections for Select components
+    const groupFieldItems = useMemo(() => [
+        { label: 'None', value: '' },
+        { label: 'group1', value: 'group1' },
+        { label: 'group2', value: 'group2' },
+        { label: 'group3', value: 'group3' },
+        { label: 'group4', value: 'group4' },
+    ], []);
+    const groupFieldCollection = useListCollection({ initialItems: groupFieldItems });
+
+    const metricItems = useMemo(() => [
+        { label: 'rate', value: 'rate' },
+        { label: 'memory', value: 'memory' },
+        { label: 'gpu', value: 'gpu' },
+        { label: 'cpu', value: 'cpu' },
+        { label: 'perf', value: 'perf' },
+    ], []);
+    const metricCollection = useListCollection({ initialItems: metricItems });
+
+    const profileItems = useMemo(() =>
+        (availableProfiles || [])
+            .filter((profile: string) => profile != null && profile !== '')
+            .map((profile: string) => ({ label: profile, value: profile })),
+        [availableProfiles]
+    );
+    const profileCollection = useListCollection({ initialItems: profileItems });
+
+    const fieldItems = useMemo(() =>
+        (availableFields || [])
+            .filter((field: string) => field != null && field !== '')
+            .map((field: string) => ({ label: field, value: field })),
+        [availableFields]
+    );
+    const fieldCollection = useListCollection({ initialItems: fieldItems });
+
+    const columnItems = useMemo(() =>
+        availableColumns
+            .filter((column: string) => column != null && column !== '')
+            .map((column: string) => ({ label: column, value: column })),
+        [availableColumns]
+    );
+    const columnCollection = useListCollection({ initialItems: columnItems });
+
+    const baselineItems = useMemo(() =>
+        availableBaselineValues
+            .filter((value: any) => value != null && value !== '')
+            .map((value: any) => ({ label: String(value), value: String(value) })),
+        [availableBaselineValues]
+    );
+    const baselineCollection = useListCollection({ initialItems: baselineItems });
+
     // Compute relative data
     const relativeData = React.useMemo(() => {
         if (!isRelativeView || !groupedData || !relativeColumn || !relativeBaseline || groupedData.length === 0) {
@@ -200,8 +271,8 @@ const GroupedView: React.FC = () => {
         });
     }, [groupedData, isRelativeView, relativeColumn, relativeBaseline, metricValue]);
 
-    const handleG1Change = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleG1Change = (details: { value: string[] }) => {
+        const value = details.value[0] || '';
         setG1Value(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -228,8 +299,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleG2Change = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleG2Change = (details: { value: string[] }) => {
+        const value = details.value[0] || '';
         setG2Value(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -256,8 +327,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleMetricChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleMetricChange = (details: { value: string[] }) => {
+        const value = details.value[0] || 'rate';
         setMetricValue(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -298,8 +369,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleProfileChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleProfileChange = (details: { value: string[] }) => {
+        const value = details.value[0] || '';
         setProfileValue(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -312,8 +383,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleInvertedChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.checked;
+    const handleInvertedChange = (details: { checked: boolean }) => {
+        const value = details.checked;
         setInvertedValue(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -326,8 +397,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleWeightedChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.checked;
+    const handleWeightedChange = (details: { checked: boolean }) => {
+        const value = details.checked;
         setWeightedValue(value);
         setSearchParams(prev => {
             const newParams = new URLSearchParams(prev);
@@ -340,8 +411,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleRelativeViewToggle = () => {
-        const newValue = !isRelativeView;
+    const handleRelativeViewToggle = (details: { checked: boolean }) => {
+        const newValue = details.checked;
         setIsRelativeView(newValue);
 
         if (!newValue) {
@@ -364,8 +435,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleRelativeColumnChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleRelativeColumnChange = (details: { value: string[] }) => {
+        const value = details.value[0] || '';
         setRelativeColumn(value);
         setRelativeBaseline(''); // Reset baseline when column changes
 
@@ -379,8 +450,8 @@ const GroupedView: React.FC = () => {
         });
     };
 
-    const handleRelativeBaselineChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = event.target.value;
+    const handleRelativeBaselineChange = (details: { value: string[] }) => {
+        const value = details.value[0] || '';
         setRelativeBaseline(value);
 
         setSearchParams(prev => {
@@ -660,212 +731,383 @@ const GroupedView: React.FC = () => {
     };
 
     return (
-        <Box p={4} height="100vh" display="flex" flexDirection="column">
+        <Box p={4} height="100vh" display="flex" flexDirection="column" bg={pageBg}>
             <VStack align="stretch" gap={6} height="100%">
                 <HStack gap={4} mb={4} width="100%">
                     <Field.Root flex="1">
-                        <Field.Label>Column Field</Field.Label>
-                        <Select value={g1Value} onChange={handleG1Change}>
-                            <option value="">None</option>
-                            <option value="group1">group1</option>
-                            <option value="group2">group2</option>
-                            <option value="group3">group3</option>
-                            <option value="group4">group4</option>
-                        </Select>
+                        <Field.Label color={textColor}>Column Field</Field.Label>
+                        <Select.Root
+                            collection={groupFieldCollection.collection}
+                            value={g1Value ? [g1Value] : []}
+                            onValueChange={handleG1Change}
+                        >
+                            <Select.HiddenSelect />
+                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                <Select.Trigger>
+                                    <Select.ValueText placeholder="Select column field" />
+                                </Select.Trigger>
+                                <Select.IndicatorGroup>
+                                    <Select.Indicator />
+                                </Select.IndicatorGroup>
+                            </Select.Control>
+                            <Select.Positioner>
+                                <Select.Content>
+                                    {groupFieldItems.map((item) => (
+                                        <Select.Item key={item.value} item={item}>
+                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                        </Select.Item>
+                                    ))}
+                                </Select.Content>
+                            </Select.Positioner>
+                        </Select.Root>
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Column Label</Field.Label>
-                        <Input value={n1Value} onChange={handleN1Change} placeholder="Enter group 1 label" />
+                        <Field.Label color={textColor}>Column Label</Field.Label>
+                        <Input
+                            value={n1Value}
+                            onChange={handleN1Change}
+                            placeholder="Enter group 1 label"
+                            bg={inputBg}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _focus={{ borderColor: focusBorderColor }}
+                        />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Row Field</Field.Label>
-                        <Select value={g2Value} onChange={handleG2Change}>
-                            <option value="">None</option>
-                            <option value="group1">group1</option>
-                            <option value="group2">group2</option>
-                            <option value="group3">group3</option>
-                            <option value="group4">group4</option>
-                        </Select>
+                        <Field.Label color={textColor}>Row Field</Field.Label>
+                        <Select.Root
+                            collection={groupFieldCollection.collection}
+                            value={g2Value ? [g2Value] : []}
+                            onValueChange={handleG2Change}
+                        >
+                            <Select.HiddenSelect />
+                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                <Select.Trigger>
+                                    <Select.ValueText placeholder="Select row field" />
+                                </Select.Trigger>
+                                <Select.IndicatorGroup>
+                                    <Select.Indicator />
+                                </Select.IndicatorGroup>
+                            </Select.Control>
+                            <Select.Positioner>
+                                <Select.Content>
+                                    {groupFieldItems.map((item) => (
+                                        <Select.Item key={item.value} item={item}>
+                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                        </Select.Item>
+                                    ))}
+                                </Select.Content>
+                            </Select.Positioner>
+                        </Select.Root>
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Row Label</Field.Label>
-                        <Input value={n2Value} onChange={handleN2Change} placeholder="Enter group 2 label" />
+                        <Field.Label color={textColor}>Row Label</Field.Label>
+                        <Input
+                            value={n2Value}
+                            onChange={handleN2Change}
+                            placeholder="Enter group 2 label"
+                            bg={inputBg}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _focus={{ borderColor: focusBorderColor }}
+                        />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Metric</Field.Label>
-                        <Select value={metricValue} onChange={handleMetricChange}>
-                            <option value="rate">rate</option>
-                            <option value="memory">memory</option>
-                            <option value="gpu">gpu</option>
-                            <option value="cpu">cpu</option>
-                            <option value="perf">perf</option>
-                        </Select>
+                        <Field.Label color={textColor}>Metric</Field.Label>
+                        <Select.Root
+                            collection={metricCollection.collection}
+                            value={metricValue ? [metricValue] : ['rate']}
+                            onValueChange={handleMetricChange}
+                        >
+                            <Select.HiddenSelect />
+                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                <Select.Trigger>
+                                    <Select.ValueText />
+                                </Select.Trigger>
+                                <Select.IndicatorGroup>
+                                    <Select.Indicator />
+                                </Select.IndicatorGroup>
+                            </Select.Control>
+                            <Select.Positioner>
+                                <Select.Content>
+                                    {metricItems.map((item) => (
+                                        <Select.Item key={item.value} item={item}>
+                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                        </Select.Item>
+                                    ))}
+                                </Select.Content>
+                            </Select.Positioner>
+                        </Select.Root>
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Color Field</Field.Label>
-                        <Input value={colorValue} onChange={handleColorChange} placeholder="Enter color field" />
+                        <Field.Label color={textColor}>Color Field</Field.Label>
+                        <Input
+                            value={colorValue}
+                            onChange={handleColorChange}
+                            placeholder="Enter color field"
+                            bg={inputBg}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _focus={{ borderColor: focusBorderColor }}
+                        />
                     </Field.Root>
 
                     <Field.Root flex="1">
                         <Field.Label>Invert X-Y Axis</Field.Label>
-                        <Switch
-                            isChecked={invertedValue}
-                            onChange={handleInvertedChange}
-                            colorScheme="blue"
-                        />
+                        <Switch.Root
+                            checked={invertedValue}
+                            onCheckedChange={handleInvertedChange}
+                            colorPalette="blue"
+                        >
+                            <Switch.HiddenInput />
+                            <Switch.Control>
+                                <Switch.Thumb />
+                            </Switch.Control>
+                        </Switch.Root>
                     </Field.Root>
 
                     <Field.Root flex="1">
                         <Field.Label>Weighted</Field.Label>
-                        <Switch
-                            isChecked={weightedValue}
-                            onChange={handleWeightedChange}
-                            colorScheme="blue"
-                        />
+                        <Switch.Root
+                            checked={weightedValue}
+                            onCheckedChange={handleWeightedChange}
+                            colorPalette="blue"
+                        >
+                            <Switch.HiddenInput />
+                            <Switch.Control>
+                                <Switch.Thumb />
+                            </Switch.Control>
+                        </Switch.Root>
                     </Field.Root>
                 </HStack>
 
                 <HStack gap={4}>
                     <Field.Root flex="2">
-                        <Heading size="md">Execution IDs (comma-separated)</Heading>
+                        <Heading size="md" color={textColor}>Execution IDs (comma-separated)</Heading>
                         <Input
                             value={execIdsValue}
                             onChange={handleExecIdsChange}
                             placeholder="Enter execution IDs (e.g., 1,2,3)"
+                            bg={inputBg}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _focus={{ borderColor: focusBorderColor }}
                         />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label>Profile</Field.Label>
-                        <Select value={profileValue} onChange={handleProfileChange}>
-                            {availableProfiles?.map((profile: string) => (
-                                <option key={profile} value={profile}>
-                                    {profile}
-                                </option>
-                            ))}
-                        </Select>
+                        <Field.Label color={textColor}>Profile</Field.Label>
+                        <Select.Root
+                            collection={profileCollection.collection}
+                            value={profileValue ? [profileValue] : []}
+                            onValueChange={handleProfileChange}
+                        >
+                            <Select.HiddenSelect />
+                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                <Select.Trigger>
+                                    <Select.ValueText placeholder="Select profile" />
+                                </Select.Trigger>
+                                <Select.IndicatorGroup>
+                                    <Select.Indicator />
+                                </Select.IndicatorGroup>
+                            </Select.Control>
+                            <Select.Positioner>
+                                <Select.Content>
+                                    {profileItems.map((item) => (
+                                        <Select.Item key={item.value} item={item}>
+                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                        </Select.Item>
+                                    ))}
+                                </Select.Content>
+                            </Select.Positioner>
+                        </Select.Root>
                     </Field.Root>
                 </HStack>
 
 
                 <HStack>
                     {/* Extra Fields Section */}
-                    <Box borderWidth={1} borderRadius="md" width="50%" p={4}>
+                    <Box
+                        borderWidth={1}
+                        borderRadius="md"
+                        width="50%"
+                        p={4}
+                        bg={cardBg}
+                        borderColor={borderColor}
+                    >
                         <VStack align="stretch" gap={4}>
-                            <Heading size="md">Extra Fields</Heading>
+                            <Heading size="md" color={textColor}>Extra Fields</Heading>
                             {/* Add Field Form as the first row */}
                             <HStack>
                                 <Field.Root>
-                                    <Select
-                                        value={selectedField}
-                                        onChange={(e) => setSelectedField(e.target.value)}
-                                        placeholder="Select a field"
+                                    <Select.Root
+                                        collection={fieldCollection.collection}
+                                        value={selectedField ? [selectedField] : []}
+                                        onValueChange={(details) => setSelectedField(details.value[0] || '')}
                                     >
-                                        {availableFields?.map((field: string) => (
-                                            <option key={field} value={field}>
-                                                {field}
-                                            </option>
-                                        ))}
-                                    </Select>
+                                        <Select.HiddenSelect />
+                                        <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                            <Select.Trigger>
+                                                <Select.ValueText placeholder="Select a field" />
+                                            </Select.Trigger>
+                                            <Select.IndicatorGroup>
+                                                <Select.Indicator />
+                                            </Select.IndicatorGroup>
+                                        </Select.Control>
+                                        <Select.Positioner>
+                                            <Select.Content>
+                                                {fieldItems.map((item) => (
+                                                    <Select.Item key={item.value} item={item}>
+                                                        <Select.ItemText>{item.label}</Select.ItemText>
+                                                    </Select.Item>
+                                                ))}
+                                            </Select.Content>
+                                        </Select.Positioner>
+                                    </Select.Root>
                                 </Field.Root>
                                 <Field.Root>
                                     <Input
                                         value={fieldAlias}
                                         onChange={(e) => setFieldAlias(e.target.value)}
                                         placeholder="Field Alias (optional)"
+                                        bg={inputBg}
+                                        borderColor={borderColor}
+                                        color={textColor}
+                                        _focus={{ borderColor: focusBorderColor }}
                                     />
                                 </Field.Root>
                                 <Button
-                                    leftIcon={<LuPlus />}
                                     onClick={addExtraField}
-                                    colorScheme="blue"
+                                    bg={blueButtonBg}
+                                    color="white"
                                     whiteSpace="nowrap"
                                     minW="110px"
                                     maxW="140px"
                                     overflow="hidden"
                                     textOverflow="ellipsis"
+                                    _hover={{ bg: blueButtonHoverBg }}
                                 >
+                                    <LuPlus style={{ marginRight: '8px' }} />
                                     Add Field
                                 </Button>
                             </HStack>
                             {/* List of added extra fields */}
                             {extraFields.length > 0 && (
-                                <div style={{ padding: '10px' }}>
+                                <Box p={2.5}>
                                     {extraFields.map((field, index) => (
-                                        <HStack key={index} justify="space-between">
-                                            <Text>
+                                        <HStack key={index} justify="space-between" mb={2}>
+                                            <Text color={textColor}>
                                                 <b>{field.field}</b> as <b>{field.alias}</b>
                                             </Text>
                                             <Button
-                                                leftIcon={<LuTrash2 />}
                                                 onClick={() => removeExtraField(index)}
                                                 size="sm"
-                                                colorScheme="red"
                                                 variant="ghost"
+                                                color={textColor}
+                                                _hover={{ bg: redButtonHoverBg }}
                                             >
+                                                <LuTrash2 style={{ marginRight: '4px' }} />
                                                 Remove
                                             </Button>
                                         </HStack>
                                     ))}
-                                </div>
+                                </Box>
                             )}
                         </VStack>
                     </Box>
 
                     {/* Relative View Configuration Form */}
                     {(
-                        <Box borderWidth={1} borderRadius="md" width="50%" height="100%" p={4} bg="gray.50">
+                        <Box
+                            borderWidth={1}
+                            borderRadius="md"
+                            width="50%"
+                            height="100%"
+                            p={4}
+                            bg={relativeViewBg}
+                            borderColor={borderColor}
+                        >
                             <VStack align="stretch" gap={4}>
                                 <HStack gap={4}>
-                                    <Heading size="md">Relative View Configuration</Heading>
-                                    <Switch
-                                        id="relative-view-toggle"
-                                        isChecked={isRelativeView}
-                                        onChange={handleRelativeViewToggle}
+                                    <Heading size="md" color={textColor}>Relative View Configuration</Heading>
+                                    <Switch.Root
+                                        checked={isRelativeView}
+                                        onCheckedChange={handleRelativeViewToggle}
                                         disabled={false}
-                                        colorScheme="green"
+                                        colorPalette="green"
                                         size="md"
-                                    />
+                                    >
+                                        <Switch.HiddenInput />
+                                        <Switch.Control>
+                                            <Switch.Thumb />
+                                        </Switch.Control>
+                                    </Switch.Root>
                                 </HStack>
 
                                 <HStack gap={4}>
                                     <Field.Root flex="1">
                                         <Field.Label>Relative Column</Field.Label>
-                                        <Select
-                                            value={relativeColumn}
-                                            onChange={handleRelativeColumnChange}
-                                            placeholder="Select column for relative calculations"
+                                        <Select.Root
+                                            collection={columnCollection.collection}
+                                            value={relativeColumn ? [relativeColumn] : []}
+                                            onValueChange={handleRelativeColumnChange}
                                         >
-                                            {availableColumns.map((column) => (
-                                                <option key={column} value={column}>
-                                                    {column}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                            <Select.HiddenSelect />
+                                            <Select.Control>
+                                                <Select.Trigger>
+                                                    <Select.ValueText placeholder="Select column for relative calculations" />
+                                                </Select.Trigger>
+                                                <Select.IndicatorGroup>
+                                                    <Select.Indicator />
+                                                </Select.IndicatorGroup>
+                                            </Select.Control>
+                                            <Select.Positioner>
+                                                <Select.Content>
+                                                    {columnItems.map((item) => (
+                                                        <Select.Item key={item.value} item={item}>
+                                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                                        </Select.Item>
+                                                    ))}
+                                                </Select.Content>
+                                            </Select.Positioner>
+                                        </Select.Root>
                                     </Field.Root>
                                     <Field.Root flex="1">
-                                        <Field.Label>Baseline Value</Field.Label>
-                                        <Select
-                                            value={relativeBaseline}
-                                            onChange={handleRelativeBaselineChange}
-                                            placeholder="Select baseline value"
+                                        <Field.Label color={textColor}>Baseline Value</Field.Label>
+                                        <Select.Root
+                                            collection={baselineCollection.collection}
+                                            value={relativeBaseline ? [relativeBaseline] : []}
+                                            onValueChange={handleRelativeBaselineChange}
                                             disabled={!relativeColumn}
                                         >
-                                            {availableBaselineValues.map((value) => (
-                                                <option key={String(value)} value={String(value)}>
-                                                    {String(value).replace(/"/g, '')}
-                                                </option>
-                                            ))}
-                                        </Select>
+                                            <Select.HiddenSelect />
+                                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                                <Select.Trigger>
+                                                    <Select.ValueText placeholder="Select baseline value" />
+                                                </Select.Trigger>
+                                                <Select.IndicatorGroup>
+                                                    <Select.Indicator />
+                                                </Select.IndicatorGroup>
+                                            </Select.Control>
+                                            <Select.Positioner>
+                                                <Select.Content>
+                                                    {baselineItems.map((item) => (
+                                                        <Select.Item key={item.value} item={item}>
+                                                            <Select.ItemText>{item.label}</Select.ItemText>
+                                                        </Select.Item>
+                                                    ))}
+                                                </Select.Content>
+                                            </Select.Positioner>
+                                        </Select.Root>
                                     </Field.Root>
                                 </HStack>
                                 {relativeColumn && relativeBaseline && (
-                                    <Text fontSize="sm" color="gray.600">
+                                    <Text fontSize="sm" color={mutedTextColor}>
                                         Values will be calculated relative to {relativeColumn} = "{relativeBaseline.replace(/"/g, '')}"
                                     </Text>
                                 )}
@@ -881,40 +1123,50 @@ const GroupedView: React.FC = () => {
                 {/* Save Query Button */}
                 <HStack justify="center" gap={4}>
                     <Button
-                        colorScheme="green"
                         onClick={onSaveModalOpen}
                         size="md"
+                        bg={greenButtonBg}
+                        color="white"
+                        _hover={{ bg: greenButtonHoverBg }}
                     >
                         Save Query
                     </Button>
                     <Button
-                        colorScheme="blue"
                         onClick={onLoadModalOpen}
                         size="md"
+                        bg={blueButtonBg}
+                        color="white"
+                        _hover={{ bg: blueButtonHoverBg }}
                     >
                         Load Query
                     </Button>
                     <Tooltip label="Copy data as JSON">
                         <Button
-                            leftIcon={<LuCopy />}
                             onClick={copyJsonToClipboard}
-                            colorScheme="blue"
                             variant="outline"
                             size="md"
                             disabled={!relativeData || relativeData.length === 0}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _hover={{ bg: buttonHoverBg }}
+                            _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                         >
+                            <LuCopy style={{ marginRight: '8px' }} />
                             Copy as JSON
                         </Button>
                     </Tooltip>
                     <Tooltip label="Copy data as CSV">
                         <Button
-                            leftIcon={<LuDownload />}
                             onClick={copyCsvToClipboard}
-                            colorScheme="green"
                             variant="outline"
                             size="md"
                             disabled={!relativeData || relativeData.length === 0}
+                            borderColor={borderColor}
+                            color={textColor}
+                            _hover={{ bg: buttonHoverBg }}
+                            _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                         >
+                            <LuDownload style={{ marginRight: '8px' }} />
                             Copy as CSV
                         </Button>
                     </Tooltip>
@@ -943,7 +1195,7 @@ const GroupedView: React.FC = () => {
             </VStack>
 
             {/* Save Query Modal */}
-            <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setIsSaveModalOpen(details.open)}>
+            <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setSaveModalOpen(details.open)}>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
                     <Dialog.Content>
@@ -954,18 +1206,35 @@ const GroupedView: React.FC = () => {
                         <Dialog.Body pb={6}>
                             <VStack gap={4}>
                                 <Field.Root>
-                                    <Field.Label>Query Name</Field.Label>
+                                    <Field.Label color={textColor}>Query Name</Field.Label>
                                     <Input
                                         value={saveQueryName}
                                         onChange={(e) => setSaveQueryName(e.target.value)}
                                         placeholder="Enter a name for your query"
+                                        bg={inputBg}
+                                        borderColor={borderColor}
+                                        color={textColor}
+                                        _focus={{ borderColor: focusBorderColor }}
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
-                                    <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
+                                    <Button
+                                        onClick={handleSaveQuery}
+                                        width="100%"
+                                        bg={blueButtonBg}
+                                        color="white"
+                                        _hover={{ bg: blueButtonHoverBg }}
+                                    >
                                         Save
                                     </Button>
-                                    <Button onClick={onSaveModalClose} width="100%">
+                                    <Button
+                                        onClick={onSaveModalClose}
+                                        width="100%"
+                                        variant="outline"
+                                        borderColor={borderColor}
+                                        color={textColor}
+                                        _hover={{ bg: buttonHoverBg }}
+                                    >
                                         Cancel
                                     </Button>
                                 </HStack>
@@ -996,24 +1265,31 @@ const GroupedView: React.FC = () => {
                                                 borderWidth={1}
                                                 borderRadius="md"
                                                 cursor="pointer"
-                                                _hover={{ bg: 'gray.50' }}
+                                                bg={cardBg}
+                                                borderColor={borderColor}
+                                                _hover={{ bg: cardHoverBg }}
                                                 onClick={() => handleLoadQuery(query)}
                                             >
                                                 <HStack justify="space-between">
                                                     <VStack align="start" gap={1}>
-                                                        <Text fontWeight="medium">{query.name}</Text>
-                                                        <Text fontSize="sm" color="gray.600">
+                                                        <Text fontWeight="medium" color={textColor}>{query.name}</Text>
+                                                        <Text fontSize="sm" color={mutedTextColor}>
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
-                                                    <Button size="sm" colorScheme="blue">
+                                                    <Button
+                                                        size="sm"
+                                                        bg={blueButtonBg}
+                                                        color="white"
+                                                        _hover={{ bg: blueButtonHoverBg }}
+                                                    >
                                                         Load
                                                     </Button>
                                                 </HStack>
                                             </Box>
                                         ))
                                 ) : (
-                                    <Text color="gray.500" textAlign="center">
+                                    <Text color={mutedTextColor} textAlign="center">
                                         No saved queries found
                                     </Text>
                                 )}

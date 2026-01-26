@@ -9,6 +9,7 @@ import { DataTable } from '../common/Table';
 import { Loading } from '../common/Loading';
 import type { Column } from '../common/Table';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useColorModeValue } from '../ui/color-mode';
 
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -24,6 +25,11 @@ export const Executions = () => {
         retry: 1,
         refetchInterval: 30000, // Refetch every 30 seconds
     });
+
+    // Theme-aware colors
+    const pageBg = useColorModeValue('gray.50', 'gray.900');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
 
     const columns: Column<Execution>[] = [
         {
@@ -96,8 +102,8 @@ export const Executions = () => {
     }
 
     return (
-        <Box p={4}>
-            <Heading mb={6}>Executions</Heading>
+        <Box p={4} bg={pageBg} minH="100vh">
+            <Heading mb={6} color={textColor}>Executions</Heading>
             {executions && executions.length > 0 ? (
                 <DataTable
                     data={executions}
@@ -107,7 +113,7 @@ export const Executions = () => {
                     }}
                 />
             ) : (
-                <Text>No executions found</Text>
+                <Text color={mutedTextColor}>No executions found</Text>
             )}
         </Box>
     );

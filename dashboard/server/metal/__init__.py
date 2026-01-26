@@ -29,3 +29,32 @@ class Baremetal:
     # Get info about a job
     def sinfo():
         pass
+
+
+def baremetal_server():
+    # Baremetal
+    #   we can SSH to them
+    #   milabench has an agent running there
+    baremetal_hosts = {}
+
+    def register_new_host():
+        # Register a new host to this server 
+        pass
+    
+    def install_agent():
+        # Install the milabench agent on the machine
+        pass
+
+    def baremetal_submit():
+        pass
+
+    def list_job():
+        pass
+
+    def logs():
+        pass
+
+    def sync():
+        pass
+
+    

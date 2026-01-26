@@ -1,7 +1,9 @@
+import React, { useMemo } from 'react';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
     Heading,
@@ -15,9 +17,10 @@ import {
     Field,
     Table,
     IconButton,
-    Tooltip,
+    useListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
+import { useColorModeValue } from '../ui/color-mode';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import type { Execution } from '../../services/types';
 import { Loading } from '../common/Loading';
@@ -75,6 +78,18 @@ const ensureFieldFormat = (field: string) => {
 
 export const ExplorerView = () => {
     usePageTitle('Explorer');
+
+    // Theme-aware colors - all hooks must be called at the top level
+    const pageBg = useColorModeValue('gray.50', 'gray.900');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
+    const queryItemHoverBg = useColorModeValue('gray.50', 'gray.700');
+    const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
+    const greenButtonBg = useColorModeValue('green.500', 'green.600');
+    const greenButtonHoverBg = useColorModeValue('green.600', 'green.500');
 
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -170,6 +185,55 @@ export const ExplorerView = () => {
             return response.data;
         },
     });
+
+    // Collections for Select components
+    const gpuItems = useMemo(() =>
+        (gpuList || [])
+            .filter((gpu: string) => gpu != null && gpu !== '')
+            .map((gpu: string) => ({ label: gpu, value: gpu })),
+        [gpuList]
+    );
+    const gpuCollection = useListCollection({ initialItems: gpuItems });
+
+    const pytorchItems = useMemo(() =>
+        (pytorchList || [])
+            .filter((version: string) => version != null && version !== '')
+            .map((version: string) => ({ label: version, value: version })),
+        [pytorchList]
+    );
+    const pytorchCollection = useListCollection({ initialItems: pytorchItems });
+
+    const milabenchItems = useMemo(() =>
+        (milabenchList || [])
+            .filter((version: string) => version != null && version !== '')
+            .map((version: string) => ({ label: version, value: version })),
+        [milabenchList]
+    );
+    const milabenchCollection = useListCollection({ initialItems: milabenchItems });
+
+    const fieldItems = useMemo(() =>
+        (availableFields || [])
+            .filter((field: string) => field != null && field !== '')
+            .map((field: string) => ({ label: formatFieldName(field), value: field })),
+        [availableFields]
+    );
+    const fieldCollection = useListCollection({ initialItems: fieldItems });
+
+    const operatorItems = useMemo(() => [
+        { label: 'Equals (==)', value: '==' },
+        { label: 'Not Equals (!=)', value: '!=' },
+        { label: 'Greater Than (>)', value: '>' },
+        { label: 'Greater Than or Equal (>=)', value: '>=' },
+        { label: 'Less Than (<)', value: '<' },
+        { label: 'Less Than or Equal (<=)', value: '<=' },
+        { label: 'In List (in)', value: 'in' },
+        { label: 'Not In List (not in)', value: 'not in' },
+        { label: 'Like', value: 'like' },
+        { label: 'Not Like', value: 'not like' },
+        { label: 'Is', value: 'is' },
+        { label: 'Is Not', value: 'is not' },
+    ], []);
+    const operatorCollection = useListCollection({ initialItems: operatorItems });
 
     const addFilter = () => {
         const newFilters = [...filters, { field: '', operator: '==', value: '' }];
@@ -442,21 +506,26 @@ export const ExplorerView = () => {
     };
 
     return (
-        <Box p={4}>
+        <Box p={4} bg={pageBg} minH="100vh">
             <VStack align="stretch" gap={6}>
                 <HStack justify="space-between">
-                    <Heading>Execution Explorer</Heading>
+                    <Heading color={textColor}>Execution Explorer</Heading>
                     <HStack gap={4}>
                         <Button
                             colorScheme="green"
                             onClick={onSaveModalOpen}
                             leftIcon={<LuPlus />}
+                            variant="solid"
+                            color="white"
+                            _hover={{ color: 'white', bg: greenButtonHoverBg }}
                         >
                             Save Query
                         </Button>
                         <Button
                             colorScheme="blue"
                             onClick={onLoadModalOpen}
+                            variant="solid"
+                            color="white"
                         >
                             Load Query
                         </Button>
@@ -464,83 +533,125 @@ export const ExplorerView = () => {
                 </HStack>
 
                 {/* Quick Filters Section */}
-                <Box borderWidth={1} borderRadius="md" p={4}>
+                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md">Quick Filters</Heading>
+                        <Heading size="md" color={textColor}>Quick Filters</Heading>
                         <HStack>
-                            <Select
-                                value={quickFilters.gpu}
-                                onChange={(e) => {
-                                    const options = Array.from(e.target.selectedOptions, option => option.value);
-                                    setQuickFilters({ ...quickFilters, gpu: options });
+                            <Select.Root
+                                collection={gpuCollection.collection}
+                                value={quickFilters.gpu.filter((val: string) => gpuItems.some(item => item.value === val))}
+                                onValueChange={(details) => {
+                                    setQuickFilters({ ...quickFilters, gpu: details.value });
                                 }}
-                                placeholder="Select GPUs"
-                                size="md"
-                                height="100px"
                                 multiple
+                                size="md"
                             >
-                                {gpuList?.map((gpu: string) => (
-                                    <option key={gpu} value={gpu}>
-                                        {gpu}
-                                    </option>
-                                ))}
-                            </Select>
+                                <Select.HiddenSelect />
+                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                    <Select.Trigger>
+                                        <Select.ValueText placeholder="Select GPUs" color={textColor} />
+                                    </Select.Trigger>
+                                    <Select.IndicatorGroup>
+                                        <Select.Indicator />
+                                    </Select.IndicatorGroup>
+                                </Select.Control>
+                                <Select.Positioner>
+                                    <Select.Content maxH="200px">
+                                        {gpuItems.map((item) => (
+                                            <Select.Item key={item.value} item={item}>
+                                                <Select.ItemText>{item.label}</Select.ItemText>
+                                            </Select.Item>
+                                        ))}
+                                    </Select.Content>
+                                </Select.Positioner>
+                            </Select.Root>
                             <Button
                                 size="sm"
                                 onClick={() => addQuickFilter('gpu', quickFilters.gpu)}
                                 disabled={!quickFilters.gpu.length}
+                                colorScheme="blue"
+                                variant="solid"
+                                color="white"
                             >
                                 Add
                             </Button>
                         </HStack>
                         <HStack>
-                            <Select
-                                value={quickFilters.pytorch}
-                                onChange={(e) => {
-                                    const options = Array.from(e.target.selectedOptions, option => option.value);
-                                    setQuickFilters({ ...quickFilters, pytorch: options });
+                            <Select.Root
+                                collection={pytorchCollection.collection}
+                                value={quickFilters.pytorch.filter((val: string) => pytorchItems.some(item => item.value === val))}
+                                onValueChange={(details) => {
+                                    setQuickFilters({ ...quickFilters, pytorch: details.value });
                                 }}
-                                placeholder="Select PyTorch versions"
-                                size="md"
-                                height="100px"
                                 multiple
+                                size="md"
                             >
-                                {pytorchList?.map((version: string) => (
-                                    <option key={version} value={version}>
-                                        {version}
-                                    </option>
-                                ))}
-                            </Select>
+                                <Select.HiddenSelect />
+                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                    <Select.Trigger>
+                                        <Select.ValueText placeholder="Select PyTorch versions" color={textColor} />
+                                    </Select.Trigger>
+                                    <Select.IndicatorGroup>
+                                        <Select.Indicator />
+                                    </Select.IndicatorGroup>
+                                </Select.Control>
+                                <Select.Positioner>
+                                    <Select.Content maxH="200px">
+                                        {pytorchItems.map((item) => (
+                                            <Select.Item key={item.value} item={item}>
+                                                <Select.ItemText>{item.label}</Select.ItemText>
+                                            </Select.Item>
+                                        ))}
+                                    </Select.Content>
+                                </Select.Positioner>
+                            </Select.Root>
                             <Button
                                 size="sm"
                                 onClick={() => addQuickFilter('pytorch', quickFilters.pytorch)}
                                 disabled={!quickFilters.pytorch.length}
+                                colorScheme="blue"
+                                variant="solid"
+                                color="white"
                             >
                                 Add
                             </Button>
                         </HStack>
                         <HStack>
-                            <Select
-                                value={quickFilters.milabench}
-                                onChange={(e) => {
-                                    const options = Array.from(e.target.selectedOptions, option => option.value);
-                                    setQuickFilters({ ...quickFilters, milabench: options });
+                            <Select.Root
+                                collection={milabenchCollection.collection}
+                                value={quickFilters.milabench.filter((val: string) => milabenchItems.some(item => item.value === val))}
+                                onValueChange={(details) => {
+                                    setQuickFilters({ ...quickFilters, milabench: details.value });
                                 }}
-                                placeholder="Select Milabench versions"
-                                size="md"
-                                height="100px"
                                 multiple
+                                size="md"
                             >
-                                {milabenchList?.map((version: string) => (
-                                    <option key={version} value={version}>
-                                        {version}
-                                    </option>
-                                ))}
-                            </Select>
+                                <Select.HiddenSelect />
+                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                    <Select.Trigger>
+                                        <Select.ValueText placeholder="Select Milabench versions" color={textColor} />
+                                    </Select.Trigger>
+                                    <Select.IndicatorGroup>
+                                        <Select.Indicator />
+                                    </Select.IndicatorGroup>
+                                </Select.Control>
+                                <Select.Positioner>
+                                    <Select.Content maxH="200px">
+                                        {milabenchItems.map((item) => (
+                                            <Select.Item key={item.value} item={item}>
+                                                <Select.ItemText>{item.label}</Select.ItemText>
+                                            </Select.Item>
+                                        ))}
+                                    </Select.Content>
+                                </Select.Positioner>
+                            </Select.Root>
                             <Button
                                 size="sm"
                                 onClick={() => addQuickFilter('milabench', quickFilters.milabench)}
                                 disabled={!quickFilters.milabench.length}
+                                colorScheme="blue"
+                                variant="solid"
+                                color="white"
                             >
                                 Add
                             </Button>
@@ -549,14 +660,17 @@ export const ExplorerView = () => {
                 </Box>
 
                 {/* Filters Section */}
-                <Box borderWidth={1} borderRadius="md" p={4}>
+                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
                     <VStack align="stretch" gap={4}>
                         <HStack justify="space-between">
-                            <Heading size="md">Filters</Heading>
+                            <Heading size="md" color={textColor}>Filters</Heading>
                             <Button
                                 leftIcon={<LuPlus />}
                                 onClick={addFilter}
                                 size="sm"
+                                colorScheme="blue"
+                                variant="solid"
+                                color="white"
                             >
                                 Add Filter
                             </Button>
@@ -564,37 +678,57 @@ export const ExplorerView = () => {
 
                         {filters.map((filter, index) => (
                             <HStack key={index} gap={2}>
-                                <Select
-                                    value={filter.field}
-                                    onChange={(e) => updateFilter(index, e.target.value, filter.operator, filter.value)}
-                                    placeholder="Select field"
+                                <Select.Root
+                                    collection={fieldCollection.collection}
+                                    value={filter.field && fieldItems.some(item => item.value === filter.field) ? [filter.field] : []}
+                                    onValueChange={(details) => updateFilter(index, details.value[0] || '', filter.operator, filter.value)}
                                     size="sm"
                                 >
-                                    {availableFields.map((field) => (
-                                        <option key={field} value={field}>
-                                            {formatFieldName(field)}
-                                        </option>
-                                    ))}
-                                </Select>
+                                    <Select.HiddenSelect />
+                                    <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                        <Select.Trigger>
+                                            <Select.ValueText placeholder="Select field" color={textColor} />
+                                        </Select.Trigger>
+                                        <Select.IndicatorGroup>
+                                            <Select.Indicator />
+                                        </Select.IndicatorGroup>
+                                    </Select.Control>
+                                    <Select.Positioner>
+                                        <Select.Content>
+                                            {fieldItems.map((item) => (
+                                                <Select.Item key={item.value} item={item}>
+                                                    <Select.ItemText>{item.label}</Select.ItemText>
+                                                </Select.Item>
+                                            ))}
+                                        </Select.Content>
+                                    </Select.Positioner>
+                                </Select.Root>
 
-                                <Select
-                                    value={filter.operator}
-                                    onChange={(e) => updateFilter(index, filter.field, e.target.value, filter.value)}
+                                <Select.Root
+                                    collection={operatorCollection.collection}
+                                    value={filter.operator && operatorItems.some(item => item.value === filter.operator) ? [filter.operator] : ['==']}
+                                    onValueChange={(details) => updateFilter(index, filter.field, details.value[0] || '==', filter.value)}
                                     size="sm"
                                 >
-                                    <option value="==">Equals (==)</option>
-                                    <option value="!=">Not Equals (!=)</option>
-                                    <option value=">">Greater Than (&gt;)</option>
-                                    <option value=">=">Greater Than or Equal (&gt;=)</option>
-                                    <option value="<">Less Than (&lt;)</option>
-                                    <option value="<=">Less Than or Equal (&lt;=)</option>
-                                    <option value="in">In List (in)</option>
-                                    <option value="not in">Not In List (not in)</option>
-                                    <option value="like">Like</option>
-                                    <option value="not like">Not Like</option>
-                                    <option value="is">Is</option>
-                                    <option value="is not">Is Not</option>
-                                </Select>
+                                    <Select.HiddenSelect />
+                                    <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                        <Select.Trigger>
+                                            <Select.ValueText color={textColor} />
+                                        </Select.Trigger>
+                                        <Select.IndicatorGroup>
+                                            <Select.Indicator />
+                                        </Select.IndicatorGroup>
+                                    </Select.Control>
+                                    <Select.Positioner>
+                                        <Select.Content>
+                                            {operatorItems.map((item) => (
+                                                <Select.Item key={item.value} item={item}>
+                                                    <Select.ItemText>{item.label}</Select.ItemText>
+                                                </Select.Item>
+                                            ))}
+                                        </Select.Content>
+                                    </Select.Positioner>
+                                </Select.Root>
 
                                 <Input
                                     value={Array.isArray(filter.value) ? filter.value.join(', ') : filter.value}
@@ -610,6 +744,10 @@ export const ExplorerView = () => {
                                     }}
                                     placeholder="Enter value"
                                     size="sm"
+                                    bg={cardBg}
+                                    borderColor={borderColor}
+                                    color={textColor}
+                                    _focus={{ borderColor: focusBorderColor }}
                                 />
 
                                 <IconButton
@@ -628,6 +766,8 @@ export const ExplorerView = () => {
                             onClick={handleSearch}
                             loading={isLoading}
                             colorScheme="blue"
+                            variant="solid"
+                            color="white"
                             alignSelf="flex-end"
                         >
                             Search
@@ -636,15 +776,17 @@ export const ExplorerView = () => {
                 </Box>
 
                 {/* Results Section */}
-                <Box borderWidth={1} borderRadius="md" p={4}>
+                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
                     <VStack align="stretch" gap={4}>
                         <HStack justify="space-between">
-                            <Heading size="md">Results</Heading>
+                            <Heading size="md" color={textColor}>Results</Heading>
                             <HStack>
                                 <Button
                                     leftIcon={<LuRefreshCw />}
                                     onClick={handleCompare}
                                     colorScheme="purple"
+                                    variant="solid"
+                                    color="white"
                                     disabled={!executions || executions.length === 0}
                                 >
                                     Compare
@@ -652,8 +794,12 @@ export const ExplorerView = () => {
                                 <Button
                                     as={Link}
                                     to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}
-                                    colorScheme="green"
+                                    bg={greenButtonBg}
+                                    variant="solid"
+                                    color="white"
                                     disabled={!executions || executions.length === 0}
+                                    _hover={{ color: 'white', bg: greenButtonHoverBg }}
+                                    _disabled={{ opacity: 0.6, color: 'white', bg: greenButtonBg }}
                                 >
                                     Plot
                                 </Button>
@@ -699,9 +845,9 @@ export const ExplorerView = () => {
                                 </Table.Body>
                             </Table.Root>
                         ) : filters.length > 0 ? (
-                            <Text color="gray.500" textAlign="center">No results found</Text>
+                            <Text color={mutedTextColor} textAlign="center">No results found</Text>
                         ) : (
-                            <Text color="gray.500" textAlign="center">Add filters and click Search to see results</Text>
+                            <Text color={mutedTextColor} textAlign="center">Add filters and click Search to see results</Text>
                         )}
                     </VStack>
                 </Box>
@@ -724,13 +870,30 @@ export const ExplorerView = () => {
                                         value={saveQueryName}
                                         onChange={(e) => setSaveQueryName(e.target.value)}
                                         placeholder="Enter a name for your query"
+                                        bg={cardBg}
+                                        borderColor={borderColor}
+                                        color={textColor}
+                                        _focus={{ borderColor: focusBorderColor }}
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
-                                    <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
+                                    <Button
+                                        colorScheme="blue"
+                                        onClick={handleSaveQuery}
+                                        width="100%"
+                                        variant="solid"
+                                        color="white"
+                                    >
                                         Save
                                     </Button>
-                                    <Button onClick={onSaveModalClose} width="100%">
+                                    <Button
+                                        onClick={onSaveModalClose}
+                                        width="100%"
+                                        variant="outline"
+                                        color={textColor}
+                                        borderColor={borderColor}
+                                        _hover={{ bg: buttonHoverBg }}
+                                    >
                                         Cancel
                                     </Button>
                                 </HStack>
@@ -759,34 +922,41 @@ export const ExplorerView = () => {
                                                 key={query._id}
                                                 p={4}
                                                 borderWidth={1}
+                                                borderColor={borderColor}
                                                 borderRadius="md"
+                                                bg={cardBg}
                                                 cursor="pointer"
-                                                _hover={{ bg: 'gray.50' }}
+                                                _hover={{ bg: queryItemHoverBg }}
                                                 onClick={() => handleLoadQuery(query)}
                                             >
                                                 <HStack justify="space-between">
                                                     <VStack align="start" gap={1}>
-                                                        <Text fontWeight="medium">{query.name}</Text>
-                                                        <Text fontSize="sm" color="gray.600">
+                                                        <Text fontWeight="medium" color={textColor}>{query.name}</Text>
+                                                        <Text fontSize="sm" color={mutedTextColor}>
                                                             Explorer View
                                                         </Text>
-                                                        <Text fontSize="sm" color="gray.600">
+                                                        <Text fontSize="sm" color={mutedTextColor}>
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
-                                                    <Button size="sm" colorScheme="blue">
+                                                    <Button
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        variant="solid"
+                                                        color="white"
+                                                    >
                                                         Load
                                                     </Button>
                                                 </HStack>
                                             </Box>
                                         ))
                                 ) : (
-                                    <Text color="gray.500" textAlign="center">
+                                    <Text color={mutedTextColor} textAlign="center">
                                         No saved queries found
                                     </Text>
                                 )}
                                 {savedQueries && savedQueries.filter((query: any) => query.query.url === '/explorer').length === 0 && savedQueries.length > 0 && (
-                                    <Text color="gray.500" textAlign="center">
+                                    <Text color={mutedTextColor} textAlign="center">
                                         No saved explorer queries found. Save queries from this view to see them here.
                                     </Text>
                                 )}

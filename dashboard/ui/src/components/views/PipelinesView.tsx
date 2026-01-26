@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useColorModeValue } from '../ui/color-mode';
+import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
     Heading,
@@ -14,7 +15,6 @@ import {
     Textarea,
     Select,
     IconButton,
-    Tooltip,
     Alert,
     Tabs,
     Card,
@@ -22,7 +22,9 @@ import {
     Flex,
     Spacer,
     Code,
-    Separator
+    Separator,
+    useToken,
+    useListCollection
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import {
@@ -77,6 +79,21 @@ const JobNode: React.FC<{
     depth?: number;
     canDelete?: boolean;
 }> = ({ node, onUpdate, onDelete, profiles, templates, depth = 0, canDelete = true }) => {
+    // Theme-aware colors
+    const nodeBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const [orange50, orange200] = useToken('colors', ['orange.50', 'orange.200']);
+    const [green50, green200] = useToken('colors', ['green.50', 'green.200']);
+    const [blue50, blue200] = useToken('colors', ['blue.50', 'blue.200']);
+
+    // Pre-compute theme-aware node colors
+    const jobBg = useColorModeValue(orange50, 'gray.800');
+    const sequentialBg = useColorModeValue(green50, 'gray.800');
+    const parallelBg = useColorModeValue(blue50, 'gray.800');
+    const jobBorder = useColorModeValue(orange200, 'gray.600');
+    const sequentialBorder = useColorModeValue(green200, 'gray.600');
+    const parallelBorder = useColorModeValue(blue200, 'gray.600');
 
     const handleTypeChange = (newType: 'job' | 'sequential' | 'parallel') => {
         const updatedNode = {
@@ -135,87 +152,216 @@ const JobNode: React.FC<{
         }
     };
 
+    const getNodeBgColor = (nodeType: string) => {
+        switch (nodeType) {
+            case 'job': return jobBg;
+            case 'sequential': return sequentialBg;
+            case 'parallel': return parallelBg;
+            default: return nodeBg;
+        }
+    };
 
+    const getNodeBorderColor = (nodeType: string) => {
+        switch (nodeType) {
+            case 'job': return jobBorder;
+            case 'sequential': return sequentialBorder;
+            case 'parallel': return parallelBorder;
+            default: return borderColor;
+        }
+    };
+
+
+
+    const inputBg = useColorModeValue('white', 'gray.700');
+    const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
+    const inputFocusBorderColor = useColorModeValue('blue.500', 'blue.400');
+    const labelColor = useColorModeValue('gray.700', 'gray.300');
+    const buttonBg = useColorModeValue('blue.500', 'blue.600');
+    const buttonHoverBg = useColorModeValue('blue.600', 'blue.500');
+
+    // Collections for Select components
+    const nodeTypeItems = useMemo(() => [
+        { label: 'Job', value: 'job' },
+        { label: 'Sequential', value: 'sequential' },
+        { label: 'Parallel', value: 'parallel' }
+    ], []);
+
+    const templatesItems = useMemo(() =>
+        templates.map(template => ({ label: template, value: template })),
+        [templates]
+    );
+
+    const profilesItems = useMemo(() =>
+        profiles.map(profile => ({ label: profile.name, value: profile.name })),
+        [profiles]
+    );
+
+    const nodeTypeCollection = useListCollection({ initialItems: nodeTypeItems });
+    const templatesCollection = useListCollection({ initialItems: templatesItems });
+    const profilesCollection = useListCollection({ initialItems: profilesItems });
 
     const renderNodeHeader = () => {
         return (
-            <HStack gap={3} justify="space-between">
-                <HStack gap={3} flex={1}>
-                    <Select
-                        size="sm"
-                        value={node.type}
-                        onChange={(e) => handleTypeChange(e.target.value as any)}
-                        w="120px"
-                        bg={`${getNodeColor(node.type)}.50`}
-                        borderColor={`${getNodeColor(node.type)}.200`}
-                        fontWeight="semibold"
-                    >
-                        <option value="job">Job</option>
-                        <option value="sequential">Sequential</option>
-                        <option value="parallel">Parallel</option>
-                    </Select>
-
-                    {node.type === 'job' ? (
-                        <>
-                            <label>Script</label>
-                            <Select
+            <VStack gap={3} align="stretch">
+                <HStack gap={3} justify="space-between" flexWrap="wrap" align="flex-end">
+                    <HStack gap={3} flex={1} minW="300px" align="flex-end">
+                        <VStack align="start" gap={1} w="140px">
+                            <Text fontSize="xs" fontWeight="medium" color={labelColor} visibility="hidden">Type</Text>
+                            <Select.Root
                                 size="sm"
-                                value={node.script || ''}
-                                onChange={(e) => handleFieldChange('script', e.target.value)}
-                                placeholder="Select template"
-                                flex={1}
+                                collection={nodeTypeCollection.collection}
+                                value={[node.type]}
+                                onValueChange={(details) => handleTypeChange(details.value[0] as any)}
+                                w="100%"
                             >
-                                <option value="">Select template</option>
-                                {templates.map((template) => (
-                                    <option key={template} value={template}>
-                                        {template}
-                                    </option>
-                                ))}
-                            </Select>
-                            <label>Resources</label>
-                            <Select
-                                size="sm"
-                                value={node.profile || ''}
-                                onChange={(e) => handleFieldChange('profile', e.target.value)}
-                                w="300px"
-                            >
-                                <option value="">Select profile</option>
-                                {profiles.map((profile) => (
-                                    <option key={profile.name} value={profile.name}>
-                                        {profile.name}
-                                    </option>
-                                ))}
-                            </Select>
-                        </>
-                    ) : (
-                        <Input
-                            size="sm"
-                            value={node.name || ''}
-                            onChange={(e) => handleFieldChange('name', e.target.value)}
-                            placeholder="Enter name"
-                            flex={1}
-                        />
-                    )}
-                </HStack>
+                                <Select.HiddenSelect />
+                                <Select.Control
+                                    bg={getNodeBgColor(node.type)}
+                                    borderColor={getNodeBorderColor(node.type)}
+                                    borderRadius="md"
+                                    h="32px"
+                                >
+                                    <Select.Trigger>
+                                        <Select.ValueText fontWeight="semibold" color={textColor} />
+                                    </Select.Trigger>
+                                    <Select.IndicatorGroup>
+                                        <Select.Indicator />
+                                    </Select.IndicatorGroup>
+                                </Select.Control>
+                                <Select.Positioner>
+                                    <Select.Content>
+                                        {nodeTypeItems.map((item) => (
+                                            <Select.Item key={item.value} item={item}>
+                                                <Select.ItemText>{item.label}</Select.ItemText>
+                                            </Select.Item>
+                                        ))}
+                                    </Select.Content>
+                                </Select.Positioner>
+                            </Select.Root>
+                        </VStack>
 
-                <HStack gap={2}>
-                    {node.type !== 'job' && (
-                        <Button size="sm" onClick={handleAddChild}>
-                            +
-                        </Button>
-                    )}
-                    {canDelete && (
-                        <IconButton
-                            aria-label="Delete"
-                            icon={<LuTrash2 />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            onClick={onDelete}
-                        />
-                    )}
+                        {node.type === 'job' ? (
+                            <>
+                                <VStack align="start" gap={1} flex={1}>
+                                    <Text fontSize="xs" fontWeight="medium" color={labelColor}>Script</Text>
+                                    <Select.Root
+                                        size="sm"
+                                        collection={templatesCollection.collection}
+                                        value={node.script ? [node.script] : []}
+                                        onValueChange={(details) => handleFieldChange('script', details.value[0] || '')}
+                                        flex={1}
+                                    >
+                                        <Select.HiddenSelect />
+                                        <Select.Control
+                                            bg={inputBg}
+                                            borderColor={inputBorderColor}
+                                            borderRadius="md"
+                                            _focus={{ borderColor: inputFocusBorderColor }}
+                                            h="32px"
+                                        >
+                                            <Select.Trigger>
+                                                <Select.ValueText placeholder="Select template" color={textColor} />
+                                            </Select.Trigger>
+                                            <Select.IndicatorGroup>
+                                                <Select.Indicator />
+                                            </Select.IndicatorGroup>
+                                        </Select.Control>
+                                        <Select.Positioner>
+                                            <Select.Content>
+                                                {templatesItems.map((item) => (
+                                                    <Select.Item key={item.value} item={item}>
+                                                        <Select.ItemText>{item.label}</Select.ItemText>
+                                                    </Select.Item>
+                                                ))}
+                                            </Select.Content>
+                                        </Select.Positioner>
+                                    </Select.Root>
+                                </VStack>
+                                <VStack align="start" gap={1} w="300px">
+                                    <Text fontSize="xs" fontWeight="medium" color={labelColor}>Resources</Text>
+                                    <Select.Root
+                                        size="sm"
+                                        collection={profilesCollection.collection}
+                                        value={node.profile ? [node.profile] : []}
+                                        onValueChange={(details) => handleFieldChange('profile', details.value[0] || '')}
+                                        w="100%"
+                                    >
+                                        <Select.HiddenSelect />
+                                        <Select.Control
+                                            bg={inputBg}
+                                            borderColor={inputBorderColor}
+                                            borderRadius="md"
+                                            _focus={{ borderColor: inputFocusBorderColor }}
+                                            h="32px"
+                                        >
+                                            <Select.Trigger>
+                                                <Select.ValueText placeholder="Select profile" color={textColor} />
+                                            </Select.Trigger>
+                                            <Select.IndicatorGroup>
+                                                <Select.Indicator />
+                                            </Select.IndicatorGroup>
+                                        </Select.Control>
+                                        <Select.Positioner>
+                                            <Select.Content>
+                                                {profilesItems.map((item) => (
+                                                    <Select.Item key={item.value} item={item}>
+                                                        <Select.ItemText>{item.label}</Select.ItemText>
+                                                    </Select.Item>
+                                                ))}
+                                            </Select.Content>
+                                        </Select.Positioner>
+                                    </Select.Root>
+                                </VStack>
+                            </>
+                        ) : (
+                            <VStack align="start" gap={1} flex={1}>
+                                <Text fontSize="xs" fontWeight="medium" color={labelColor}>Name</Text>
+                                <Input
+                                    pl="10px"
+                                    size="sm"
+                                    value={node.name || ''}
+                                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                                    placeholder="Enter name"
+                                    w="100%"
+                                    bg={inputBg}
+                                    borderColor={inputBorderColor}
+                                    color={textColor}
+                                    _focus={{ borderColor: inputFocusBorderColor }}
+                                    borderRadius="md"
+                                    h="32px"
+                                />
+                            </VStack>
+                        )}
+                    </HStack>
+
+                    <HStack gap={2}>
+                        {node.type !== 'job' && (
+                            <Button
+                                size="sm"
+                                onClick={handleAddChild}
+                                bg={buttonBg}
+                                color="white"
+                                _hover={{ bg: buttonHoverBg }}
+                                borderRadius="md"
+                            >
+                                + Add
+                            </Button>
+                        )}
+                        {canDelete && (
+                            <IconButton
+                                aria-label="Delete"
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={onDelete}
+                                borderRadius="md"
+                            >
+                                <LuTrash2 />
+                            </IconButton>
+                        )}
+                    </HStack>
                 </HStack>
-            </HStack>
+            </VStack>
         );
     };
 
@@ -224,17 +370,10 @@ const JobNode: React.FC<{
         if (node.type === 'job' || node.children.length === 0) return null;
 
         // Show children for sequential and parallel types only
-        const ListComponent = node.type === 'sequential' ? 'ol' : 'ul';
-        const listStyle = node.type === 'sequential' ? 'decimal' : 'disc';
-
         return (
-            <Box
-                as={ListComponent}
-                pl={6}
-                style={{ listStyleType: listStyle }}
-            >
+            <VStack align="stretch" pl={6} gap={1}>
                 {node.children.map((child, index) => (
-                    <Box as="li" key={index} mb={2}>
+                    <Box key={index}>
                         <JobNode
                             node={child}
                             onUpdate={(updatedChild) => handleChildUpdate(index, updatedChild)}
@@ -246,25 +385,31 @@ const JobNode: React.FC<{
                         />
                     </Box>
                 ))}
-            </Box>
+            </VStack>
         );
     };
 
     if (node.type === 'job') {
         return (
-            <Box ml={depth * 1} bg="white">
-                <Box p={0}>
-                    {renderNodeHeader()}
-                </Box>
+            <Box ml={depth * 2} bg={nodeBg} padding="2px" borderRadius="md" border="1px" borderColor={borderColor} mb={1}>
+                {renderNodeHeader()}
                 {renderChildren()}
             </Box>
         );
     }
 
-
     return (
-        <Box ml={depth * 1} border="1px" borderColor="gray.200" borderRadius="md" mb={2} bg="white">
-            <Box p={3}>
+        <Box
+            ml={depth * 2}
+            padding="10px"
+            border="1px"
+            borderColor={borderColor}
+            borderRadius="lg"
+            mb={1}
+            bg={nodeBg}
+            boxShadow={useColorModeValue('sm', 'dark-lg')}
+        >
+            <Box p={4}>
                 {renderNodeHeader()}
             </Box>
             {renderChildren()}
@@ -275,62 +420,66 @@ const JobNode: React.FC<{
 const PipelineNodeDisplay: React.FC<{ node: PipelineNode; depth?: number }> = ({ node, depth = 0 }) => {
     const indent = depth * 20;
 
+    // Theme-aware colors
+    const nodeBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+
     const renderNode = () => {
         if (node.type === 'job') {
             const job = node as PipelineJob;
             return (
-                <Box ml={indent} p={2} border="1px" borderColor="gray.200" borderRadius="md" mb={2}>
                     <HStack>
                         <Badge colorScheme="orange">Job</Badge>
-                        <Text fontWeight="bold">{job.script}</Text>
+                        <Text fontWeight="bold" color={textColor}>{job.script}</Text>
                         <Badge variant="outline">{job.profile}</Badge>
                     </HStack>
-                </Box>
             );
         }
 
         if (node.type === 'sequential') {
             const seq = node as PipelineSequential;
-            return (
-                <Box ml={indent}>
-                    <HStack mb={2}>
+            return (<>
+                    <HStack>
                         <Badge colorScheme="green">Sequential</Badge>
-                        <Text fontWeight="bold">{seq.name}</Text>
+                        <Text fontWeight="bold" color={textColor}>{seq.name}</Text>
                     </HStack>
-                    <Box as="ol" pl={6} style={{ listStyleType: 'decimal' }}>
+                    <VStack align="stretch" pl={6} gap={1}>
                         {seq.jobs.map((job, index) => (
-                            <Box as="li" key={index} mb={2}>
+                            <Box key={index}>
                                 <PipelineNodeDisplay node={job} depth={depth + 1} />
                             </Box>
                         ))}
-                    </Box>
-                </Box>
+                    </VStack>
+                    </>
             );
         }
 
         if (node.type === 'parallel') {
             const par = node as PipelineParallel;
-            return (
-                <Box ml={indent}>
-                    <HStack mb={2}>
+            return (<>
+                    <HStack>
                         <Badge colorScheme="blue">Parallel</Badge>
-                        <Text fontWeight="bold">{par.name}</Text>
+                        <Text fontWeight="bold" color={textColor}>{par.name}</Text>
                     </HStack>
-                    <Box as="ul" pl={6} style={{ listStyleType: 'disc' }}>
+                    <VStack align="stretch" pl={6} gap={1}>
                         {par.jobs.map((job, index) => (
-                            <Box as="li" key={index} mb={2}>
+                            <Box key={index}>
                                 <PipelineNodeDisplay node={job} depth={depth + 1} />
                             </Box>
                         ))}
-                    </Box>
-                </Box>
-            );
-        }
+                    </VStack> 
+            </>);
+        } 
 
         return null;
     };
 
-    return renderNode();
+    return (
+        <Box ml={indent} padding="0px" margin="0px" className="here">
+                {renderNode()}
+        </Box>
+    )
 };
 
 const PipelineBuilder: React.FC<{
@@ -352,6 +501,11 @@ const PipelineBuilder: React.FC<{
     const [templateName, setTemplateName] = useState('');
     const [showTemplateSave, setShowTemplateSave] = useState(false);
     const [showTemplateLoad, setShowTemplateLoad] = useState(false);
+
+    // Theme-aware colors for PipelineBuilder
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const structureBg = useColorModeValue('gray.50', 'gray.900');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
 
     // Convert backend PipelineNode format to frontend JobNodeData format
     const convertFromBackendFormat = (node: PipelineNode): JobNodeData => {
@@ -505,10 +659,17 @@ const PipelineBuilder: React.FC<{
 
                             <Box>
                                 <HStack mb={4}>
-                                    <Heading size="md">Pipeline Structure</Heading>
+                                    <Heading size="md" color={textColor}>Pipeline Structure</Heading>
                                 </HStack>
 
-                                <Box border="1px" borderColor="gray.200" borderRadius="md" p={4} bg="gray.50">
+                                <Box
+                                    border="1px"
+                                    borderColor={borderColor}
+                                    borderRadius="lg"
+                                    p={6}
+                                    bg={structureBg}
+                                    boxShadow={useColorModeValue('sm', 'dark-lg')}
+                                >
                                     <JobNode
                                         node={rootNode}
                                         onUpdate={setRootNode}
@@ -522,15 +683,264 @@ const PipelineBuilder: React.FC<{
                         </VStack>
                     </Dialog.Body>
                     <Dialog.Footer>
-                        <Button variant="ghost" mr={3} onClick={onClose}>
+                        <Button
+                            variant="ghost"
+                            mr={3}
+                            onClick={onClose}
+                            color={textColor}
+                            _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                        >
                             Cancel
                         </Button>
                         <Button
-                            colorScheme="blue"
                             onClick={handleSavePipeline}
                             disabled={!pipelineName}
+                            bg={useColorModeValue('blue.500', 'blue.600')}
+                            color="white"
+                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            fontWeight="medium"
                         >
-                            Save
+                            Save Pipeline
+                        </Button>
+                    </Dialog.Footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Dialog.Root>
+    );
+};
+
+// PipelinesHeader Component
+const PipelinesHeader: React.FC<{
+    onCreateOpen: () => void;
+}> = ({ onCreateOpen }) => {
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
+
+    return (
+        <>
+            <Flex align="center" flexWrap="wrap" gap={4}>
+                <Heading size="lg" color={textColor}>Pipeline Management</Heading>
+                <Spacer />
+                <Button
+                    onClick={onCreateOpen}
+                    leftIcon={<LuPlus />}
+                    bg={useColorModeValue('blue.500', 'blue.600')}
+                    color="white"
+                    _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                    fontWeight="medium"
+                    borderRadius="md"
+                >
+                    New Pipeline
+                </Button>
+            </Flex>
+
+            <Text color={mutedTextColor}>
+                Manage and run SLURM job pipelines with dependencies and scheduling.
+            </Text>
+        </>
+    );
+};
+
+// PipelineTemplatesTable Component
+const PipelineTemplatesTable: React.FC<{
+    pipelineTemplateFiles: string[];
+    onLoadTemplate: (fileName: string) => Promise<any>;
+    onTemplateLoaded: (templateData: any) => void;
+    isLoading: boolean;
+}> = ({ pipelineTemplateFiles, onLoadTemplate, onTemplateLoaded, isLoading }) => {
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const rowHoverBg = useColorModeValue('gray.50', 'gray.800');
+    const headerBg = useColorModeValue('gray.50', 'gray.800');
+    const headerTextColor = useColorModeValue('gray.700', 'gray.300');
+    const buttonBg = useColorModeValue('blue.500', 'blue.600');
+    const buttonHoverBg = useColorModeValue('blue.600', 'blue.500');
+
+    if (pipelineTemplateFiles.length === 0) {
+        return (
+            <Alert.Root status="info">
+                <Alert.Indicator />
+                <Alert.Content>
+                    <Alert.Description>
+                        No pipeline templates saved yet. Create a pipeline and save it as a template to get started.
+                    </Alert.Description>
+                </Alert.Content>
+            </Alert.Root>
+        );
+    }
+
+    return (
+        <VStack align="stretch" gap={3}>
+            <Table.Root>
+                <Table.Header bg={headerBg}>
+                    <Table.Row>
+                        <Table.ColumnHeader color={headerTextColor} borderColor={borderColor} fontWeight="semibold" pl={4}>Template Name</Table.ColumnHeader>
+                        <Table.ColumnHeader color={headerTextColor} borderColor={borderColor} fontWeight="semibold" pr={4}>Actions</Table.ColumnHeader>
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                    {pipelineTemplateFiles.map((fileName) => (
+                        <Table.Row
+                            key={fileName}
+                            _hover={{ bg: rowHoverBg }}
+                            borderColor={borderColor}
+                            transition="background-color 0.2s"
+                        >
+                            <Table.Cell fontWeight="medium" color={textColor} borderColor={borderColor} py={3} pl={4}>
+                                {fileName}
+                            </Table.Cell>
+                            <Table.Cell borderColor={borderColor} py={3} pr={4}>
+                                <HStack gap={2}>
+                                    <Tooltip label="Load template to create new pipeline">
+                                        <Button
+                                            size="sm"
+                                            onClick={() => {
+                                                onLoadTemplate(fileName).then((templateData) => {
+                                                    onTemplateLoaded(templateData);
+                                                });
+                                            }}
+                                            loading={isLoading}
+                                            bg={buttonBg}
+                                            color="white"
+                                            _hover={{ bg: buttonHoverBg }}
+                                            fontWeight="medium"
+                                        >
+                                            Open
+                                        </Button>
+                                    </Tooltip>
+                                </HStack>
+                            </Table.Cell>
+                        </Table.Row>
+                    ))}
+                </Table.Body>
+            </Table.Root>
+        </VStack>
+    );
+};
+
+// PipelineStructureModal Component
+const PipelineStructureModal: React.FC<{
+    pipeline: Pipeline | null;
+    onClose: () => void;
+}> = ({ pipeline, onClose }) => {
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const cardBg = useColorModeValue('white', 'gray.800');
+
+    return (
+        <Dialog.Root open={!!pipeline} onOpenChange={(details) => { if (!details.open) onClose(); }} size="xl">
+            <Dialog.Backdrop />
+            <Dialog.Positioner>
+                <Dialog.Content maxW="xl">
+                    <Dialog.Header>
+                        <Dialog.Title>Pipeline Structure: {pipeline?.name}</Dialog.Title>
+                        <Dialog.CloseTrigger />
+                    </Dialog.Header>
+                    <Dialog.Body>
+                        {pipeline && (
+                            <Box border="1px" borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
+                                <PipelineNodeDisplay node={pipeline.definition} />
+                            </Box>
+                        )}
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                        <Button
+                            onClick={onClose}
+                            bg={useColorModeValue('blue.500', 'blue.600')}
+                            color="white"
+                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            fontWeight="medium"
+                        >
+                            Close
+                        </Button>
+                    </Dialog.Footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Dialog.Root>
+    );
+};
+
+// PipelineRunDetailsModal Component
+const PipelineRunDetailsModal: React.FC<{
+    run: PipelineRun | null;
+    onClose: () => void;
+}> = ({ run, onClose }) => {
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
+    const rowHoverBg = useColorModeValue('gray.50', 'gray.800');
+    const headerBg = useColorModeValue('gray.50', 'gray.800');
+    const headerTextColor = useColorModeValue('gray.700', 'gray.300');
+
+    return (
+        <Dialog.Root open={!!run} onOpenChange={(details) => { if (!details.open) onClose(); }} size="xl">
+            <Dialog.Backdrop />
+            <Dialog.Positioner>
+                <Dialog.Content maxW="xl">
+                    <Dialog.Header>
+                        <Dialog.Title>Pipeline Run Details: {run?.id}</Dialog.Title>
+                        <Dialog.CloseTrigger />
+                    </Dialog.Header>
+                    <Dialog.Body>
+                        {run && (
+                            <VStack align="start" gap={4}>
+                                <HStack>
+                                    <Text fontWeight="bold" color={textColor}>Status:</Text>
+                                    <Badge colorScheme={getStatusColor(run.status)}>
+                                        {run.status}
+                                    </Badge>
+                                </HStack>
+                                <HStack>
+                                    <Text fontWeight="bold" color={textColor}>Pipeline:</Text>
+                                    <Text color={textColor}>{run.pipeline.name}</Text>
+                                </HStack>
+                                <HStack>
+                                    <Text fontWeight="bold" color={textColor}>Created:</Text>
+                                    <Text color={textColor}>{new Date(run.created_at).toLocaleString()}</Text>
+                                </HStack>
+                                {run.jobs.length > 0 && (
+                                    <Box width="100%">
+                                        <Text fontWeight="bold" mb={2} color={textColor}>Jobs:</Text>
+                                        <Table.Root size="sm" variant="simple">
+                                            <Table.Header bg={headerBg}>
+                                                <Table.Row>
+                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Job ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Slurm ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Status</Table.ColumnHeader>
+                                                </Table.Row>
+                                            </Table.Header>
+                                            <Table.Body>
+                                                {run.jobs.map((job) => (
+                                                    <Table.Row
+                                                        key={job.job_id}
+                                                        _hover={{ bg: rowHoverBg }}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        <Table.Cell fontFamily="mono" fontSize="sm" color={textColor} borderColor={borderColor}>{job.job_id}</Table.Cell>
+                                                        <Table.Cell fontFamily="mono" fontSize="sm" color={textColor} borderColor={borderColor}>
+                                                            {job.slurm_jobid || '-'}
+                                                        </Table.Cell>
+                                                        <Table.Cell borderColor={borderColor}>
+                                                            <Badge colorScheme={getStatusColor(job.status)} size="sm">
+                                                                {job.status}
+                                                            </Badge>
+                                                        </Table.Cell>
+                                                    </Table.Row>
+                                                ))}
+                                            </Table.Body>
+                                        </Table.Root>
+                                    </Box>
+                                )}
+                            </VStack>
+                        )}
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                        <Button
+                            onClick={onClose}
+                            bg={useColorModeValue('blue.500', 'blue.600')}
+                            color="white"
+                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            fontWeight="medium"
+                        >
+                            Close
                         </Button>
                     </Dialog.Footer>
                 </Dialog.Content>
@@ -548,6 +958,12 @@ export const PipelinesView: React.FC = () => {
     const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
     const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null);
     const [loadedTemplateData, setLoadedTemplateData] = useState<any>(null);
+
+    // Theme-aware colors
+    const pageBg = useColorModeValue('gray.50', 'gray.900');
+    const cardBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
+    const textColor = useColorModeValue('gray.900', 'gray.100');
 
     // Queries
     const { data: profiles = [] } = useQuery({
@@ -605,22 +1021,10 @@ export const PipelinesView: React.FC = () => {
         }
     });
 
-
-
     return (
-        <Box p={6}>
+        <Box p={6} bg={pageBg} minH="100vh">
             <VStack gap={6} align="stretch">
-                <Flex align="center">
-                    <Heading size="lg">Pipeline Management</Heading>
-                    <Spacer />
-                    <Button colorScheme="blue" onClick={onCreateOpen}>
-                        <LuPlus /> New Pipeline
-                    </Button>
-                </Flex>
-
-                <Text color="gray.600">
-                    Manage and run SLURM job pipelines with dependencies and scheduling.
-                </Text>
+                <PipelinesHeader onCreateOpen={onCreateOpen} />
 
                 <Tabs.Root defaultValue="templates">
                     <Tabs.List>
@@ -628,58 +1032,25 @@ export const PipelinesView: React.FC = () => {
                     </Tabs.List>
 
                     <Tabs.Content value="templates" p={0} pt={4}>
-                        <Card.Root>
-                            <Card.Header>
-                                <Heading size="md">Pipeline Templates</Heading>
+                        <Card.Root
+                            bg={cardBg}
+                            borderColor={borderColor}
+                            borderRadius="lg"
+                            boxShadow={useColorModeValue('sm', 'dark-lg')}
+                        >
+                            <Card.Header borderBottom="1px" borderColor={borderColor}>
+                                <Heading size="md" color={textColor}>Pipeline Templates</Heading>
                             </Card.Header>
-                            <Card.Body>
-                                {pipelineTemplateFiles.length === 0 ? (
-                                    <Alert.Root status="info">
-                                        <Alert.Indicator />
-                                        <Alert.Content>
-                                            <Alert.Description>
-                                                No pipeline templates saved yet. Create a pipeline and save it as a template to get started.
-                                            </Alert.Description>
-                                        </Alert.Content>
-                                    </Alert.Root>
-                                ) : (
-                                    <VStack align="stretch" gap={3}>
-                                        <Table.Root variant="simple">
-                                            <Table.Header>
-                                                <Table.Row>
-                                                    <Table.ColumnHeader>Template Name</Table.ColumnHeader>
-                                                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
-                                                </Table.Row>
-                                            </Table.Header>
-                                            <Table.Body>
-                                                {pipelineTemplateFiles.map((fileName) => (
-                                                    <Table.Row key={fileName}>
-                                                        <Table.Cell fontWeight="bold">{fileName}</Table.Cell>
-                                                        <Table.Cell>
-                                                            <HStack gap={2}>
-                                                                <Tooltip label="Load template to create new pipeline">
-                                                                    <Button
-                                                                        size="sm"
-                                                                        colorScheme="blue"
-                                                                        onClick={() => {
-                                                                            loadPipelineTemplateMutation.mutateAsync(fileName).then((templateData) => {
-                                                                                setLoadedTemplateData(templateData);
-                                                                                onCreateOpen(); // Open the create modal
-                                                                            });
-                                                                        }}
-                                                                        loading={loadPipelineTemplateMutation.isPending}
-                                                                    >
-                                                                        Open
-                                                                    </Button>
-                                                                </Tooltip>
-                                                            </HStack>
-                                                        </Table.Cell>
-                                                    </Table.Row>
-                                                ))}
-                                            </Table.Body>
-                                        </Table.Root>
-                                    </VStack>
-                                )}
+                            <Card.Body pt={4}>
+                                <PipelineTemplatesTable
+                                    pipelineTemplateFiles={pipelineTemplateFiles}
+                                    onLoadTemplate={(fileName) => loadPipelineTemplateMutation.mutateAsync(fileName)}
+                                    onTemplateLoaded={(templateData) => {
+                                        setLoadedTemplateData(templateData);
+                                        onCreateOpen();
+                                    }}
+                                    isLoading={loadPipelineTemplateMutation.isPending}
+                                />
                             </Card.Body>
                         </Card.Root>
                     </Tabs.Content>
@@ -700,93 +1071,15 @@ export const PipelinesView: React.FC = () => {
                 onLoadTemplate={(fileName) => loadPipelineTemplateMutation.mutateAsync(fileName)}
             />
 
-            {/* Pipeline Structure Modal */}
-            <Dialog.Root open={!!selectedPipeline} onOpenChange={(details) => { if (!details.open) setSelectedPipeline(null); }} size="xl">
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="xl">
-                        <Dialog.Header>
-                            <Dialog.Title>Pipeline Structure: {selectedPipeline?.name}</Dialog.Title>
-                            <Dialog.CloseTrigger />
-                        </Dialog.Header>
-                        <Dialog.Body>
-                            {selectedPipeline && (
-                                <Box border="1px" borderColor="gray.200" borderRadius="md" p={4}>
-                                    <PipelineNodeDisplay node={selectedPipeline.definition} />
-                                </Box>
-                            )}
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button onClick={() => setSelectedPipeline(null)}>Close</Button>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
+            <PipelineStructureModal
+                pipeline={selectedPipeline}
+                onClose={() => setSelectedPipeline(null)}
+            />
 
-            {/* Pipeline Run Details Modal */}
-            <Dialog.Root open={!!selectedRun} onOpenChange={(details) => { if (!details.open) setSelectedRun(null); }} size="xl">
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content maxW="xl">
-                        <Dialog.Header>
-                            <Dialog.Title>Pipeline Run Details: {selectedRun?.id}</Dialog.Title>
-                            <Dialog.CloseTrigger />
-                        </Dialog.Header>
-                        <Dialog.Body>
-                            {selectedRun && (
-                                <VStack align="start" gap={4}>
-                                    <HStack>
-                                        <Text fontWeight="bold">Status:</Text>
-                                        <Badge colorScheme={getStatusColor(selectedRun.status)}>
-                                            {selectedRun.status}
-                                        </Badge>
-                                    </HStack>
-                                    <HStack>
-                                        <Text fontWeight="bold">Pipeline:</Text>
-                                        <Text>{selectedRun.pipeline.name}</Text>
-                                    </HStack>
-                                    <HStack>
-                                        <Text fontWeight="bold">Created:</Text>
-                                        <Text>{new Date(selectedRun.created_at).toLocaleString()}</Text>
-                                    </HStack>
-                                    {selectedRun.jobs.length > 0 && (
-                                        <Box width="100%">
-                                            <Text fontWeight="bold" mb={2}>Jobs:</Text>
-                                            <Table.Root size="sm" variant="simple">
-                                                <Table.Header>
-                                                    <Table.Row>
-                                                        <Table.ColumnHeader>Job ID</Table.ColumnHeader>
-                                                        <Table.ColumnHeader>Slurm ID</Table.ColumnHeader>
-                                                        <Table.ColumnHeader>Status</Table.ColumnHeader>
-                                                    </Table.Row>
-                                                </Table.Header>
-                                                <Table.Body>
-                                                    {selectedRun.jobs.map((job) => (
-                                                        <Table.Row key={job.job_id}>
-                                                            <Table.Cell fontFamily="mono" fontSize="sm">{job.job_id}</Table.Cell>
-                                                            <Table.Cell fontFamily="mono" fontSize="sm">
-                                                                {job.slurm_jobid || '-'}
-                                                            </Table.Cell>
-                                                            <Table.Cell>
-                                                                <Badge colorScheme={getStatusColor(job.status)} size="sm">
-                                                                    {job.status}
-                                                                </Badge>
-                                                            </Table.Cell>
-                                                        </Table.Row>
-                                                    ))}
-                                                </Table.Body>
-                                            </Table.Root>
-                                        </Box>
-                                    )}
-                                </VStack>
-                            )}
-                        </Dialog.Body>
-                        <Dialog.Footer>
-                            <Button onClick={() => setSelectedRun(null)}>Close</Button>
-                        </Dialog.Footer>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
+            <PipelineRunDetailsModal
+                run={selectedRun}
+                onClose={() => setSelectedRun(null)}
+            />
         </Box>
     );
 };

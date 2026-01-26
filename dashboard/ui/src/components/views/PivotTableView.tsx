@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
     Table,
@@ -8,7 +9,6 @@ import {
     IconButton,
     Alert,
     Select,
-    Tooltip,
     useToken,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
@@ -886,7 +886,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                         No data available
                     </Text>
                     <Text fontSize="sm" color="gray.500" textAlign="center">
-                        Configure your pivot fields and the table will automatically generate
+                        Configure your pivot fields and press execute
                     </Text>
                 </Box>
             )}
