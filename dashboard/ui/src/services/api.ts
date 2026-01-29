@@ -557,3 +557,121 @@ export const earlySyncJob = async (jrJobId: string, jobId: string): Promise<Earl
         return handleError(error);
     }
 };
+
+// Datafile-related API functions
+export interface DatafileLogEntry {
+    text: string;
+    [key: string]: any;
+}
+
+export interface DatafileMetricsPreview {
+    full_length: number;
+    metrics: any[];
+}
+
+export const getDatafileBenchmarks = async (): Promise<string[]> => {
+    try {
+        const response = await axios.get('/api/datafile/list/benchmark', {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileConfig = async (bench: string): Promise<any> => {
+    try {
+        const response = await axios.get(`/api/datafile/config/${bench}`, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileMeta = async (bench: string): Promise<any> => {
+    try {
+        const response = await axios.get(`/api/datafile/meta/${bench}`, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileStdout = async (bench: string): Promise<DatafileLogEntry[]> => {
+    try {
+        const response = await axios.get(`/api/datafile/stdout/${bench}`, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileStderr = async (bench: string): Promise<DatafileLogEntry[]> => {
+    try {
+        const response = await axios.get(`/api/datafile/stderr/${bench}`, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileMetricsPreview = async (bench: string): Promise<DatafileMetricsPreview> => {
+    try {
+        const response = await axios.get(`/api/datafile/metrics/preview/${bench}`, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface DatafileFields {
+    [fieldName: string]: any[];
+}
+
+export const getDatafileFields = async (): Promise<DatafileFields> => {
+    try {
+        const response = await axios.get('/api/datafile/select/fields', {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface SelectedFields {
+    [fieldName: string]: string; // field name -> pattern
+}
+
+export const previewDatafileSelection = async (selectedFields: SelectedFields): Promise<any[]> => {
+    try {
+        const response = await axios.post('/api/datafile/select/benchmark', selectedFields, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields): Promise<any[]> => {
+    try {
+        const response = await axios.post('/api/datafile/select/metrics', selectedFields, {
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};

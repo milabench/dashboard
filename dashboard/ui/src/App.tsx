@@ -21,6 +21,8 @@ import { JobDetailsView } from './components/views/JobDetails';
 import { JobLogsView } from './components/views/JobLogs';
 import { PipelinesView } from './components/views/PipelinesView';
 import { RealtimeMetricsView } from './components/views/RealtimeMetricsView';
+import { DatafileView } from './components/views/DatafileView';
+import { VegaPlotBuilderView } from './components/views/VegaPlotBuilderView';
 import { Toaster } from "./components/ui/toaster"
 
 // Create the theme system for Chakra UI v3
@@ -49,6 +51,8 @@ function App() {
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
                 <Route path="/pipelines" element={<PipelinesView />} />
                 <Route path="/realtime" element={<RealtimeMetricsView />} />
+                <Route path="/datafile" element={<DatafileView />} />
+                <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
               </Routes>
             </Layout>
           </Router>

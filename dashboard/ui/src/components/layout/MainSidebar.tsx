@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
         routes: [
             { label: 'Pivot View', path: '/pivot' },
             { label: 'Explorer', path: '/explorer' },
+            { label: 'Datafile', path: '/datafile' },
         ]
     },
 

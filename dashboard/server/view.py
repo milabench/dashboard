@@ -26,6 +26,7 @@ from .utils import database_uri, page, make_selection_key, make_filters, cursor_
 from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
 from .push import push_routes
+from .report import datafile_processor
 
 
 class MultiIndexFormater:
@@ -162,6 +163,8 @@ def view_server(config):
     metric_receiver(app)
 
     push_routes(app, DATABASE_URI)
+
+    datafile_processor(app, cache)
    
     @socketio.on('connect')
     def handle_connect():
