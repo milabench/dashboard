@@ -43,6 +43,12 @@ if __name__ == "__main__":
             "pandas",
             "flask",
             "flask_caching",
+            "flask-socketio",
+            "psycopg2-binary",
+            "altair",
+            "waitress",
+            "alembic",
+            "apscheduler",
         ],
         package_data={
             "dashboard.data": [
