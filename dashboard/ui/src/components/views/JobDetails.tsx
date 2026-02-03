@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { useColorModeValue } from '../ui/color-mode';
@@ -17,8 +17,6 @@ import {
     Spinner,
     Alert,
     Grid,
-    IconButton,
-    Tooltip,
 } from '@chakra-ui/react';
 import {
     LuArrowLeft,
@@ -27,7 +25,6 @@ import {
     LuTriangleAlert,
     LuClock,
     LuInfo,
-    LuExternalLink,
 } from 'react-icons/lu';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -187,13 +184,16 @@ export const JobDetailsView: React.FC = () => {
                     </Button>
                     {jrJobId && (
                         <Button
-                            as={Link}
-                            to={`/joblogs/${slurmJobId}/${jrJobId}`}
-                            leftIcon={<LuEye />}
+                            asChild
                             variant="outline"
                             colorScheme="blue"
                         >
-                            View Logs
+                            <Link to={`/joblogs/${slurmJobId}/${jrJobId}`}>
+                                <HStack gap={2} as="span">
+                                    <LuEye />
+                                    <Text>View Logs</Text>
+                                </HStack>
+                            </Link>
                         </Button>
                     )}
                 </HStack>
@@ -300,7 +300,6 @@ export const JobDetailsView: React.FC = () => {
                 <Card.Root bg={bgColor} border="1px solid" borderColor={borderColor}>
                     <Card.Body>
                         <JobDetailsTabs
-                            job={job}
                             jobInfo={jobInfo}
                             infoLoading={infoLoading}
                             infoError={infoError}
@@ -320,7 +319,6 @@ export const JobDetailsView: React.FC = () => {
 
 // Job Details Tabs Component
 const JobDetailsTabs: React.FC<{
-    job?: SlurmJob;
     jobInfo?: any;
     infoLoading: boolean;
     infoError?: any;
@@ -330,7 +328,7 @@ const JobDetailsTabs: React.FC<{
     stderr?: string;
     stderrLoading: boolean;
     stderrError?: any;
-}> = ({ job, jobInfo, infoLoading, infoError, stdout, stdoutLoading, stdoutError, stderr, stderrLoading, stderrError }) => {
+}> = ({ jobInfo, infoLoading, infoError, stdout, stdoutLoading, stdoutError, stderr, stderrLoading, stderrError }) => {
     const [activeTab, setActiveTab] = useState("job-info");
 
     return (
@@ -350,16 +348,16 @@ const JobDetailsTabs: React.FC<{
                         </Box>
                     ) : jobInfo ? (
                         <Accordion.Root multiple>
-                            <Accordion.Item>
+                            <Accordion.Item value="basic-info">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Basic Information</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                         <Box>
                                             <Text fontWeight="bold">Job ID</Text>
@@ -396,19 +394,19 @@ const JobDetailsTabs: React.FC<{
                                             <Text>{jobInfo.priority?.number || 'N/A'}</Text>
                                         </Box>
                                     </Grid>
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="resource-allocation">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Resource Allocation</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                         <Box>
                                             <Text fontWeight="bold">Nodes</Text>
@@ -443,19 +441,19 @@ const JobDetailsTabs: React.FC<{
                                             <Text fontFamily="mono" fontSize="sm">{jobInfo.tres_alloc_str || 'N/A'}</Text>
                                         </Box>
                                     </Grid>
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="timing-info">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Timing Information</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                         <Box>
                                             <Text fontWeight="bold">Submit Time</Text>
@@ -482,19 +480,19 @@ const JobDetailsTabs: React.FC<{
                                             <Text>{jobInfo.accrue_time?.number ? new Date(jobInfo.accrue_time.number * 1000).toLocaleString() : 'N/A'}</Text>
                                         </Box>
                                     </Grid>
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="job-details">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Job Details</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                         <Box>
                                             <Text fontWeight="bold">Command</Text>
@@ -529,23 +527,23 @@ const JobDetailsTabs: React.FC<{
                                             <Text>{jobInfo.state_reason || 'N/A'}</Text>
                                         </Box>
                                     </Grid>
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="raw-job-info">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Raw Job Information</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     <Code display="block" whiteSpace="pre-wrap" p={4}>
                                         {JSON.stringify(jobInfo, null, 2)}
                                     </Code>
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
                         </Accordion.Root>
                     ) : (
@@ -576,16 +574,16 @@ const JobDetailsTabs: React.FC<{
                         )}
 
                         <Accordion.Root multiple>
-                            <Accordion.Item>
+                            <Accordion.Item value="log-job-info">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Job Information</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     {infoError ? (
                                         <Alert.Root status="error">
                                             <Alert.Indicator />
@@ -601,19 +599,19 @@ const JobDetailsTabs: React.FC<{
                                             {jobInfo ? JSON.stringify(jobInfo, null, 2) : 'No job information available'}
                                         </Code>
                                     )}
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="stdout">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Standard Output</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     {stdoutError ? (
                                         <Alert.Root status="error">
                                             <Alert.Indicator />
@@ -629,19 +627,19 @@ const JobDetailsTabs: React.FC<{
                                             {stdout || 'N/A'}
                                         </Code>
                                     )}
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
 
-                            <Accordion.Item>
+                            <Accordion.Item value="stderr">
                                 <h3>
-                                    <Accordion.Trigger>
+                                    <Accordion.ItemTrigger>
                                         <Box as="span" flex='1' textAlign='left'>
                                             <Text fontWeight="bold">Standard Error</Text>
                                         </Box>
                                         <Accordion.ItemIndicator />
-                                    </Accordion.Trigger>
+                                    </Accordion.ItemTrigger>
                                 </h3>
-                                <Accordion.Content pb={4}>
+                                <Accordion.ItemContent pb={4}>
                                     {stderrError ? (
                                         <Alert.Root status="error">
                                             <Alert.Indicator />
@@ -657,7 +655,7 @@ const JobDetailsTabs: React.FC<{
                                             {stderr || 'N/A'}
                                         </Code>
                                     )}
-                                </Accordion.Content>
+                                </Accordion.ItemContent>
                             </Accordion.Item>
                         </Accordion.Root>
                     </VStack>

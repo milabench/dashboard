@@ -12,10 +12,10 @@ import {
     SimpleGrid,
     Button,
     Accordion,
-    Tooltip,
     GridItem
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
+import { Tooltip } from '../ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { getExecution, getPacks } from '../../services/api';
 import type { Execution, Pack } from '../../services/types';
@@ -114,7 +114,7 @@ export const ExecutionReport = () => {
             header: 'Name',
             accessor: (pack: Pack) => (
                 <Button
-                    variant="link"
+                    variant="plain"
                     onClick={(e) => {
                         e.stopPropagation();
                         setSelectedPack(pack);
@@ -134,8 +134,8 @@ export const ExecutionReport = () => {
         {
             header: 'Command',
             accessor: (pack: Pack) => (
-                pack.command ?
-                    <Tooltip label={(pack.command || []).join(' ')}>
+                pack.command ? (
+                    <Tooltip content={(pack.command || []).join(' ')}>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -143,19 +143,21 @@ export const ExecutionReport = () => {
                         >
                             Copy Command
                         </Button>
-                    </Tooltip> :
+                    </Tooltip>
+                ) : (
                     <Text>-</Text>
+                )
             ),
             width: '150px'
         },
         {
             header: "Config",
             accessor: (pack: Pack) => (
-                <Tooltip label={<pre>{JSON.stringify(pack.config, null, 2)}</pre>}>
+                <Tooltip content={<pre>{JSON.stringify(pack.config, null, 2)}</pre>}>
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={copyToClipboard(toast, JSON.stringify(pack.config, null, 2))}
+                        onClick={copyToClipboard(JSON.stringify(pack.config, null, 2))}
                     >
                         Copy Config
                     </Button>
@@ -341,9 +343,9 @@ export const ExecutionReport = () => {
                             <Box overflow={"auto"} height={"100%"}>
                                 <Accordion.Root multiple>
                                     {Object.entries(groupedPacks).map(([name, packs]) => (
-                                        <Accordion.Item key={name}>
+                                        <Accordion.Item key={name} value={name}>
                                             <h2>
-                                                <Accordion.Trigger
+                                                <Accordion.ItemTrigger
                                                     onClick={() => handlePackGroupClick(packs[0])}
                                                     _hover={{ bg: 'gray.50' }}
                                                 >
@@ -354,14 +356,14 @@ export const ExecutionReport = () => {
                                                         </HStack>
                                                     </Box>
                                                     <Accordion.ItemIndicator />
-                                                </Accordion.Trigger>
+                                                </Accordion.ItemTrigger>
                                             </h2>
-                                            <Accordion.Content pb={4}>
+                                            <Accordion.ItemContent pb={4}>
                                                 <DataTable
                                                     data={packs}
                                                     columns={packColumns}
                                                 />
-                                            </Accordion.Content>
+                                            </Accordion.ItemContent>
                                         </Accordion.Item>
                                     ))}
                                 </Accordion.Root>

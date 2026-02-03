@@ -79,7 +79,7 @@ export const MainSidebar: React.FC = () => {
                         borderColor="gray.600"
                         mb={2}
                     >
-                        <Text fontSize="sm" fontWeight="semibold" textTransform="uppercase" lettergap="wide">
+                        <Text fontSize="sm" fontWeight="semibold" textTransform="uppercase" letterSpacing="wide">
                             {item.label}
                         </Text>
                     </Box>

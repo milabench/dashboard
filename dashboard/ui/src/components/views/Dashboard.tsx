@@ -99,7 +99,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
     // Theme-friendly colors
     const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const bgColor = useColorModeValue('white', 'gray.800');
     const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
     const headerBg = useColorModeValue('gray.50', 'gray.750');

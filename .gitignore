@@ -102,3 +102,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+out.txt

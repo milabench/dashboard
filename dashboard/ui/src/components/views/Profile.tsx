@@ -31,10 +31,8 @@ export const Profile: React.FC = () => {
     // Theme-aware colors - all hooks must be called at the top level
     const pageBg = useColorModeValue('gray.50', 'gray.900');
     const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
     const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
     const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
     const blueButtonBg = useColorModeValue('blue.500', 'blue.600');
     const blueButtonHoverBg = useColorModeValue('blue.600', 'blue.500');

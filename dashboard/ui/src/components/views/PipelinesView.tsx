@@ -12,7 +12,6 @@ import {
     Badge,
     Dialog,
     Input,
-    Textarea,
     Select,
     IconButton,
     Alert,
@@ -21,7 +20,6 @@ import {
     Field,
     Flex,
     Spacer,
-    Code,
     Separator,
     useToken,
     useListCollection
@@ -46,7 +44,6 @@ import type {
     PipelineJob,
     PipelineSequential,
     PipelineParallel,
-    PipelineTemplate,
     SlurmProfile
 } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -80,8 +77,6 @@ const JobNode: React.FC<{
     canDelete?: boolean;
 }> = ({ node, onUpdate, onDelete, profiles, templates, depth = 0, canDelete = true }) => {
     // Theme-aware colors
-    const nodeBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
     const textColor = useColorModeValue('gray.900', 'gray.100');
     const [orange50, orange200] = useToken('colors', ['orange.50', 'orange.200']);
     const [green50, green200] = useToken('colors', ['green.50', 'green.200']);
@@ -94,6 +89,8 @@ const JobNode: React.FC<{
     const jobBorder = useColorModeValue(orange200, 'gray.600');
     const sequentialBorder = useColorModeValue(green200, 'gray.600');
     const parallelBorder = useColorModeValue(blue200, 'gray.600');
+    const nodeBg = useColorModeValue('white', 'gray.800');
+    const borderColor = useColorModeValue('gray.200', 'gray.700');
 
     const handleTypeChange = (newType: 'job' | 'sequential' | 'parallel') => {
         const updatedNode = {
@@ -141,15 +138,6 @@ const JobNode: React.FC<{
             children: node.children.filter((_, i) => i !== index)
         };
         onUpdate(updatedNode);
-    };
-
-    const getNodeColor = (nodeType: string) => {
-        switch (nodeType) {
-            case 'job': return 'orange';
-            case 'sequential': return 'green';
-            case 'parallel': return 'blue';
-            default: return 'gray';
-        }
     };
 
     const getNodeBgColor = (nodeType: string) => {
@@ -421,63 +409,61 @@ const PipelineNodeDisplay: React.FC<{ node: PipelineNode; depth?: number }> = ({
     const indent = depth * 20;
 
     // Theme-aware colors
-    const nodeBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
     const textColor = useColorModeValue('gray.900', 'gray.100');
 
     const renderNode = () => {
         if (node.type === 'job') {
             const job = node as PipelineJob;
             return (
-                    <HStack>
-                        <Badge colorScheme="orange">Job</Badge>
-                        <Text fontWeight="bold" color={textColor}>{job.script}</Text>
-                        <Badge variant="outline">{job.profile}</Badge>
-                    </HStack>
+                <HStack>
+                    <Badge colorScheme="orange">Job</Badge>
+                    <Text fontWeight="bold" color={textColor}>{job.script}</Text>
+                    <Badge variant="outline">{job.profile}</Badge>
+                </HStack>
             );
         }
 
         if (node.type === 'sequential') {
             const seq = node as PipelineSequential;
             return (<>
-                    <HStack>
-                        <Badge colorScheme="green">Sequential</Badge>
-                        <Text fontWeight="bold" color={textColor}>{seq.name}</Text>
-                    </HStack>
-                    <VStack align="stretch" pl={6} gap={1}>
-                        {seq.jobs.map((job, index) => (
-                            <Box key={index}>
-                                <PipelineNodeDisplay node={job} depth={depth + 1} />
-                            </Box>
-                        ))}
-                    </VStack>
-                    </>
+                <HStack>
+                    <Badge colorScheme="green">Sequential</Badge>
+                    <Text fontWeight="bold" color={textColor}>{seq.name}</Text>
+                </HStack>
+                <VStack align="stretch" pl={6} gap={1}>
+                    {seq.jobs.map((job, index) => (
+                        <Box key={index}>
+                            <PipelineNodeDisplay node={job} depth={depth + 1} />
+                        </Box>
+                    ))}
+                </VStack>
+            </>
             );
         }
 
         if (node.type === 'parallel') {
             const par = node as PipelineParallel;
             return (<>
-                    <HStack>
-                        <Badge colorScheme="blue">Parallel</Badge>
-                        <Text fontWeight="bold" color={textColor}>{par.name}</Text>
-                    </HStack>
-                    <VStack align="stretch" pl={6} gap={1}>
-                        {par.jobs.map((job, index) => (
-                            <Box key={index}>
-                                <PipelineNodeDisplay node={job} depth={depth + 1} />
-                            </Box>
-                        ))}
-                    </VStack> 
+                <HStack>
+                    <Badge colorScheme="blue">Parallel</Badge>
+                    <Text fontWeight="bold" color={textColor}>{par.name}</Text>
+                </HStack>
+                <VStack align="stretch" pl={6} gap={1}>
+                    {par.jobs.map((job, index) => (
+                        <Box key={index}>
+                            <PipelineNodeDisplay node={job} depth={depth + 1} />
+                        </Box>
+                    ))}
+                </VStack>
             </>);
-        } 
+        }
 
         return null;
     };
 
     return (
         <Box ml={indent} padding="0px" margin="0px" className="here">
-                {renderNode()}
+            {renderNode()}
         </Box>
     )
 };
@@ -487,20 +473,15 @@ const PipelineBuilder: React.FC<{
     onClose: () => void;
     profiles: SlurmProfile[];
     templates: string[];
-    pipelineTemplateFiles: string[];
     loadedTemplateData?: any;
     onSaveTemplate: (data: any) => void;
-    onLoadTemplate: (fileName: string) => Promise<any>;
-}> = ({ isOpen, onClose, profiles, templates, pipelineTemplateFiles, loadedTemplateData, onSaveTemplate, onLoadTemplate }) => {
+}> = ({ isOpen, onClose, profiles, templates, loadedTemplateData, onSaveTemplate }) => {
     const [pipelineName, setPipelineName] = useState('');
     const [rootNode, setRootNode] = useState<JobNodeData>({
         type: 'sequential',
         name: 'Main Sequence',
         children: []
     });
-    const [templateName, setTemplateName] = useState('');
-    const [showTemplateSave, setShowTemplateSave] = useState(false);
-    const [showTemplateLoad, setShowTemplateLoad] = useState(false);
 
     // Theme-aware colors for PipelineBuilder
     const borderColor = useColorModeValue('gray.200', 'gray.700');
@@ -578,12 +559,6 @@ const PipelineBuilder: React.FC<{
             }
         };
 
-        const pipeline: Pipeline = {
-            type: 'pipeline',
-            name: pipelineName,
-            definition: convertNode(rootNode)
-        };
-
         // Save as template file - format expected by server
         const templateData = {
             name: pipelineName,            // used for filename
@@ -602,37 +577,6 @@ const PipelineBuilder: React.FC<{
             children: []
         });
         onClose();
-    };
-
-    const handleSaveTemplate = () => {
-        if (!templateName) return;
-
-        const templateData = {
-            name: templateName,
-            pipelineName: pipelineName || 'Untitled Pipeline',
-            rootNode: rootNode
-        };
-
-        onSaveTemplate(templateData);
-        setTemplateName('');
-        setShowTemplateSave(false);
-    };
-
-    const handleLoadTemplate = async (fileName: string) => {
-        try {
-            const templateData = await onLoadTemplate(fileName);
-            if (templateData) {
-                setPipelineName(templateData.pipelineName || '');
-                setRootNode(templateData.rootNode || {
-                    type: 'sequential',
-                    name: 'Main Sequence',
-                    children: []
-                });
-                setShowTemplateLoad(false);
-            }
-        } catch (error) {
-            console.error('Failed to load template:', error);
-        }
     };
 
     return (
@@ -723,14 +667,16 @@ const PipelinesHeader: React.FC<{
                 <Spacer />
                 <Button
                     onClick={onCreateOpen}
-                    leftIcon={<LuPlus />}
                     bg={useColorModeValue('blue.500', 'blue.600')}
                     color="white"
                     _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
                     fontWeight="medium"
                     borderRadius="md"
                 >
-                    New Pipeline
+                    <HStack gap={2} as="span">
+                        <LuPlus />
+                        <Text>New Pipeline</Text>
+                    </HStack>
                 </Button>
             </Flex>
 
@@ -791,7 +737,7 @@ const PipelineTemplatesTable: React.FC<{
                             </Table.Cell>
                             <Table.Cell borderColor={borderColor} py={3} pr={4}>
                                 <HStack gap={2}>
-                                    <Tooltip label="Load template to create new pipeline">
+                                    <Tooltip content="Load template to create new pipeline">
                                         <Button
                                             size="sm"
                                             onClick={() => {
@@ -899,7 +845,7 @@ const PipelineRunDetailsModal: React.FC<{
                                 {run.jobs.length > 0 && (
                                     <Box width="100%">
                                         <Text fontWeight="bold" mb={2} color={textColor}>Jobs:</Text>
-                                        <Table.Root size="sm" variant="simple">
+                                        <Table.Root size="sm" variant="line">
                                             <Table.Header bg={headerBg}>
                                                 <Table.Row>
                                                     <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Job ID</Table.ColumnHeader>
@@ -1065,10 +1011,8 @@ export const PipelinesView: React.FC = () => {
                 }}
                 profiles={profiles}
                 templates={templates}
-                pipelineTemplateFiles={pipelineTemplateFiles}
                 loadedTemplateData={loadedTemplateData}
                 onSaveTemplate={(data) => savePipelineTemplateMutation.mutate(data)}
-                onLoadTemplate={(fileName) => loadPipelineTemplateMutation.mutateAsync(fileName)}
             />
 
             <PipelineStructureModal

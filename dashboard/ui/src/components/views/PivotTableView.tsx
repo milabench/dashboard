@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
@@ -8,11 +8,10 @@ import {
     HStack,
     IconButton,
     Alert,
-    Select,
+    NativeSelect,
     useToken,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import { LuCopy, LuDownload } from 'react-icons/lu';
 import axios from 'axios';
 
@@ -483,25 +482,27 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 <HStack mb={4} justify="space-between">
                     {sortedData.length > 0 && (
                         <HStack gap={2}>
-                            <Tooltip label="Copy JSON data to clipboard">
+                            <Tooltip content="Copy JSON data to clipboard">
                                 <IconButton
-                                    icon={<LuCopy />}
                                     size="sm"
                                     colorScheme="blue"
                                     variant="outline"
                                     onClick={copyJsonToClipboard}
                                     aria-label="Copy JSON to clipboard"
-                                />
+                                >
+                                    <LuCopy />
+                                </IconButton>
                             </Tooltip>
-                            <Tooltip label="Copy table data to clipboard">
+                            <Tooltip content="Copy table data to clipboard">
                                 <IconButton
-                                    icon={<LuDownload />}
                                     size="sm"
                                     colorScheme="green"
                                     variant="outline"
                                     onClick={copyTableToClipboard}
                                     aria-label="Copy table to clipboard"
-                                />
+                                >
+                                    <LuDownload />
+                                </IconButton>
                             </Tooltip>
                         </HStack>
                     )}
@@ -533,26 +534,28 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                             Select Baseline Column for Relative Values:
                         </Text>
                         <Tooltip
-                            label="Select which column to use as the baseline (100%) for relative calculations. All other columns will be shown as ratios relative to this column."
-                            placement="top"
-                            hasArrow
+                            content="Select which column to use as the baseline (100%) for relative calculations. All other columns will be shown as ratios relative to this column."
                         >
-                            <Select
+                            <NativeSelect.Root
                                 size="sm"
-                                value={selectedBaselineColumn || ''}
-                                onChange={(e) => setSelectedBaselineColumn(e.target.value || null)}
-                                placeholder="Auto-select first numeric column"
-                                bg="white"
-                                borderColor="blue.300"
-                                _hover={{ borderColor: "blue.400" }}
                                 maxW="400px"
                             >
-                                {columnStructure.valueColumns.map((columnName, index) => (
-                                    <option key={index} value={columnName}>
-                                        {columnName.replace(/_/g, ':')}
-                                    </option>
-                                ))}
-                            </Select>
+                                <NativeSelect.Field
+                                    value={selectedBaselineColumn || ''}
+                                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedBaselineColumn(e.currentTarget.value || null)}
+                                    bg="white"
+                                    borderColor="blue.300"
+                                    _hover={{ borderColor: "blue.400" }}
+                                >
+                                    <option value="">Auto-select first numeric column</option>
+                                    {columnStructure.valueColumns.map((columnName, index) => (
+                                        <option key={index} value={columnName}>
+                                            {columnName.replace(/_/g, ':')}
+                                        </option>
+                                    ))}
+                                </NativeSelect.Field>
+                                <NativeSelect.Indicator />
+                            </NativeSelect.Root>
                         </Tooltip>
                         <Text fontSize="xs" color="blue.600">
                             All values will be calculated relative to the selected column (baseline = 1.0)
@@ -586,9 +589,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                         display="flex"
                         gap={2}
                     >
-                        <Tooltip label="Copy JSON data to clipboard" placement="left">
+                        <Tooltip content="Copy JSON data to clipboard">
                             <IconButton
-                                icon={<LuCopy />}
                                 size="sm"
                                 colorScheme="blue"
                                 variant="outline"
@@ -598,11 +600,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 _hover={{
                                     bg: "blue.50"
                                 }}
-                            />
+                            >
+                                <LuCopy />
+                            </IconButton>
                         </Tooltip>
-                        <Tooltip label="Copy table data to clipboard" placement="left">
+                        <Tooltip content="Copy table data to clipboard">
                             <IconButton
-                                icon={<LuDownload />}
                                 size="sm"
                                 colorScheme="green"
                                 variant="outline"
@@ -612,12 +615,14 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 _hover={{
                                     bg: "green.50"
                                 }}
-                            />
+                            >
+                                <LuDownload />
+                            </IconButton>
                         </Tooltip>
                     </Box>
 
                     <Table.ScrollArea>
-                        <Table.Root variant="simple" size="sm" width="auto" height="100%">
+                        <Table.Root variant="line" size="sm" width="auto" height="100%">
                             <Table.Body>
                                 {/* Create transposed header rows for column fields */}
                                 {(() => {

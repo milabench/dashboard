@@ -1,5 +1,4 @@
-import React, { useMemo } from 'react';
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -33,6 +32,11 @@ interface Filter {
     operator: string;
     value: string | string[];
 }
+
+type SelectItem = {
+    label: string;
+    value: string;
+};
 
 // Helper function to format field names for display
 const formatFieldName = (field: string) => {
@@ -187,7 +191,7 @@ export const ExplorerView = () => {
     });
 
     // Collections for Select components
-    const gpuItems = useMemo(() =>
+    const gpuItems = useMemo<SelectItem[]>(() =>
         (gpuList || [])
             .filter((gpu: string) => gpu != null && gpu !== '')
             .map((gpu: string) => ({ label: gpu, value: gpu })),
@@ -195,7 +199,7 @@ export const ExplorerView = () => {
     );
     const gpuCollection = useListCollection({ initialItems: gpuItems });
 
-    const pytorchItems = useMemo(() =>
+    const pytorchItems = useMemo<SelectItem[]>(() =>
         (pytorchList || [])
             .filter((version: string) => version != null && version !== '')
             .map((version: string) => ({ label: version, value: version })),
@@ -203,7 +207,7 @@ export const ExplorerView = () => {
     );
     const pytorchCollection = useListCollection({ initialItems: pytorchItems });
 
-    const milabenchItems = useMemo(() =>
+    const milabenchItems = useMemo<SelectItem[]>(() =>
         (milabenchList || [])
             .filter((version: string) => version != null && version !== '')
             .map((version: string) => ({ label: version, value: version })),
@@ -211,7 +215,7 @@ export const ExplorerView = () => {
     );
     const milabenchCollection = useListCollection({ initialItems: milabenchItems });
 
-    const fieldItems = useMemo(() =>
+    const fieldItems = useMemo<SelectItem[]>(() =>
         (availableFields || [])
             .filter((field: string) => field != null && field !== '')
             .map((field: string) => ({ label: formatFieldName(field), value: field })),
@@ -219,7 +223,7 @@ export const ExplorerView = () => {
     );
     const fieldCollection = useListCollection({ initialItems: fieldItems });
 
-    const operatorItems = useMemo(() => [
+    const operatorItems = useMemo<SelectItem[]>(() => [
         { label: 'Equals (==)', value: '==' },
         { label: 'Not Equals (!=)', value: '!=' },
         { label: 'Greater Than (>)', value: '>' },
@@ -514,12 +518,14 @@ export const ExplorerView = () => {
                         <Button
                             colorScheme="green"
                             onClick={onSaveModalOpen}
-                            leftIcon={<LuPlus />}
                             variant="solid"
                             color="white"
                             _hover={{ color: 'white', bg: greenButtonHoverBg }}
                         >
-                            Save Query
+                            <HStack gap={2} as="span">
+                                <LuPlus />
+                                <Text>Save Query</Text>
+                            </HStack>
                         </Button>
                         <Button
                             colorScheme="blue"
@@ -665,14 +671,16 @@ export const ExplorerView = () => {
                         <HStack justify="space-between">
                             <Heading size="md" color={textColor}>Filters</Heading>
                             <Button
-                                leftIcon={<LuPlus />}
                                 onClick={addFilter}
                                 size="sm"
                                 colorScheme="blue"
                                 variant="solid"
                                 color="white"
                             >
-                                Add Filter
+                                <HStack gap={2} as="span">
+                                    <LuPlus />
+                                    <Text>Add Filter</Text>
+                                </HStack>
                             </Button>
                         </HStack>
 
@@ -752,17 +760,17 @@ export const ExplorerView = () => {
 
                                 <IconButton
                                     aria-label="Remove filter"
-                                    icon={<LuTrash2 />}
                                     onClick={() => removeFilter(index)}
                                     size="sm"
                                     colorScheme="red"
                                     variant="ghost"
-                                />
+                                >
+                                    <LuTrash2 />
+                                </IconButton>
                             </HStack>
                         ))}
 
                         <Button
-                            leftIcon={<LuSearch />}
                             onClick={handleSearch}
                             loading={isLoading}
                             colorScheme="blue"
@@ -770,7 +778,10 @@ export const ExplorerView = () => {
                             color="white"
                             alignSelf="flex-end"
                         >
-                            Search
+                            <HStack gap={2} as="span">
+                                <LuSearch />
+                                <Text>Search</Text>
+                            </HStack>
                         </Button>
                     </VStack>
                 </Box>
@@ -782,18 +793,19 @@ export const ExplorerView = () => {
                             <Heading size="md" color={textColor}>Results</Heading>
                             <HStack>
                                 <Button
-                                    leftIcon={<LuRefreshCw />}
                                     onClick={handleCompare}
                                     colorScheme="purple"
                                     variant="solid"
                                     color="white"
                                     disabled={!executions || executions.length === 0}
                                 >
-                                    Compare
+                                    <HStack gap={2} as="span">
+                                        <LuRefreshCw />
+                                        <Text>Compare</Text>
+                                    </HStack>
                                 </Button>
                                 <Button
-                                    as={Link}
-                                    to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}
+                                    asChild
                                     bg={greenButtonBg}
                                     variant="solid"
                                     color="white"
@@ -801,14 +813,16 @@ export const ExplorerView = () => {
                                     _hover={{ color: 'white', bg: greenButtonHoverBg }}
                                     _disabled={{ opacity: 0.6, color: 'white', bg: greenButtonBg }}
                                 >
-                                    Plot
+                                    <Link to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}>
+                                        Plot
+                                    </Link>
                                 </Button>
                             </HStack>
                         </HStack>
                         {isQueryLoading ? (
                             <Loading />
                         ) : executions && executions.length > 0 ? (
-                            <Table.Root variant="simple">
+                            <Table.Root variant="line">
                                 <Table.Header>
                                     <Table.Row>
                                         {getTableColumns().map((field) => (
@@ -827,15 +841,16 @@ export const ExplorerView = () => {
                                             ))}
                                             <Table.Cell>
                                                 <HStack gap={2}>
-                                                    <Tooltip label="View Report">
+                                                    <Tooltip content="View Report">
                                                         <Button
-                                                            as={Link}
-                                                            to={`/executions/${execution._id}`}
+                                                            asChild
                                                             size="sm"
                                                             colorScheme="blue"
                                                             variant="ghost"
                                                         >
-                                                            Report
+                                                            <Link to={`/executions/${execution._id}`}>
+                                                                Report
+                                                            </Link>
                                                         </Button>
                                                     </Tooltip>
                                                 </HStack>

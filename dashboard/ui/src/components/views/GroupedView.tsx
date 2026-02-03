@@ -15,6 +15,11 @@ interface ExtraField {
     alias: string;
 }
 
+type SelectItem = {
+    label: string;
+    value: string;
+};
+
 const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
 
@@ -183,7 +188,7 @@ const GroupedView: React.FC = () => {
     }, [groupedData, relativeColumn]);
 
     // Collections for Select components
-    const groupFieldItems = useMemo(() => [
+    const groupFieldItems = useMemo<SelectItem[]>(() => [
         { label: 'None', value: '' },
         { label: 'group1', value: 'group1' },
         { label: 'group2', value: 'group2' },
@@ -192,7 +197,7 @@ const GroupedView: React.FC = () => {
     ], []);
     const groupFieldCollection = useListCollection({ initialItems: groupFieldItems });
 
-    const metricItems = useMemo(() => [
+    const metricItems = useMemo<SelectItem[]>(() => [
         { label: 'rate', value: 'rate' },
         { label: 'memory', value: 'memory' },
         { label: 'gpu', value: 'gpu' },
@@ -201,7 +206,7 @@ const GroupedView: React.FC = () => {
     ], []);
     const metricCollection = useListCollection({ initialItems: metricItems });
 
-    const profileItems = useMemo(() =>
+    const profileItems = useMemo<SelectItem[]>(() =>
         (availableProfiles || [])
             .filter((profile: string) => profile != null && profile !== '')
             .map((profile: string) => ({ label: profile, value: profile })),
@@ -209,7 +214,7 @@ const GroupedView: React.FC = () => {
     );
     const profileCollection = useListCollection({ initialItems: profileItems });
 
-    const fieldItems = useMemo(() =>
+    const fieldItems = useMemo<SelectItem[]>(() =>
         (availableFields || [])
             .filter((field: string) => field != null && field !== '')
             .map((field: string) => ({ label: field, value: field })),
@@ -217,7 +222,7 @@ const GroupedView: React.FC = () => {
     );
     const fieldCollection = useListCollection({ initialItems: fieldItems });
 
-    const columnItems = useMemo(() =>
+    const columnItems = useMemo<SelectItem[]>(() =>
         availableColumns
             .filter((column: string) => column != null && column !== '')
             .map((column: string) => ({ label: column, value: column })),
@@ -225,7 +230,7 @@ const GroupedView: React.FC = () => {
     );
     const columnCollection = useListCollection({ initialItems: columnItems });
 
-    const baselineItems = useMemo(() =>
+    const baselineItems = useMemo<SelectItem[]>(() =>
         availableBaselineValues
             .filter((value: any) => value != null && value !== '')
             .map((value: any) => ({ label: String(value), value: String(value) })),
@@ -1140,7 +1145,7 @@ const GroupedView: React.FC = () => {
                     >
                         Load Query
                     </Button>
-                    <Tooltip label="Copy data as JSON">
+                    <Tooltip content="Copy data as JSON">
                         <Button
                             onClick={copyJsonToClipboard}
                             variant="outline"
@@ -1155,7 +1160,7 @@ const GroupedView: React.FC = () => {
                             Copy as JSON
                         </Button>
                     </Tooltip>
-                    <Tooltip label="Copy data as CSV">
+                    <Tooltip content="Copy data as CSV">
                         <Button
                             onClick={copyCsvToClipboard}
                             variant="outline"

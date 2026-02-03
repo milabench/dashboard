@@ -9,7 +9,6 @@ import {
     Text,
     Button,
     Checkbox,
-    Spacer,
     Box,
     NativeSelect,
     Heading,
@@ -95,7 +94,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const queryClient = useQueryClient();
 
     // Theme-friendly colors (matching Dashboard)
-    const bgColor = useColorModeValue('white', 'gray.800');
     const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
     const headerBg = useColorModeValue('gray.50', 'gray.750');

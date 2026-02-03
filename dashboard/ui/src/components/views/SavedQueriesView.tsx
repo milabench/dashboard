@@ -42,8 +42,6 @@ const SavedQueriesView: React.FC = () => {
     const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
     const redButtonBg = useColorModeValue('red.500', 'red.600');
     const redButtonHoverBg = useColorModeValue('red.600', 'red.500');
-    const blueButtonBg = useColorModeValue('blue.500', 'blue.600');
-    const blueButtonHoverBg = useColorModeValue('blue.600', 'blue.500');
     const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
     const headerBg = useColorModeValue('gray.100', 'gray.800');
     const headerTextColor = useColorModeValue('gray.900', 'gray.100');
@@ -184,7 +182,7 @@ const SavedQueriesView: React.FC = () => {
                                         </Table.Cell>
                                         <Table.Cell>
                                             <HStack gap={2}>
-                                                <Tooltip label="View Query">
+                                                <Tooltip content="View Query">
                                                     <IconButton
                                                         aria-label="View query"
                                                         size="sm"
@@ -196,7 +194,7 @@ const SavedQueriesView: React.FC = () => {
                                                         <LuExternalLink />
                                                     </IconButton>
                                                 </Tooltip>
-                                                <Tooltip label="Delete Query">
+                                                <Tooltip content="Delete Query">
                                                     <IconButton
                                                         aria-label="Delete query"
                                                         size="sm"

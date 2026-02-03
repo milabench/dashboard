@@ -1,5 +1,3 @@
-import React from "react";
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -26,7 +24,6 @@ import {
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { useColorModeValue } from '../ui/color-mode';
-import { LuPlus } from 'react-icons/lu';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
 import { PivotIframeView } from './PivotIframeView';
@@ -83,7 +80,6 @@ export const PivotView = () => {
     const pageBg = useColorModeValue('gray.50', 'gray.900');
     const textColor = useColorModeValue('gray.900', 'gray.100');
     const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-    const cardBg = useColorModeValue('white', 'gray.800');
     const borderColor = useColorModeValue('gray.200', 'gray.700');
     const fieldsPanelBg = useColorModeValue('gray.50', 'gray.800');
     const fieldItemBg = useColorModeValue('white', 'gray.700');
@@ -188,18 +184,6 @@ export const PivotView = () => {
     const [editingFilterIndex, setEditingFilterIndex] = useState<number>(-1);
     const [editableValue, setEditableValue] = useState<EditableValue>({ field: '', aggregators: ['avg'] });
     const [editableFilter, setEditableFilter] = useState<EditableFilter>({ field: '', operator: '==', value: '' });
-
-    // Available aggregator functions
-    const aggregatorOptions = [
-        { value: 'avg', label: 'Average' },
-        { value: 'sum', label: 'Sum' },
-        { value: 'count', label: 'Count' },
-        { value: 'min', label: 'Minimum' },
-        { value: 'max', label: 'Maximum' },
-        { value: 'std', label: 'Standard Deviation' },
-        { value: 'var', label: 'Variance' },
-        { value: 'median', label: 'Median' },
-    ];
 
     // Fetch available fields from /api/keys
     const { data: availableFields } = useQuery({
@@ -904,7 +888,7 @@ export const PivotView = () => {
                         <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color={rowHeading}>Rows</Heading>
                             <Box
-                                ref={el => dropZonesRef.current['row'] = el}
+                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['row'] = el; }}
                                 p={4}
                                 bg={rowBg}
                                 borderWidth={2}
@@ -982,7 +966,7 @@ export const PivotView = () => {
                         <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color={colHeading}>Columns</Heading>
                             <Box
-                                ref={el => dropZonesRef.current['column'] = el}
+                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['column'] = el; }}
                                 p={4}
                                 bg={colBg}
                                 borderWidth={2}
@@ -1059,7 +1043,7 @@ export const PivotView = () => {
                         <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color={valueHeading}>Values</Heading>
                             <Box
-                                ref={el => dropZonesRef.current['value'] = el}
+                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['value'] = el; }}
                                 p={4}
                                 bg={valueBg}
                                 borderWidth={2}
@@ -1194,7 +1178,7 @@ export const PivotView = () => {
                         <VStack align="stretch" flex="1" gap={2}>
                             <Heading size="sm" color={filterHeading}>Filters</Heading>
                             <Box
-                                ref={el => dropZonesRef.current['filter'] = el}
+                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['filter'] = el; }}
                                 p={4}
                                 bg={filterBg}
                                 borderWidth={2}

@@ -1,19 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     VStack,
     HStack,
     Heading,
     Text,
-    Input,
-    Button,
     Badge,
     Card,
     Flex,
-    IconButton,
     Spacer,
     Code,
-    Alert,
     Tabs,
     Table,
     Progress,
@@ -156,7 +152,7 @@ export const RealtimeMetricsView: React.FC = () => {
     const [rawMetrics, setRawMetrics] = useState<MetricEntry[]>([]);
     const [jobMetrics, setJobMetrics] = useState<{ [jobId: string]: JobMetrics }>({});
     const [activeJobs, setActiveJobs] = useState<string[]>([]);
-    const [selectedJobIndex, setSelectedJobIndex] = useState(0);
+    const [selectedJobId, setSelectedJobId] = useState<string>('');
     const [runMeta, setRunMeta] = useState<any>(null);
 
     const metricProcessor = metricStreamProcessor(
@@ -269,50 +265,21 @@ export const RealtimeMetricsView: React.FC = () => {
 
     // Removed auto-scroll as it's annoying when reading data
 
-    const clearMetrics = () => {
-        setRawMetrics([]);
-        setJobMetrics({});
-        setActiveJobs([]);
-        setSelectedJobId(null);
-        setRunMeta(null);
-    };
-
-    const exportMetrics = () => {
-        const dataStr = JSON.stringify({
-            rawMetrics,
-            jobMetrics,
-            runMeta,
-            timestamp: new Date().toISOString()
-        }, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `milabench-metrics-${new Date().toISOString()}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-    };
+    useEffect(() => {
+        if (activeJobs.length === 0) {
+            if (selectedJobId) {
+                setSelectedJobId('');
+            }
+            return;
+        }
+        if (!selectedJobId || !activeJobs.includes(selectedJobId)) {
+            setSelectedJobId(activeJobs[0]);
+        }
+    }, [activeJobs, selectedJobId]);
 
     const getBenchmarkProgress = (bench: BenchmarkStats) => {
         if (bench.start === 0) return 0;
         return (bench.end / bench.start) * 100;
-    };
-
-    const formatMetricValue = (value: number) => {
-        if (value < 0.01) return value.toExponential(2);
-        if (value < 1) return value.toFixed(4);
-        if (value < 100) return value.toFixed(2);
-        return value.toFixed(1);
-    };
-
-    const formatMetricData = (data: any) => {
-        if (!data) return null;
-
-        try {
-            return JSON.stringify(data, null, 2);
-        } catch {
-            return String(data);
-        }
     };
 
     const renderJobMetrics = (job: JobMetrics | undefined) => {
@@ -396,7 +363,7 @@ export const RealtimeMetricsView: React.FC = () => {
                     </Card.Header>
                     <Card.Body>
                         <Table.ScrollArea>
-                            <Table.Root variant="simple" size="sm">
+                            <Table.Root variant="line" size="sm">
                                 <Table.Header>
                                     <Table.Row>
                                         <Table.ColumnHeader>Benchmark</Table.ColumnHeader>
@@ -428,12 +395,16 @@ export const RealtimeMetricsView: React.FC = () => {
                                                 </Table.Cell>
                                                 <Table.Cell textAlign="end">{bench.stop}</Table.Cell>
                                                 <Table.Cell>
-                                                    <Progress
+                                                    <Progress.Root
                                                         value={progress}
                                                         colorScheme={hasErrors ? 'red' : 'green'}
                                                         size="sm"
                                                         width="100px"
-                                                    />
+                                                    >
+                                                        <Progress.Track>
+                                                            <Progress.Range />
+                                                        </Progress.Track>
+                                                    </Progress.Root>
                                                 </Table.Cell>
                                                 <Table.Cell>
                                                     <Badge
@@ -462,7 +433,7 @@ export const RealtimeMetricsView: React.FC = () => {
                         </Card.Header>
                         <Card.Body>
                             <TableContainer>
-                                <Table variant="simple" size="sm">
+                                <Table variant="line" size="sm">
                                     <Thead>
                                         <Tr>
                                             <Th>Benchmark</Th>
@@ -505,9 +476,6 @@ export const RealtimeMetricsView: React.FC = () => {
         );
     };
 
-    const selectedJob = activeJobs[selectedJobIndex];
-    const currentJobMetrics = selectedJob ? jobMetrics[selectedJob] : null;
-
     // Note: renderJobMetrics function is defined above
 
     return (
@@ -536,7 +504,7 @@ export const RealtimeMetricsView: React.FC = () => {
 
                 {/* Job Tabs */}
                 {activeJobs.length > 0 ? (
-                    <Tabs.Root value={selectedJob || activeJobs[0] || ""} onValueChange={(details) => setSelectedJobId(details.value)} height={"100%"}>
+                    <Tabs.Root value={selectedJobId || activeJobs[0] || ""} onValueChange={(details) => setSelectedJobId(details.value)} height={"100%"}>
                         <Tabs.List>
                             {activeJobs.map((jobId) => {
                                 const job = jobMetrics[jobId];

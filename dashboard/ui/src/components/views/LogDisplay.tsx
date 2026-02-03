@@ -164,7 +164,10 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                                 flex="1"
                                 minH={0}
                                 onCopy={(event) => {
-                                    event.clipboardData.setData("text/plain", window.getSelection().toString());
+                                    const selection = window.getSelection();
+                                    if (selection) {
+                                        event.clipboardData.setData("text/plain", selection.toString());
+                                    }
                                     event.preventDefault();
                                 }}
                             >

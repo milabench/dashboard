@@ -26,7 +26,7 @@ export function DataTable<T>({ data, columns, onRowClick }: TableProps<T>) {
 
     return (
         <Table.ScrollArea>
-            <Table.Root variant="simple">
+            <Table.Root variant="line">
                 <Table.Header bg={headerBg}>
                     <Table.Row>
                         {columns.map((column, index) => (

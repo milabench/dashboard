@@ -1,14 +1,12 @@
 import React from 'react';
 import {
     Box,
-    Heading,
     Text,
     VStack,
-    Badge,
     Table,
     Switch,
     HStack,
-    Select,
+    NativeSelect,
     Button
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
@@ -107,7 +105,7 @@ const columnPriority = {
     'weight': 9,
 }
 
-export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onClose }) => {
+export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onClose: _onClose }) => {
     const [reportData, setReportData] = React.useState<any>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -274,50 +272,60 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                     <Box>
                         <HStack>
                             <HStack borderWidth="1px" borderRadius="md" p={2}>
-                                <Field.Label htmlFor="drop-min-max" fontSize="sm" mb={0}>
+                                <Text fontSize="sm" fontWeight="medium">
                                     Drop Min/Max Values
-                                </Field.Label>
-                                <Switch
-                                    id="drop-min-max"
-                                    isChecked={dropMinMax}
-                                    onChange={(e) => handleDropMinMaxToggle(e.target.checked)}
-                                    size="md"
-                                />
+                                </Text>
+                                <Switch.Root
+                                    checked={dropMinMax}
+                                    onCheckedChange={(details) => handleDropMinMaxToggle(details.checked)}
+                                >
+                                    <Switch.HiddenInput />
+                                    <Switch.Control>
+                                        <Switch.Thumb />
+                                    </Switch.Control>
+                                </Switch.Root>
                             </HStack>
                             <HStack borderWidth="1px" borderRadius="md" p={2}>
-                                <Field.Label htmlFor="filter-type" fontSize="sm" mb={0}>
+                                <Text fontSize="sm" fontWeight="medium">
                                     Filter
-                                </Field.Label>
-                                <Select
-                                    id="filter-type"
-                                    value={filterType}
-                                    onChange={(e) => handleFilterChange(e.target.value)}
+                                </Text>
+                                <NativeSelect.Root
                                     size="xs"
                                     width="150px"
                                 >
-                                    <option value="all">All Benches</option>
-                                    <option value="weight">Weight &gt; 0</option>
-                                    <option value="enabled">Enabled Only</option>
-                                </Select>
+                                    <NativeSelect.Field
+                                        value={filterType}
+                                        onChange={(e) => handleFilterChange(e.currentTarget.value)}
+                                    >
+                                        <option value="all">All Benches</option>
+                                        <option value="weight">Weight &gt; 0</option>
+                                        <option value="enabled">Enabled Only</option>
+                                    </NativeSelect.Field>
+                                    <NativeSelect.Indicator />
+                                </NativeSelect.Root>
                             </HStack>
                             <HStack>
                                 <Button
                                     size="sm"
-                                    leftIcon={<LuCopy />}
                                     onClick={copyTableToClipboard}
                                     colorScheme="blue"
                                     variant="outline"
                                 >
-                                    CSV
+                                    <HStack gap={2} as="span">
+                                        <LuCopy />
+                                        <Text>CSV</Text>
+                                    </HStack>
                                 </Button>
                                 <Button
                                     size="sm"
-                                    leftIcon={<LuCopy />}
                                     onClick={copyJsonToClipboard}
                                     colorScheme="green"
                                     variant="outline"
                                 >
-                                    JSON
+                                    <HStack gap={2} as="span">
+                                        <LuCopy />
+                                        <Text>JSON</Text>
+                                    </HStack>
                                 </Button>
                             </HStack>
                         </HStack>
@@ -331,7 +339,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                     borderColor="gray.200"
                 >
                     <Table.ScrollArea>
-                        <Table.Root variant="simple" size="sm">
+                        <Table.Root variant="line" size="sm">
                             <Table.Header>
                                 <Table.Row>
                                     {columns.map((column) => (
@@ -355,7 +363,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                         <Table.Row key={rowIndex} _hover={{ bg: 'gray.50' }} className={classNames.join(' ')} >
                                             {columns.map((column) => (
                                                 <Table.Cell key={column} fontSize="xs" px={2} py={2}>
-                                                    <Text fontSize="xs" noOfLines={2}>
+                                                    <Text fontSize="xs" lineClamp={2}>
                                                         {renderCellValue((row as any)[column], column)}
                                                     </Text>
                                                 </Table.Cell>

@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJobsResponse, SlurmJob, SlurmJobSubmitRequest, SlurmJobSubmitResponse, SlurmJobLogs, SlurmJobLogResponse, SlurmJobData, SlurmJobAccounting, SlurmClusterInfo, SlurmTemplate, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse } from './types';
 
 
 

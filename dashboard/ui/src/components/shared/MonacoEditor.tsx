@@ -41,7 +41,7 @@ export const MonacoEditor: React.FC<{
             const parentElement = containerRef.current.parentElement;
 
             if (parentElement) {
-                resizeObserver = new ResizeObserver((entries) => {
+                resizeObserver = new ResizeObserver(() => {
                     // Clear any pending updates
                     if (updateTimeoutRef.current !== null) {
                         window.clearTimeout(updateTimeoutRef.current);

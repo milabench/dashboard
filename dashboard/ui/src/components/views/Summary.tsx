@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Heading, Select } from '@chakra-ui/react';
+import { Box, Heading, NativeSelect } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { getSummary } from '../../services/api';
 import { Loading } from '../common/Loading';
@@ -40,15 +40,18 @@ export const Summary = () => {
         <Box>
             <Heading mb={6}>Summary</Heading>
             <Box mb={4}>
-                <Select
-                    placeholder="Select run"
-                    value={selectedRun}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedRun(e.target.value)}
-                >
-                    {/* We'll populate this with actual runs later */}
-                    <option value="run1">Run 1</option>
-                    <option value="run2">Run 2</option>
-                </Select>
+                <NativeSelect.Root>
+                    <NativeSelect.Field
+                        value={selectedRun}
+                        onChange={(e) => setSelectedRun(e.currentTarget.value)}
+                    >
+                        <option value="">Select run</option>
+                        {/* We'll populate this with actual runs later */}
+                        <option value="run1">Run 1</option>
+                        <option value="run2">Run 2</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                </NativeSelect.Root>
             </Box>
             {summary && (
                 <DataTable

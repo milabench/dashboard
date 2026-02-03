@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { useColorModeValue } from '../ui/color-mode';
@@ -19,16 +19,12 @@ import {
     Input,
     Wrap,
     WrapItem,
-    Grid,
-    GridItem,
-    Code,
     Field,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { LuArrowLeft, LuRefreshCw, LuEye, LuX, LuDownload, LuInfo, LuExternalLink, LuClock } from 'react-icons/lu';
+import { LuArrowLeft, LuRefreshCw, LuX, LuDownload, LuInfo, LuExternalLink, LuClock } from 'react-icons/lu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob } from '../../services/api';
-import type { SlurmJob, SlurmJobAccounting, SlurmJobStatusResponse } from '../../services/types';
 import { LogDisplay } from './LogDisplay';
 import { NO_JOB_ID } from '../../Constant';
 
@@ -189,7 +185,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const {
         data: jobInfoData,
         isLoading: jobInfoLoading,
-        error: jobInfoError
+        error: _jobInfoError
     } = useQuery({
         queryKey: ['slurm-job-info', jrJobId, slurmJobId],
         queryFn: () => {
@@ -665,14 +661,17 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             Save Job
                         </Button>
                         <Button
-                            as={Link}
-                            to={`/jobrunner/${slurmJobId}/${jrJobId}`}
+                            asChild
                             variant="outline"
                             colorScheme="blue"
                             disabled={!slurmJobId || slurmJobId === '-'}
                         >
-                            <LuInfo />
-                            Job Details
+                            <Link to={`/jobrunner/${slurmJobId}/${jrJobId}`}>
+                                <HStack gap={2} as="span">
+                                    <LuInfo />
+                                    <Text>Job Details</Text>
+                                </HStack>
+                            </Link>
                         </Button>
                         <Button onClick={handleBack} variant="ghost">
                             <LuArrowLeft />

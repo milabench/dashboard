@@ -153,7 +153,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         }
     };
 
-    const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const handleInputBlur = () => {
         // Small delay to allow suggestion clicks to register
         setTimeout(() => {
             if (!dropdownRef.current?.contains(document.activeElement)) {
