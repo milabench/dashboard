@@ -27,6 +27,7 @@ from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
 from .push import push_routes
 from .report import datafile_processor
+from .metal import baremetal_server
 
 
 class MultiIndexFormater:
@@ -158,14 +159,23 @@ def view_server(config):
             with Session(logger.client) as sess:
                 yield sess
 
-    slurm_integration(app, cache)
+    try:
+        slurm_integration(app, cache)
+    except:
+        pass
+
+    baremetal_server(app)
 
     metric_receiver(app)
 
     push_routes(app, DATABASE_URI)
 
-    datafile_processor(app, cache)
-   
+    # FIXME: create a way to ignore failing extension
+    try:
+        datafile_processor(app, cache)
+    except:
+        pass
+
     @socketio.on('connect')
     def handle_connect():
         print('Client connected')

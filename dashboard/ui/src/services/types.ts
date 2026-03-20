@@ -115,6 +115,7 @@ export interface Weight {
 export interface SlurmJob {
     job_id: string | null;
     jr_job_id?: string | null;
+    created_at?: string;
     partition?: string;
     name?: string;
     job_name?: string;
@@ -187,6 +188,12 @@ export interface SlurmJobSubmitResponse {
     job_id?: string;
     jr_job_id?: string;
     message?: string;
+    error?: string;
+}
+
+export interface MetalJobSubmitResponse {
+    status: "ok" | "no";
+    job_id?: string;
     error?: string;
 }
 
@@ -427,6 +434,18 @@ export interface PushFolderResponse {
 
 export interface EarlySyncResponse {
     status: "ok" | "notok";
+}
+
+export interface MetalHost {
+    name: string;
+    url?: string;
+    ssh?: string;
+    remote_folder?: string;
+    [key: string]: any;
+}
+
+export interface MetalJob extends SlurmJob {
+    host: string;
 }
 
 

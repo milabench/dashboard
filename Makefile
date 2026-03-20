@@ -18,11 +18,19 @@ update-doc: build-doc serve-doc
 
 CONDA_ACTIVATE=. $$(/home/delaunap/miniconda3/bin/conda info --base)/etc/profile.d/conda.sh ; conda activate
 
-setup:
+setup-conda:
 	($(CONDA_ACTIVATE) py312; )
 
 front:
 	cd dashboard/ui && npm run dev
 
-back:
+back-conda:
 	($(CONDA_ACTIVATE) py312; POSTGRES_USER=milabench_write POSTGRES_PSWD=1234 flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
+
+back:
+	(. ../.venv/bin/activate; POSTGRES_USER=milabench_write POSTGRES_PSWD=1234 flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
+
+
+
+
+

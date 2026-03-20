@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse } from './types';
 
 
 
@@ -32,6 +32,59 @@ const handleError = (error: unknown): never => {
         message: 'An unexpected error occurred',
         status: 500,
     } as ApiError;
+};
+
+export const getMetalHosts = async (): Promise<MetalHost[]> => {
+    try {
+        const response = await axios.get('/api/metal/list');
+        const data: Record<string, MetalHost> = response.data || {};
+        return Object.entries(data).map(([name, info]) => ({
+            ...info,
+            name,
+        }));
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const registerMetalHost = async (request: {
+    address: string;
+    port: number;
+    name?: string;
+}): Promise<{ status: string; error?: string }> => {
+    try {
+        const { address, port, name } = request;
+        const path = name
+            ? `/api/metal/register/${address}/${port}/${encodeURIComponent(name)}`
+            : `/api/metal/register/${address}/${port}`;
+        const response = await axios.post(path);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getMetalJobs = async (hostName: string): Promise<SlurmJob[]> => {
+    try {
+        const response = await axios.get(`/api/metal/${encodeURIComponent(hostName)}/jobs/list`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const submitMetalJob = async (hostName: string, request: {
+    script: string;
+    job_name?: string;
+    working_dir?: string;
+    env?: Record<string, string>;
+}): Promise<MetalJobSubmitResponse> => {
+    try {
+        const response = await axios.post(`/api/metal/${encodeURIComponent(hostName)}/jobs/submit`, request);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
 };
 
 export const getExecutions = async (): Promise<Execution[]> => {

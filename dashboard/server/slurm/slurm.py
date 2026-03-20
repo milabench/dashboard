@@ -350,7 +350,7 @@ def get_active_jobs():
     result = remote_command(_ssh_host(), "'squeue --json -u $USER'")
 
     if not result['success']:
-        return jsonify({'error': f'Failed to get jobs: {result["stderr"]}'}), 500
+        return {'error': f'Failed to get jobs: {result["stderr"]}'}
 
     return json.loads(result['stdout'])["jobs"]
 
@@ -394,6 +394,9 @@ def book_keeping():
             all_jobs = results["stdout"].split('\n')
 
             active_jobs = get_active_jobs()
+            if "error" in active_jobs:
+                return 
+                
             active_jr_job_id = [
                 parse_comment(job["comment"]).get("jr_job_id", None) for job in active_jobs
             ]

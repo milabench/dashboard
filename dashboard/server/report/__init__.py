@@ -4,17 +4,7 @@ import os
 from functools import lru_cache
 
 from flask import request
-
-from milabench.report.read import (
-    EventProcessor,
-    DataProcessor,
-    LogExtractor,
-    ConfigExtractor,
-    MetaExtractor,
-    Threading,
-    fetch_data_file,
-    extract_milabench_metrics
-)
+from milabench.report.read import EventProcessor
 
 
 @dataclass
@@ -110,6 +100,18 @@ def get_log(runfile, *args, **kwargs):
 def datafile_processor(app, cache):
     from pathlib import Path
     from ..slurm.constant import ROOT
+
+    from milabench.report.read import (
+        EventProcessor,
+        DataProcessor,
+        LogExtractor,
+        ConfigExtractor,
+        MetaExtractor,
+        Threading,
+        fetch_data_file,
+        extract_milabench_metrics
+    )
+
 
     def make_absolute(path: str | Path) -> Path:
         path = Path(path)

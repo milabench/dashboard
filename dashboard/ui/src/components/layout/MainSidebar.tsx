@@ -47,6 +47,12 @@ const navItems: NavItem[] = [
             { label: 'Profiles', path: '/profile' },
             { label: 'Saved Queries', path: '/saved-queries' }
         ]
+    },
+    {
+        label: 'Baremetal',
+        routes: [
+            { label: 'Nodes & Jobs', path: '/baremetal' }
+        ]
     }
 ];
 
