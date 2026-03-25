@@ -15,7 +15,6 @@ import {
     Card,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import AutocompleteInput from '../shared/AutocompleteInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -92,14 +91,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     onClose
 }) => {
     const queryClient = useQueryClient();
-
-    // Theme-friendly colors (matching Dashboard)
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const headerBg = useColorModeValue('gray.50', 'gray.750');
-    const textColor = useColorModeValue('gray.700', 'gray.300');
-    const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
-    const shadow = useColorModeValue('sm', 'dark-lg');
 
     // No form state needed - we'll build the data on-demand from refs
 
@@ -458,9 +449,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     }, [activeJobs]);
 
     return (
-        <Box width="100%" height="100%" p={6} bg={useColorModeValue('gray.50', 'gray.900')}>
+        <Box width="100%" height="100%" p={6} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} height="100%">
-                <Heading size="lg" fontWeight="bold" color={textColor} mb={2}>
+                <Heading size="lg" fontWeight="bold" color="var(--color-text)" mb={2}>
                     Submit New Job
                 </Heading>
 
@@ -469,20 +460,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <VStack align="stretch" gap={4} overflowY="auto" pr={2}>
                         {/* Profile Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             p={4}
                         >
                             <VStack align="stretch" gap={3}>
-                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                     Slurm Profile
                                 </Heading>
                                 <Field.Root>
                                     <HStack gap={3} align="center">
-                                        <Field.Label minW="100px" mb={0} color={textColor}>Profile</Field.Label>
+                                        <Field.Label minW="100px" mb={0} color="var(--color-text)">Profile</Field.Label>
                                         <VStack align="stretch" flex={1} gap={2}>
                                             <HStack gap={2}>
                                                 <Box flex={1} minW={0}>
@@ -498,9 +489,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                                             const profile = profiles.find(p => p.name === suggestion);
                                                             return (
                                                                 <VStack align="start" gap={0}>
-                                                                    <Text fontWeight="medium" color={textColor}>{suggestion}</Text>
+                                                                    <Text fontWeight="medium" color="var(--color-text)">{suggestion}</Text>
                                                                     {profile?.description && (
-                                                                        <Text fontSize="xs" color={mutedTextColor}>
+                                                                        <Text fontSize="xs" color="var(--color-text-muted)">
                                                                             {profile.description}
                                                                         </Text>
                                                                     )}
@@ -522,7 +513,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                             </HStack>
                                         </VStack>
                                     </HStack>
-                                    <Text fontSize="sm" color={mutedTextColor} mt={1}>
+                                    <Text fontSize="sm" color="var(--color-text-muted)" mt={1}>
                                         Select an existing profile or enter a new name to create a new profile
                                     </Text>
                                 </Field.Root>
@@ -531,21 +522,21 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                         {/* Slurm Arguments Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             p={4}
                         >
                             <VStack align="stretch" gap={4}>
-                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                     Slurm Arguments
                                 </Heading>
 
                                 <Field.Root>
                                     <HStack gap={3} align="center">
-                                        <Field.Label minW="120px" mb={0} color={textColor}>Job Name</Field.Label>
+                                        <Field.Label minW="120px" mb={0} color="var(--color-text)">Job Name</Field.Label>
                                         <Input
                                             ref={jobNameRef}
                                             defaultValue="milabench_job"
@@ -558,7 +549,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Partition</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Partition</Field.Label>
                                             <Input
                                                 ref={partitionRef}
                                                 defaultValue=""
@@ -570,7 +561,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Nodes</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Nodes</Field.Label>
                                             <NumberInput.Root
                                                 value={nodes}
                                                 onValueChange={(details) => setNodes(details.value)}
@@ -585,7 +576,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Tasks</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Tasks</Field.Label>
                                             <NumberInput.Root
                                                 value={ntasks}
                                                 onValueChange={(details) => setNtasks(details.value)}
@@ -600,7 +591,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>CPUs per Task</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">CPUs per Task</Field.Label>
                                             <NumberInput.Root
                                                 value={cpusPerTask}
                                                 onValueChange={(details) => setCpusPerTask(details.value)}
@@ -615,7 +606,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>GPUs per Task</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">GPUs per Task</Field.Label>
                                             <Input
                                                 ref={gpusPerTaskRef}
                                                 placeholder="e.g. 1, 2"
@@ -626,7 +617,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Tasks per Node</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Tasks per Node</Field.Label>
                                             <NumberInput.Root
                                                 value={ntasksPerNode}
                                                 onValueChange={(details) => setNtasksPerNode(details.value)}
@@ -641,7 +632,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Memory</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Memory</Field.Label>
                                             <Input
                                                 ref={memRef}
                                                 placeholder="e.g. 8G, 16GB"
@@ -652,7 +643,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Time Limit</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Time Limit</Field.Label>
                                             <Input
                                                 ref={timeLimitRef}
                                                 placeholder="e.g. 02:00:00, 1-12:00:00"
@@ -663,7 +654,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Export</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Export</Field.Label>
                                             <Input
                                                 ref={exportVarsRef}
                                                 placeholder="e.g. ALL, NONE, VAR1,VAR2"
@@ -674,7 +665,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                                     <Field.Root>
                                         <HStack gap={3} align="center">
-                                            <Field.Label minW="120px" mb={0} color={textColor}>Node List</Field.Label>
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Node List</Field.Label>
                                             <Input
                                                 ref={nodelistRef}
                                                 defaultValue=""
@@ -689,28 +680,28 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                         {/* Exclusive and Dependency Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             p={4}
                         >
                             <VStack align="stretch" gap={4}>
                                 <Field.Root>
                                     <HStack gap={3} align="center">
-                                        <Field.Label minW="120px" mb={0} color={textColor}>Exclusive</Field.Label>
+                                        <Field.Label minW="120px" mb={0} color="var(--color-text)">Exclusive</Field.Label>
                                         <Checkbox.Root>
                                             <Checkbox.HiddenInput />
                                             <Checkbox.Control ref={exclusiveRef} defaultChecked={false} />
-                                            <Checkbox.Label color={textColor}>Request exclusive access to nodes</Checkbox.Label>
+                                            <Checkbox.Label color="var(--color-text)">Request exclusive access to nodes</Checkbox.Label>
                                         </Checkbox.Root>
                                     </HStack>
                                 </Field.Root>
 
                                 <Field.Root>
                                     <HStack gap={3} align="center">
-                                        <Field.Label minW="120px" fontWeight="semibold" mb={0} color={textColor}>Dependency</Field.Label>
+                                        <Field.Label minW="120px" fontWeight="semibold" mb={0} color="var(--color-text)">Dependency</Field.Label>
                                         <NativeSelect.Root flex={1}>
                                             <NativeSelect.Field ref={dependencyEventRef}
                                                 defaultValue=""
@@ -745,16 +736,16 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                         {/* Script Arguments Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             p={4}
                         >
                             <VStack align="stretch" gap={3}>
                                 <HStack justify="space-between" align="center">
-                                    <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                    <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                         Script Arguments
                                     </Heading>
                                     <HStack gap={2}>
@@ -772,11 +763,11 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 </HStack>
 
                                 {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
-                                    <Box pl={3} borderLeft="2px solid" borderColor={borderColor} id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
+                                    <Box pl={3} borderLeft="2px solid" borderColor="var(--color-border)" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
                                         <VStack align="stretch" gap={2}>
                                             {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
                                                 <HStack key={varName} gap={2}>
-                                                    <Text minW="150px" fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    <Text minW="150px" fontSize="sm" fontWeight="medium" color="var(--color-text)">
                                                         {varName}
                                                     </Text>
                                                     <Input
@@ -790,14 +781,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         </VStack>
                                     </Box>
                                 ) : (
-                                    <Box pl={3} borderLeft="2px solid" borderColor={borderColor}>
-                                        <Text fontSize="sm" color={mutedTextColor} fontStyle="italic">
+                                    <Box pl={3} borderLeft="2px solid" borderColor="var(--color-border)">
+                                        <Text fontSize="sm" color="var(--color-text-muted)" fontStyle="italic">
                                             No export variables found. Variables will be extracted automatically from your script.
                                         </Text>
                                     </Box>
                                 )}
 
-                                <Text fontSize="xs" color={mutedTextColor}>
+                                <Text fontSize="xs" color="var(--color-text-muted)">
                                     Export variables are extracted automatically. Use "Apply to Script" to update the script with your changes.
                                 </Text>
                             </VStack>
@@ -808,20 +799,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     <VStack align="stretch" gap={4} height="100%" overflow="hidden">
                         {/* Template Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             p={4}
                         >
                             <VStack align="stretch" gap={3}>
-                                <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                     Script Template
                                 </Heading>
                                 <Field.Root>
                                     <HStack gap={3} align="center">
-                                        <Field.Label minW="100px" mb={0} color={textColor}>Template</Field.Label>
+                                        <Field.Label minW="100px" mb={0} color="var(--color-text)">Template</Field.Label>
                                         <VStack align="stretch" flex={1} gap={2}>
                                             <HStack gap={2}>
                                                 <Box flex={1} minW={0}>
@@ -849,7 +840,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         </VStack>
                                     </HStack>
                                     {selectedTemplate && (
-                                        <Text fontSize="sm" color={mutedTextColor} mt={1}>
+                                        <Text fontSize="sm" color="var(--color-text-muted)" mt={1}>
                                             Template loaded: {selectedTemplate}
                                         </Text>
                                     )}
@@ -859,11 +850,11 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
                         {/* Editor Section */}
                         <Card.Root
-                            bg={cardBg}
+                            bg="var(--color-bg-card)"
                             borderWidth="1px"
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={shadow}
+                            boxShadow="sm"
                             flex="1"
                             overflow="hidden"
                             display="flex"
@@ -878,12 +869,12 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         alignItems="center"
                                         justifyContent="center"
                                         borderWidth="1px"
-                                        borderColor={borderColor}
+                                        borderColor="var(--color-border)"
                                         borderRadius="md"
-                                        bg={headerBg}
+                                        bg="var(--color-bg-header)"
                                         minH="400px"
                                     >
-                                        <Text color={textColor}>Loading editor...</Text>
+                                        <Text color="var(--color-text)">Loading editor...</Text>
                                     </Box>
                                 }>
                                     <Box flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
@@ -909,14 +900,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     justify="flex-end"
                     pt={4}
                     borderTopWidth="1px"
-                    borderTopColor={borderColor}
+                    borderTopColor="var(--color-border)"
                 >
                     <Button
                         variant="ghost"
                         onClick={onClose}
                         fontWeight="medium"
-                        color={textColor}
-                        _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                        color="var(--color-text)"
+                        _hover={{ bg: 'var(--color-bg-hover)' }}
                     >
                         Cancel
                     </Button>
@@ -926,9 +917,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         loading={submitJobMutation.isPending}
                         fontWeight="medium"
                         size="md"
-                        bg={useColorModeValue('blue.500', 'blue.600')}
-                        color="white"
-                        _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                        bg="var(--color-primary)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: 'var(--color-primary-hover)' }}
                     >
                         Submit Job
                     </Button>

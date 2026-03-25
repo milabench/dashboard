@@ -1,5 +1,5 @@
 import React from 'react';
-import { useColorModeValue } from '../ui/color-mode';
+import { useColorMode } from '../ui/color-mode';
 import { Box } from '@chakra-ui/react';
 import Editor from '@monaco-editor/react';
 
@@ -10,7 +10,8 @@ export const MonacoEditor: React.FC<{
     onMount: (editor: any) => void;
     height?: string;
 }> = ({ value, onChange, onMount, height = "400px" }) => {
-    const isDark = useColorModeValue(false, true);
+    const { colorMode } = useColorMode();
+    const isDark = colorMode === 'dark';
     const containerRef = React.useRef<HTMLDivElement>(null);
     const [editorHeight, setEditorHeight] = React.useState(height);
     const lastHeightRef = React.useRef<number>(0);
@@ -85,7 +86,7 @@ export const MonacoEditor: React.FC<{
         <Box
             ref={containerRef}
             border="1px solid"
-            borderColor={useColorModeValue('gray.200', 'gray.600')}
+            borderColor="var(--color-border)"
             borderRadius="md"
             overflow="hidden"
             flex={1}

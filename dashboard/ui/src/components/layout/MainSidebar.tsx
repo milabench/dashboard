@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useColorModeValue } from '../ui/color-mode';
 import { Box, VStack, Text, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
@@ -58,10 +57,6 @@ const navItems: NavItem[] = [
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
-    const bgColor = useColorModeValue('gray.800', 'gray.900');
-    const hoverBg = useColorModeValue('gray.700', 'gray.800');
-    const activeBg = useColorModeValue('blue.500', 'blue.400');
-    const textColor = useColorModeValue('white', 'gray.100');
     const [currentProfile, setCurrentProfile] = useState<string>('NONE');
 
     useEffect(() => {
@@ -73,7 +68,6 @@ export const MainSidebar: React.FC = () => {
 
     const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
         if (item.routes) {
-            // Render category header and its routes
             return (
                 <Box key={item.label}>
                     <Box
@@ -82,7 +76,7 @@ export const MainSidebar: React.FC = () => {
                         bg="transparent"
                         opacity={0.7}
                         borderBottom="1px solid"
-                        borderColor="gray.600"
+                        borderColor="var(--color-sidebar-border)"
                         mb={2}
                     >
                         <Text fontSize="sm" fontWeight="semibold" textTransform="uppercase" letterSpacing="wide">
@@ -95,14 +89,14 @@ export const MainSidebar: React.FC = () => {
                 </Box>
             );
         } else {
-            // Render direct link
+            const isActive = location.pathname === item.path;
             return (
                 <Link key={item.path} to={item.path!}>
                     <Box
                         p={3}
                         borderRadius="md"
-                        bg={location.pathname === item.path ? activeBg : 'transparent'}
-                        _hover={{ bg: hoverBg }}
+                        bg={isActive ? 'var(--color-sidebar-active)' : 'transparent'}
+                        _hover={{ bg: 'var(--color-sidebar-hover)' }}
                         transition="all 0.2s"
                         ml={isSubItem ? 2 : 0}
                     >
@@ -117,14 +111,14 @@ export const MainSidebar: React.FC = () => {
         <Box
             w="280px"
             h="100vh"
-            bg={bgColor}
-            color={textColor}
+            bg="var(--color-sidebar-bg)"
+            color="var(--color-sidebar-text)"
             p={6}
             position="fixed"
             left={0}
             top={0}
             borderRight="1px"
-            borderColor="gray.700"
+            borderColor="var(--color-sidebar-border)"
         >
             <Text fontSize="2xl" fontWeight="bold" mb={8} display="flex" alignItems="center" gap={2}>
                 <ColorModeButton />

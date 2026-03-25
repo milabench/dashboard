@@ -35,7 +35,7 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
                 />
             ) : (
                 <Center h="100%" p={4}>
-                    <Text color="gray.500">Select a pack to view metrics</Text>
+                    <Text color="var(--color-text-muted)">Select a pack to view metrics</Text>
                 </Center>
             )}
         </Box>

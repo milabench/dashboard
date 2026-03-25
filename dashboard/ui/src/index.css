@@ -1,17 +1,9 @@
 :root {
-  --sidebar-bg: #1a1d21;
-  --sidebar-hover: #2c3138;
-  --sidebar-active: #3a7bd5;
-  --group-active: #2c5282;
-  --pack-active: #4299e1;
-  --sidebar-text: #e1e1e1;
-  --border-color: #2c3138;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  background-color: #242424;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -30,7 +22,7 @@ body {
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--main-bg);
+  background-color: var(--color-bg-page);
   margin: 0;
   display: flex;
   place-items: center;
@@ -50,13 +42,13 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: var(--color-bg-card);
   cursor: pointer;
   transition: border-color 0.25s;
 }
 
 button:hover {
-  border-color: #646cff;
+  border-color: var(--color-primary);
 }
 
 button:focus,
@@ -64,33 +56,18 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-
-  a:hover {
-    color: #747bff;
-  }
-
-  button {
-    background-color: #f9f9f9;
-  }
-}
-
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
 
-
+/* Benchmark status classes */
 .bench-disabled {
-  color: gray;
+  color: var(--color-text-muted);
 }
 
 .bench-enabled {
-  background-color: #e6f7ff;
+  background-color: color-mix(in srgb, var(--color-status-completed) 15%, transparent);
 }
 
 .bench-weight {
@@ -98,9 +75,9 @@ code {
 }
 
 .bench-no-perf {
-  color: orange;
+  color: var(--color-status-pending);
 }
 
 .bench-fail {
-  background-color: red;
+  background-color: color-mix(in srgb, var(--color-status-failed) 30%, transparent);
 }

@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Box, Select, Field, HStack, Input, VStack, Button, Text, Heading, Dialog, Switch, useDisclosure, useListCollection } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import axios from 'axios';
 import { LuPlus, LuTrash2, LuCopy, LuDownload } from 'react-icons/lu';
 import { saveQuery, getAllSavedQueries } from '../../services/api';
@@ -22,24 +21,6 @@ type SelectItem = {
 
 const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
-
-    // Theme-aware colors - all hooks must be called at the top level
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
-    const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
-    const greenButtonBg = useColorModeValue('green.500', 'green.600');
-    const greenButtonHoverBg = useColorModeValue('green.600', 'green.500');
-    const blueButtonBg = useColorModeValue('blue.500', 'blue.600');
-    const blueButtonHoverBg = useColorModeValue('blue.600', 'blue.500');
-    const redButtonHoverBg = useColorModeValue('red.50', 'red.900');
-    const cardHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const inputBg = useColorModeValue('white', 'gray.800');
-    const selectBg = useColorModeValue('white', 'gray.800');
-    const relativeViewBg = useColorModeValue('gray.50', 'gray.800');
 
     const [searchParams, setSearchParams] = useSearchParams();
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
@@ -736,18 +717,18 @@ const GroupedView: React.FC = () => {
     };
 
     return (
-        <Box p={4} height="100vh" display="flex" flexDirection="column" bg={pageBg}>
+        <Box p={4} height="100vh" display="flex" flexDirection="column" bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} height="100%">
                 <HStack gap={4} mb={4} width="100%">
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Column Field</Field.Label>
+                        <Field.Label color="var(--color-text)">Column Field</Field.Label>
                         <Select.Root
                             collection={groupFieldCollection.collection}
                             value={g1Value ? [g1Value] : []}
                             onValueChange={handleG1Change}
                         >
                             <Select.HiddenSelect />
-                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                            <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                 <Select.Trigger>
                                     <Select.ValueText placeholder="Select column field" />
                                 </Select.Trigger>
@@ -768,27 +749,27 @@ const GroupedView: React.FC = () => {
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Column Label</Field.Label>
+                        <Field.Label color="var(--color-text)">Column Label</Field.Label>
                         <Input
                             value={n1Value}
                             onChange={handleN1Change}
                             placeholder="Enter group 1 label"
-                            bg={inputBg}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _focus={{ borderColor: focusBorderColor }}
+                            bg="var(--color-input-bg)"
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _focus={{ borderColor: "var(--color-primary)" }}
                         />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Row Field</Field.Label>
+                        <Field.Label color="var(--color-text)">Row Field</Field.Label>
                         <Select.Root
                             collection={groupFieldCollection.collection}
                             value={g2Value ? [g2Value] : []}
                             onValueChange={handleG2Change}
                         >
                             <Select.HiddenSelect />
-                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                            <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                 <Select.Trigger>
                                     <Select.ValueText placeholder="Select row field" />
                                 </Select.Trigger>
@@ -809,27 +790,27 @@ const GroupedView: React.FC = () => {
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Row Label</Field.Label>
+                        <Field.Label color="var(--color-text)">Row Label</Field.Label>
                         <Input
                             value={n2Value}
                             onChange={handleN2Change}
                             placeholder="Enter group 2 label"
-                            bg={inputBg}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _focus={{ borderColor: focusBorderColor }}
+                            bg="var(--color-input-bg)"
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _focus={{ borderColor: "var(--color-primary)" }}
                         />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Metric</Field.Label>
+                        <Field.Label color="var(--color-text)">Metric</Field.Label>
                         <Select.Root
                             collection={metricCollection.collection}
                             value={metricValue ? [metricValue] : ['rate']}
                             onValueChange={handleMetricChange}
                         >
                             <Select.HiddenSelect />
-                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                            <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                 <Select.Trigger>
                                     <Select.ValueText />
                                 </Select.Trigger>
@@ -850,15 +831,15 @@ const GroupedView: React.FC = () => {
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Color Field</Field.Label>
+                        <Field.Label color="var(--color-text)">Color Field</Field.Label>
                         <Input
                             value={colorValue}
                             onChange={handleColorChange}
                             placeholder="Enter color field"
-                            bg={inputBg}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _focus={{ borderColor: focusBorderColor }}
+                            bg="var(--color-input-bg)"
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _focus={{ borderColor: "var(--color-primary)" }}
                         />
                     </Field.Root>
 
@@ -893,27 +874,27 @@ const GroupedView: React.FC = () => {
 
                 <HStack gap={4}>
                     <Field.Root flex="2">
-                        <Heading size="md" color={textColor}>Execution IDs (comma-separated)</Heading>
+                        <Heading size="md" color="var(--color-text)">Execution IDs (comma-separated)</Heading>
                         <Input
                             value={execIdsValue}
                             onChange={handleExecIdsChange}
                             placeholder="Enter execution IDs (e.g., 1,2,3)"
-                            bg={inputBg}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _focus={{ borderColor: focusBorderColor }}
+                            bg="var(--color-input-bg)"
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _focus={{ borderColor: "var(--color-primary)" }}
                         />
                     </Field.Root>
 
                     <Field.Root flex="1">
-                        <Field.Label color={textColor}>Profile</Field.Label>
+                        <Field.Label color="var(--color-text)">Profile</Field.Label>
                         <Select.Root
                             collection={profileCollection.collection}
                             value={profileValue ? [profileValue] : []}
                             onValueChange={handleProfileChange}
                         >
                             <Select.HiddenSelect />
-                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                            <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                 <Select.Trigger>
                                     <Select.ValueText placeholder="Select profile" />
                                 </Select.Trigger>
@@ -942,11 +923,11 @@ const GroupedView: React.FC = () => {
                         borderRadius="md"
                         width="50%"
                         p={4}
-                        bg={cardBg}
-                        borderColor={borderColor}
+                        bg="var(--color-bg-card)"
+                        borderColor="var(--color-border)"
                     >
                         <VStack align="stretch" gap={4}>
-                            <Heading size="md" color={textColor}>Extra Fields</Heading>
+                            <Heading size="md" color="var(--color-text)">Extra Fields</Heading>
                             {/* Add Field Form as the first row */}
                             <HStack>
                                 <Field.Root>
@@ -956,7 +937,7 @@ const GroupedView: React.FC = () => {
                                         onValueChange={(details) => setSelectedField(details.value[0] || '')}
                                     >
                                         <Select.HiddenSelect />
-                                        <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                        <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                             <Select.Trigger>
                                                 <Select.ValueText placeholder="Select a field" />
                                             </Select.Trigger>
@@ -980,22 +961,22 @@ const GroupedView: React.FC = () => {
                                         value={fieldAlias}
                                         onChange={(e) => setFieldAlias(e.target.value)}
                                         placeholder="Field Alias (optional)"
-                                        bg={inputBg}
-                                        borderColor={borderColor}
-                                        color={textColor}
-                                        _focus={{ borderColor: focusBorderColor }}
+                                        bg="var(--color-input-bg)"
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _focus={{ borderColor: "var(--color-primary)" }}
                                     />
                                 </Field.Root>
                                 <Button
                                     onClick={addExtraField}
-                                    bg={blueButtonBg}
-                                    color="white"
+                                    bg="var(--color-primary)"
+                                    color="var(--color-primary-text)"
                                     whiteSpace="nowrap"
                                     minW="110px"
                                     maxW="140px"
                                     overflow="hidden"
                                     textOverflow="ellipsis"
-                                    _hover={{ bg: blueButtonHoverBg }}
+                                    _hover={{ bg: "var(--color-primary-hover)" }}
                                 >
                                     <LuPlus style={{ marginRight: '8px' }} />
                                     Add Field
@@ -1006,15 +987,15 @@ const GroupedView: React.FC = () => {
                                 <Box p={2.5}>
                                     {extraFields.map((field, index) => (
                                         <HStack key={index} justify="space-between" mb={2}>
-                                            <Text color={textColor}>
+                                            <Text color="var(--color-text)">
                                                 <b>{field.field}</b> as <b>{field.alias}</b>
                                             </Text>
                                             <Button
                                                 onClick={() => removeExtraField(index)}
                                                 size="sm"
                                                 variant="ghost"
-                                                color={textColor}
-                                                _hover={{ bg: redButtonHoverBg }}
+                                                color="var(--color-text)"
+                                                _hover={{ bg: "var(--color-btn-danger-subtle)" }}
                                             >
                                                 <LuTrash2 style={{ marginRight: '4px' }} />
                                                 Remove
@@ -1034,12 +1015,12 @@ const GroupedView: React.FC = () => {
                             width="50%"
                             height="100%"
                             p={4}
-                            bg={relativeViewBg}
-                            borderColor={borderColor}
+                            bg="var(--color-bg-stripe)"
+                            borderColor="var(--color-border)"
                         >
                             <VStack align="stretch" gap={4}>
                                 <HStack gap={4}>
-                                    <Heading size="md" color={textColor}>Relative View Configuration</Heading>
+                                    <Heading size="md" color="var(--color-text)">Relative View Configuration</Heading>
                                     <Switch.Root
                                         checked={isRelativeView}
                                         onCheckedChange={handleRelativeViewToggle}
@@ -1083,7 +1064,7 @@ const GroupedView: React.FC = () => {
                                         </Select.Root>
                                     </Field.Root>
                                     <Field.Root flex="1">
-                                        <Field.Label color={textColor}>Baseline Value</Field.Label>
+                                        <Field.Label color="var(--color-text)">Baseline Value</Field.Label>
                                         <Select.Root
                                             collection={baselineCollection.collection}
                                             value={relativeBaseline ? [relativeBaseline] : []}
@@ -1091,7 +1072,7 @@ const GroupedView: React.FC = () => {
                                             disabled={!relativeColumn}
                                         >
                                             <Select.HiddenSelect />
-                                            <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                            <Select.Control bg="var(--color-input-bg)" borderColor="var(--color-border)" color="var(--color-text)">
                                                 <Select.Trigger>
                                                     <Select.ValueText placeholder="Select baseline value" />
                                                 </Select.Trigger>
@@ -1112,7 +1093,7 @@ const GroupedView: React.FC = () => {
                                     </Field.Root>
                                 </HStack>
                                 {relativeColumn && relativeBaseline && (
-                                    <Text fontSize="sm" color={mutedTextColor}>
+                                    <Text fontSize="sm" color="var(--color-text-muted)">
                                         Values will be calculated relative to {relativeColumn} = "{relativeBaseline.replace(/"/g, '')}"
                                     </Text>
                                 )}
@@ -1130,18 +1111,18 @@ const GroupedView: React.FC = () => {
                     <Button
                         onClick={onSaveModalOpen}
                         size="md"
-                        bg={greenButtonBg}
-                        color="white"
-                        _hover={{ bg: greenButtonHoverBg }}
+                        bg="var(--color-btn-success)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: "var(--color-btn-success-hover)" }}
                     >
                         Save Query
                     </Button>
                     <Button
                         onClick={onLoadModalOpen}
                         size="md"
-                        bg={blueButtonBg}
-                        color="white"
-                        _hover={{ bg: blueButtonHoverBg }}
+                        bg="var(--color-primary)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: "var(--color-primary-hover)" }}
                     >
                         Load Query
                     </Button>
@@ -1151,9 +1132,9 @@ const GroupedView: React.FC = () => {
                             variant="outline"
                             size="md"
                             disabled={!relativeData || relativeData.length === 0}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _hover={{ bg: buttonHoverBg }}
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _hover={{ bg: "var(--color-bg-hover)" }}
                             _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                         >
                             <LuCopy style={{ marginRight: '8px' }} />
@@ -1166,9 +1147,9 @@ const GroupedView: React.FC = () => {
                             variant="outline"
                             size="md"
                             disabled={!relativeData || relativeData.length === 0}
-                            borderColor={borderColor}
-                            color={textColor}
-                            _hover={{ bg: buttonHoverBg }}
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            _hover={{ bg: "var(--color-bg-hover)" }}
                             _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                         >
                             <LuDownload style={{ marginRight: '8px' }} />
@@ -1211,24 +1192,24 @@ const GroupedView: React.FC = () => {
                         <Dialog.Body pb={6}>
                             <VStack gap={4}>
                                 <Field.Root>
-                                    <Field.Label color={textColor}>Query Name</Field.Label>
+                                    <Field.Label color="var(--color-text)">Query Name</Field.Label>
                                     <Input
                                         value={saveQueryName}
                                         onChange={(e) => setSaveQueryName(e.target.value)}
                                         placeholder="Enter a name for your query"
-                                        bg={inputBg}
-                                        borderColor={borderColor}
-                                        color={textColor}
-                                        _focus={{ borderColor: focusBorderColor }}
+                                        bg="var(--color-input-bg)"
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _focus={{ borderColor: "var(--color-primary)" }}
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
                                     <Button
                                         onClick={handleSaveQuery}
                                         width="100%"
-                                        bg={blueButtonBg}
-                                        color="white"
-                                        _hover={{ bg: blueButtonHoverBg }}
+                                        bg="var(--color-primary)"
+                                        color="var(--color-primary-text)"
+                                        _hover={{ bg: "var(--color-primary-hover)" }}
                                     >
                                         Save
                                     </Button>
@@ -1236,9 +1217,9 @@ const GroupedView: React.FC = () => {
                                         onClick={onSaveModalClose}
                                         width="100%"
                                         variant="outline"
-                                        borderColor={borderColor}
-                                        color={textColor}
-                                        _hover={{ bg: buttonHoverBg }}
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _hover={{ bg: "var(--color-bg-hover)" }}
                                     >
                                         Cancel
                                     </Button>
@@ -1270,23 +1251,23 @@ const GroupedView: React.FC = () => {
                                                 borderWidth={1}
                                                 borderRadius="md"
                                                 cursor="pointer"
-                                                bg={cardBg}
-                                                borderColor={borderColor}
-                                                _hover={{ bg: cardHoverBg }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                _hover={{ bg: "var(--color-bg-hover)" }}
                                                 onClick={() => handleLoadQuery(query)}
                                             >
                                                 <HStack justify="space-between">
                                                     <VStack align="start" gap={1}>
-                                                        <Text fontWeight="medium" color={textColor}>{query.name}</Text>
-                                                        <Text fontSize="sm" color={mutedTextColor}>
+                                                        <Text fontWeight="medium" color="var(--color-text)">{query.name}</Text>
+                                                        <Text fontSize="sm" color="var(--color-text-muted)">
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
                                                     <Button
                                                         size="sm"
-                                                        bg={blueButtonBg}
-                                                        color="white"
-                                                        _hover={{ bg: blueButtonHoverBg }}
+                                                        bg="var(--color-primary)"
+                                                        color="var(--color-primary-text)"
+                                                        _hover={{ bg: "var(--color-primary-hover)" }}
                                                     >
                                                         Load
                                                     </Button>
@@ -1294,7 +1275,7 @@ const GroupedView: React.FC = () => {
                                             </Box>
                                         ))
                                 ) : (
-                                    <Text color={mutedTextColor} textAlign="center">
+                                    <Text color="var(--color-text-muted)" textAlign="center">
                                         No saved queries found
                                     </Text>
                                 )}

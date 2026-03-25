@@ -14,10 +14,8 @@ import {
     Spinner,
     Alert,
     IconButton,
-    useToken,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import { Tooltip } from '../ui/tooltip';
 import {
     LuPlus,
@@ -70,22 +68,22 @@ const getStatusColor = (status: string) => {
     }
 };
 
-const getStatusIcon = (status: string, runningColor: string, pendingColor: string, completedColor: string, failedColor: string, defaultColor: string) => {
+const getStatusIcon = (status: string) => {
     switch (status?.toLowerCase()) {
         case 'running':
         case 'r':
-            return <LuCircleCheck color={runningColor} />;
+            return <LuCircleCheck color="var(--color-status-running)" />;
         case 'pending':
         case 'pd':
-            return <LuClock color={pendingColor} />;
+            return <LuClock color="var(--color-status-pending)" />;
         case 'completed':
         case 'cd':
-            return <LuCircleCheck color={completedColor} />;
+            return <LuCircleCheck color="var(--color-status-completed)" />;
         case 'failed':
         case 'f':
-            return <LuTriangleAlert color={failedColor} />;
+            return <LuTriangleAlert color="var(--color-status-failed)" />;
         default:
-            return <LuInfo color={defaultColor} />;
+            return <LuInfo color="var(--color-status-cancelled)" />;
     }
 };
 
@@ -97,43 +95,16 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     const onOpen = () => setIsOpen(true);
     const onClose = () => setIsOpen(false);
 
-    // Theme-friendly colors
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const headerBg = useColorModeValue('gray.50', 'gray.750');
-    const textColor = useColorModeValue('gray.700', 'gray.300');
-    const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
-    const shadow = useColorModeValue('sm', 'dark-lg');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.750');
-    const rowStripeBg = useColorModeValue('gray.25', 'gray.750');
-
-    // Status icon colors - theme-aware
-    const [green500, green400] = useToken('colors', ['green.500', 'green.400']);
-    const [yellow500, yellow400] = useToken('colors', ['yellow.500', 'yellow.400']);
-    const [blue500, blue400] = useToken('colors', ['blue.500', 'blue.400']);
-    const [red500, red400] = useToken('colors', ['red.500', 'red.400']);
-    const [gray500, gray400] = useToken('colors', ['gray.500', 'gray.400']);
-    const [freshnessGreenLight, freshnessBrown] = useToken('colors', ['green.500', 'orange.800']);
-    const freshnessGreen = useColorModeValue(freshnessGreenLight, green400);
-    const runningIconColor = useColorModeValue(green500, green400);
-    const pendingIconColor = useColorModeValue(yellow500, yellow400);
-    const completedIconColor = useColorModeValue(blue500, blue400);
-    const failedIconColor = useColorModeValue(red500, red400);
-    const defaultIconColor = useColorModeValue(gray500, gray400);
+    const freshnessGreen = getComputedStyle(document.documentElement).getPropertyValue('--color-freshness-good').trim() || '#48bb78';
+    const freshnessBrown = getComputedStyle(document.documentElement).getPropertyValue('--color-freshness-stale').trim() || '#7b341e';
 
     // Helper function to convert hex to RGB
     const hexToRgb = (hex: string): [number, number, number] => {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result
             ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-            : [34, 197, 94]; // fallback to green
+            : [72, 187, 120]; // fallback to green
     };
-
-    // Button colors - theme-aware
-    const submitButtonBg = useColorModeValue('blue.500', 'blue.400');
-    const submitButtonHoverBg = useColorModeValue('blue.600', 'blue.300');
-    const submitButtonColor = useColorModeValue('white', 'gray.900');
 
 
     // Queries
@@ -242,14 +213,14 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
 
     return (
-        <Box p={6} h="100%" bg={pageBg}>
+        <Box p={6} h="100%" bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} h="100%">
 
                 {/* Header Section */}
                 <Box>
                     <HStack justify="space-between" align="center" mb={4}>
                         <HStack gap={3} align="center">
-                            <Heading size="xl" fontWeight="bold" color={textColor}>
+                            <Heading size="xl" fontWeight="bold" color="var(--color-text)">
                                 Jobs Dashboard
                             </Heading>
                             {clusterStatusLoading ? (
@@ -309,9 +280,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 onClick={onOpen}
                                 size="sm"
                                 fontWeight="medium"
-                                bg={submitButtonBg}
-                                color={submitButtonColor}
-                                _hover={{ bg: submitButtonHoverBg }}
+                                bg="var(--color-primary)"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 <LuPlus style={{ marginRight: '4px', fontSize: '16px' }} />
                                 Submit New Job
@@ -337,23 +308,23 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
                 {/* Active Jobs Table */}
                 <Card.Root
-                    bg={cardBg}
+                    bg="var(--color-bg-card)"
                     borderWidth="1px"
-                    borderColor={borderColor}
+                    borderColor="var(--color-border)"
                     borderRadius="lg"
-                    boxShadow={shadow}
+                    boxShadow="sm"
                     overflow="hidden"
                     padding="10px"
                 >
                     <Card.Header
-                        bg={headerBg}
+                        bg="var(--color-bg-header)"
                         borderBottomWidth="1px"
-                        borderBottomColor={borderColor}
+                        borderBottomColor="var(--color-border)"
                         py={4}
                         px={6}
                     >
                         <HStack justify="space-between" align="center">
-                            <Heading size="md" fontWeight="semibold" color={textColor}>
+                            <Heading size="md" fontWeight="semibold" color="var(--color-text)">
                                 Active Jobs
                             </Heading>
                             <Badge
@@ -380,8 +351,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             </Alert.Root>
                         ) : (activeJobsLoading) ? (
                             <Box textAlign="center" py={12}>
-                                <Spinner size="lg" color="blue.500" />
-                                <Text mt={4} color={mutedTextColor} fontSize="sm">
+                                <Spinner size="lg" color="var(--color-primary)" />
+                                <Text mt={4} color="var(--color-text-muted)" fontSize="sm">
                                     Loading active jobs...
                                 </Text>
                             </Box>
@@ -389,52 +360,52 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             <Box overflowX="auto">
                                 {activeJobs.length === 0 ? (
                                     <Box textAlign="center" py={12}>
-                                        <Text color={mutedTextColor} fontSize="md">
+                                        <Text color="var(--color-text-muted)" fontSize="md">
                                             No active jobs found
                                         </Text>
-                                        <Text color={mutedTextColor} fontSize="sm" mt={2}>
+                                        <Text color="var(--color-text-muted)" fontSize="sm" mt={2}>
                                             Submit a new job to get started
                                         </Text>
                                     </Box>
                                 ) : (
                                     <Table.ScrollArea>
                                         <Table.Root variant="line" size="md">
-                                            <Table.Header bg={headerBg}>
+                                            <Table.Header bg="var(--color-bg-header)">
                                                 <Table.Row>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} pl={6} pr={4} fontSize="sm">Job ID</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">State Reason</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Actions</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} pl={6} pr={4} fontSize="sm">Job ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">State Reason</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Actions</Table.ColumnHeader>
                                                 </Table.Row>
                                             </Table.Header>
                                             <Table.Body>
                                                 {activeJobs.map((job: SlurmJob, index: number) => (
                                                     <Table.Row
                                                         key={job.job_id}
-                                                        _hover={{ bg: rowHoverBg }}
-                                                        bg={index % 2 === 0 ? 'transparent' : rowStripeBg}
+                                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                                        bg={index % 2 === 0 ? 'transparent' : 'var(--color-bg-stripe)'}
                                                     >
                                                         <Table.Cell pl={6} pr={4}>
-                                                            <Text fontWeight="semibold" color={textColor}>
+                                                            <Text fontWeight="semibold" color="var(--color-text)">
                                                                 {job.job_id}
                                                             </Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text fontFamily="mono" fontSize="sm" color={mutedTextColor}>
+                                                            <Text fontFamily="mono" fontSize="sm" color="var(--color-text-muted)">
                                                                 {job.jr_job_id}
                                                             </Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{job.name || 'N/A'}</Text>
+                                                            <Text color="var(--color-text)">{job.name || 'N/A'}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
                                                             <HStack gap={2}>
-                                                                {getStatusIcon(job.job_state?.[0] || '', runningIconColor, pendingIconColor, completedIconColor, failedIconColor, defaultIconColor)}
+                                                                {getStatusIcon(job.job_state?.[0] || '')}
                                                                 <Badge colorScheme={getStatusColor(job.job_state?.[0] || '')}>
                                                                     {job.job_state?.[0] || NO_JOB_STATE}
                                                                 </Badge>
@@ -451,17 +422,17 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                     </Text>
                                                                 </Tooltip>
                                                             ) : (
-                                                                <Text color={mutedTextColor}>N/A</Text>
+                                                                <Text color="var(--color-text-muted)">N/A</Text>
                                                             )}
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{job.partition || 'N/A'}</Text>
+                                                            <Text color="var(--color-text)">{job.partition || 'N/A'}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{job.user_name || 'N/A'}</Text>
+                                                            <Text color="var(--color-text)">{job.user_name || 'N/A'}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>
+                                                            <Text color="var(--color-text)">
                                                                 {typeof job.time_limit === 'string'
                                                                     ? job.time_limit
                                                                     : job.time_limit?.number
@@ -536,11 +507,11 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
                 {/* Persisted Jobs Table */}
                 <Card.Root
-                    bg={cardBg}
+                    bg="var(--color-bg-card)"
                     borderWidth="1px"
-                    borderColor={borderColor}
+                    borderColor="var(--color-border)"
                     borderRadius="lg"
-                    boxShadow={shadow}
+                    boxShadow="sm"
                     overflow="hidden"
                     flex="1"
                     display="flex"
@@ -548,14 +519,14 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                     padding="10px"
                 >
                     <Card.Header
-                        bg={headerBg}
+                        bg="var(--color-bg-header)"
                         borderBottomWidth="1px"
-                        borderBottomColor={borderColor}
+                        borderBottomColor="var(--color-border)"
                         py={4}
                         px={6}
                     >
                         <HStack justify="space-between" align="center">
-                            <Heading size="md" fontWeight="semibold" color={textColor}>
+                            <Heading size="md" fontWeight="semibold" color="var(--color-text)">
                                 Persisted Jobs
                             </Heading>
                             <Badge
@@ -582,8 +553,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             </Alert.Root>
                         ) : (persistedJobsLoading) ? (
                             <Box textAlign="center" py={12}>
-                                <Spinner size="lg" color="blue.500" />
-                                <Text mt={4} color={mutedTextColor} fontSize="sm">
+                                <Spinner size="lg" color="var(--color-primary)" />
+                                <Text mt={4} color="var(--color-text-muted)" fontSize="sm">
                                     Loading persisted jobs...
                                 </Text>
                             </Box>
@@ -591,25 +562,25 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                             <>
                                 {persistedJobs.length === 0 ? (
                                     <Box textAlign="center" py={12}>
-                                        <Text color={mutedTextColor} fontSize="md">
+                                        <Text color="var(--color-text-muted)" fontSize="md">
                                             No persisted jobs found
                                         </Text>
-                                        <Text color={mutedTextColor} fontSize="sm" mt={2}>
+                                        <Text color="var(--color-text-muted)" fontSize="sm" mt={2}>
                                             Completed jobs will appear here
                                         </Text>
                                     </Box>
                                 ) : (
                                     <Table.Root variant="line" size="md">
-                                        <Table.Header bg={headerBg}>
+                                        <Table.Header bg="var(--color-bg-header)">
                                             <Table.Row>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} pl={6} pr={4} fontSize="sm">Job ID</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
-                                                <Table.ColumnHeader fontWeight="semibold" color={textColor} py={2} px={4} fontSize="sm">Actions</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} pl={6} pr={4} fontSize="sm">Job ID</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Actions</Table.ColumnHeader>
                                             </Table.Row>
                                         </Table.Header>
                                         <Table.Body>
@@ -673,8 +644,8 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                 return (
                                                     <Table.Row
                                                         key={`persisted-${jrJobId}`}
-                                                        _hover={{ bg: rowHoverBg }}
-                                                        bg={index % 2 === 0 ? 'transparent' : rowStripeBg}
+                                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                                        bg={index % 2 === 0 ? 'transparent' : 'var(--color-bg-stripe)'}
                                                     >
                                                         <Table.Cell pl={6} pr={4}>
                                                             <HStack gap={2}>
@@ -689,36 +660,36 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                                         borderRadius="2px"
                                                                         cursor="pointer"
                                                                         border="1px solid"
-                                                                        borderColor={borderColor}
+                                                                        borderColor="var(--color-border)"
                                                                     />
                                                                 </Tooltip>
-                                                                <Text fontWeight="semibold" color={textColor}>{jobId}</Text>
+                                                                <Text fontWeight="semibold" color="var(--color-text)">{jobId}</Text>
                                                             </HStack>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text fontFamily="mono" fontSize="sm" color={mutedTextColor}>
+                                                            <Text fontFamily="mono" fontSize="sm" color="var(--color-text-muted)">
                                                                 {jrJobId}
                                                             </Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{jobName}</Text>
+                                                            <Text color="var(--color-text)">{jobName}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
                                                             <HStack gap={2}>
-                                                                {getStatusIcon(jobStatus, runningIconColor, pendingIconColor, completedIconColor, failedIconColor, defaultIconColor)}
+                                                                {getStatusIcon(jobStatus)}
                                                                 <Badge colorScheme={getStatusColor(jobStatus)}>
                                                                     {jobStatus}
                                                                 </Badge>
                                                             </HStack>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{partition}</Text>
+                                                            <Text color="var(--color-text)">{partition}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{user}</Text>
+                                                            <Text color="var(--color-text)">{user}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            <Text color={textColor}>{timeLimit}</Text>
+                                                            <Text color="var(--color-text)">{timeLimit}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
                                                             <HStack gap={2}>

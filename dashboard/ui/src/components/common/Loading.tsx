@@ -10,9 +10,9 @@ export const Loading = ({ message = 'Loading...' }: LoadingProps) => {
             <VStack gap={4}>
                 <Spinner
                     size="xl"
-                    color="blue.500"
+                    color="var(--color-primary)"
                 />
-                <Text color="gray.500">{message}</Text>
+                <Text color="var(--color-text-muted)">{message}</Text>
             </VStack>
         </Center>
     );

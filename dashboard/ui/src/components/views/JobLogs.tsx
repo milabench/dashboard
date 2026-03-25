@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { useColorModeValue } from '../ui/color-mode';
 import { Tooltip } from '../ui/tooltip';
 import {
     Box,
@@ -94,11 +93,6 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const bgColor = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    // Higher contrast colors for Job Quick Info
-    const textColor = useColorModeValue('gray.800', 'gray.200');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
 
     // Rerun state
     const [isRerunning, setIsRerunning] = useState(false);
@@ -681,23 +675,23 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 </HStack>
 
                 {/* Job Quick Info */}
-                <Card.Root bg={bgColor} padding="10px" border="1px solid" borderColor={borderColor}>
+                <Card.Root bg="var(--color-bg-card)" padding="10px" border="1px solid" borderColor="var(--color-border)">
                     <Card.Body>
                         <Wrap gap={4} rowGap={2} align="center">
                             <WrapItem>
-                                <Text fontSize="sm" color={textColor}>
+                                <Text fontSize="sm" color="var(--color-text)">
                                     <strong>ID:</strong> {jrJobId}
                                 </Text>
                             </WrapItem>
                             {slurmJobId && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color={textColor}>
+                                    <Text fontSize="sm" color="var(--color-text)">
                                         <strong>Slurm Job ID:</strong> {slurmJobId}
                                     </Text>
                                 </WrapItem>
                             )}
                             <WrapItem>
-                                <Text fontSize="sm" color={textColor}>
+                                <Text fontSize="sm" color="var(--color-text)">
                                     <strong>Job Duration:</strong> {
                                         jobInfoLoading
                                             ? <><Spinner size="xs" mr={1} />Loading...</>
@@ -709,28 +703,28 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             {/* Additional job details from job data */}
                             {(jobInfoData as any)?.gres_detail && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color={textColor}>
+                                    <Text fontSize="sm" color="var(--color-text)">
                                         <strong>GRES:</strong> {(jobInfoData as any).gres_detail}
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.cpus?.number && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color={textColor}>
+                                    <Text fontSize="sm" color="var(--color-text)">
                                         <strong>CPUs:</strong> {(jobInfoData as any).cpus.number}
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color={textColor}>
+                                    <Text fontSize="sm" color="var(--color-text)">
                                         <strong>RAM:</strong> {Math.round((jobInfoData as any).job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
                                     </Text>
                                 </WrapItem>
                             )}
                             {(jobInfoData as any)?.nodes && (
                                 <WrapItem>
-                                    <Text fontSize="sm" color={textColor}>
+                                    <Text fontSize="sm" color="var(--color-text)">
                                         <strong>Nodes:</strong> {(jobInfoData as any).nodes}
                                     </Text>
                                 </WrapItem>
@@ -760,7 +754,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             )}
                             {shouldPoll && countdown > 0 && (
                                 <WrapItem>
-                                    <Text fontSize="xs" color={mutedTextColor}>
+                                    <Text fontSize="xs" color="var(--color-text-muted)">
                                         Next refresh in {countdown}s
                                     </Text>
                                 </WrapItem>
@@ -794,7 +788,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
                 {/* Loading state for logs */}
                 {!jobStatus && statusLoading && (
-                    <Card.Root bg={bgColor} border="1px solid" borderColor={borderColor} flex="1">
+                    <Card.Root bg="var(--color-bg-card)" border="1px solid" borderColor="var(--color-border)" flex="1">
                         <Card.Body>
                             <VStack gap={4} justify="center" h="100%">
                                 <Spinner size="xl" />

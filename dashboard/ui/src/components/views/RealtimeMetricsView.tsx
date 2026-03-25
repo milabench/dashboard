@@ -287,7 +287,7 @@ export const RealtimeMetricsView: React.FC = () => {
             return (
                 <Card.Root>
                     <Card.Body>
-                        <Text color="gray.500" textAlign="center" py={8}>
+                        <Text color="var(--color-text-muted)" textAlign="center" py={8}>
                             No benchmark data available for this job
                         </Text>
                     </Card.Body>
@@ -389,7 +389,7 @@ export const RealtimeMetricsView: React.FC = () => {
                                                 <Table.Cell textAlign="end">{bench.data}</Table.Cell>
                                                 <Table.Cell textAlign="end">{bench.end}</Table.Cell>
                                                 <Table.Cell textAlign="end">
-                                                    <Text color={hasErrors ? 'red.500' : 'inherit'}>
+                                                    <Text color={hasErrors ? 'var(--color-text-danger)' : 'inherit'}>
                                                         {bench.error}
                                                     </Text>
                                                 </Table.Cell>
@@ -535,7 +535,7 @@ export const RealtimeMetricsView: React.FC = () => {
                                         return (
                                             <Card.Root height={"100%"}>
                                                 <Card.Body height={"100%"}>
-                                                    <Text color="gray.500" textAlign="center" py={8}>
+                                                    <Text color="var(--color-text-muted)" textAlign="center" py={8}>
                                                         No benchmark data available for this job
                                                     </Text>
                                                 </Card.Body>
@@ -550,7 +550,7 @@ export const RealtimeMetricsView: React.FC = () => {
                 ) : (
                     <Card.Root height={"100%"}>
                         <Card.Body height={"100%"}>
-                            <Text color="gray.500" textAlign="center" py={8}>
+                            <Text color="var(--color-text-muted)" textAlign="center" py={8}>
                                 Waiting for job metrics...
                             </Text>
                         </Card.Body>
@@ -571,16 +571,16 @@ export const RealtimeMetricsView: React.FC = () => {
                                     <Box
                                         key={metric.id}
                                         p={3}
-                                        bg="gray.50"
+                                        bg="var(--color-bg-stripe)"
                                         borderRadius="md"
                                         borderLeft="4px solid"
-                                        borderLeftColor="blue.400"
+                                        borderLeftColor="var(--color-primary)"
                                         width={"100%"}
                                     >
 
                                         {metric.data ? (
                                             <HStack width={"100%"}>
-                                                <Text fontSize="xs" color="gray.600">
+                                                <Text fontSize="xs" color="var(--color-text-muted)">
                                                     {metric.timestamp.toLocaleTimeString()}
                                                 </Text>
                                                 <Badge colorScheme="cyan" variant="solid">
@@ -589,7 +589,7 @@ export const RealtimeMetricsView: React.FC = () => {
                                                 <Code
                                                     display="block"
                                                     p={2}
-                                                    bg="white"
+                                                    bg="var(--color-code-bg)"
                                                     borderRadius="sm"
                                                     fontSize="sm"
                                                     overflow="clip"
@@ -602,7 +602,7 @@ export const RealtimeMetricsView: React.FC = () => {
                                             <Code
                                                 display="block"
                                                 p={2}
-                                                bg="white"
+                                                bg="var(--color-code-bg)"
                                                 borderRadius="sm"
                                                 fontSize="sm"
                                                 wordBreak="break-all"

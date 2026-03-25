@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { useColorModeValue } from '../ui/color-mode';
 import {
     Box,
     Heading,
@@ -90,9 +89,6 @@ export const JobDetailsView: React.FC = () => {
     const { slurmJobId, jrJobId } = useParams<{ slurmJobId: string; jrJobId: string }>();
 
     const navigate = useNavigate();
-    const bgColor = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-
     // Get all jobs to find the specific job
     const { data: jobsData, isLoading: jobsLoading, error: jobsError } = useQuery({
         queryKey: ['slurm-jobs'],
@@ -200,7 +196,7 @@ export const JobDetailsView: React.FC = () => {
 
                 <Box>
                     <Heading size="lg" mb={2}>Job Details</Heading>
-                    <Text color="gray.600">
+                    <Text color="var(--color-text-muted)">
                         Slurm Job ID: {slurmJobId} | JR Job ID: {jrJobId}
                     </Text>
                 </Box>
@@ -232,7 +228,7 @@ export const JobDetailsView: React.FC = () => {
                 )}
 
                 {/* Job Summary Card */}
-                <Card.Root bg={bgColor} border="1px solid" borderColor={borderColor}>
+                <Card.Root bg="var(--color-bg-card)" border="1px solid" borderColor="var(--color-border)">
                     <Card.Header>
                         <HStack justify="space-between">
                             <Heading size="md">Job Summary</Heading>
@@ -297,7 +293,7 @@ export const JobDetailsView: React.FC = () => {
                 </Card.Root>
 
                 {/* Job Details Tabs */}
-                <Card.Root bg={bgColor} border="1px solid" borderColor={borderColor}>
+                <Card.Root bg="var(--color-bg-card)" border="1px solid" borderColor="var(--color-border)">
                     <Card.Body>
                         <JobDetailsTabs
                             jobInfo={jobInfo}
@@ -547,7 +543,7 @@ const JobDetailsTabs: React.FC<{
                             </Accordion.Item>
                         </Accordion.Root>
                     ) : (
-                        <Text color="gray.500">No job information available</Text>
+                        <Text color="var(--color-text-muted)">No job information available</Text>
                     )}
                 </VStack>
             </Tabs.Content>
@@ -666,7 +662,7 @@ const JobDetailsTabs: React.FC<{
                 <VStack align="stretch" gap={4}>
                     <Box>
                         <Text fontWeight="bold" mb={2}>Job Information</Text>
-                        <Text color="gray.600">
+                        <Text color="var(--color-text-muted)">
                             Use the Logs tab to view job information, stdout, and stderr output.
                         </Text>
                     </Box>

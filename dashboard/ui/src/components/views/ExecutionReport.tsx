@@ -135,7 +135,12 @@ export const ExecutionReport = () => {
             header: 'Command',
             accessor: (pack: Pack) => (
                 pack.command ? (
-                    <Tooltip content={(pack.command || []).join(' ')}>
+                    <Tooltip
+                        content={(pack.command || []).join(' ')}
+                        interactive
+                        closeDelay={300}
+                        positioning={{ placement: 'right-start', strategy: 'fixed' }}
+                    >
                         <Button
                             variant="ghost"
                             size="sm"
@@ -153,7 +158,16 @@ export const ExecutionReport = () => {
         {
             header: "Config",
             accessor: (pack: Pack) => (
-                <Tooltip content={<pre>{JSON.stringify(pack.config, null, 2)}</pre>}>
+                <Tooltip
+                    content={
+                        <pre style={{ maxHeight: '60vh', maxWidth: '50vw', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {JSON.stringify(pack.config, null, 2)}
+                        </pre>
+                    }
+                    interactive
+                    closeDelay={300}
+                    positioning={{ placement: 'right-start', strategy: 'fixed' }}
+                >
                     <Button
                         variant="ghost"
                         size="sm"
@@ -243,13 +257,19 @@ export const ExecutionReport = () => {
                             <Heading size="lg">Execution Report</Heading>
                             <HStack>
                                 <Button
-                                    colorScheme='green'
+                                    variant="solid"
+                                    bg="var(--color-btn-success)"
+                                    color="var(--color-primary-text)"
+                                    _hover={{ bg: 'var(--color-btn-success-hover)' }}
                                     onClick={generateSQLReport}
                                 >
                                     SQL Report
                                 </Button>
                                 <Button
-                                    colorScheme='blue'
+                                    variant="solid"
+                                    bg="var(--color-primary)"
+                                    color="var(--color-primary-text)"
+                                    _hover={{ bg: 'var(--color-primary-hover)' }}
                                     onClick={generatePythonReport}
                                 >
                                     Pandas Report
@@ -347,7 +367,7 @@ export const ExecutionReport = () => {
                                             <h2>
                                                 <Accordion.ItemTrigger
                                                     onClick={() => handlePackGroupClick(packs[0])}
-                                                    _hover={{ bg: 'gray.50' }}
+                                                    _hover={{ bg: 'var(--color-bg-hover)' }}
                                                 >
                                                     <Box flex="1" textAlign="left">
                                                         <HStack>

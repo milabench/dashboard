@@ -217,7 +217,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
     if (error) {
         return (
             <Box p={4}>
-                <Text color="red.500">Error: {error}</Text>
+                <Text color="var(--color-text-danger)">Error: {error}</Text>
             </Box>
         );
     }
@@ -333,10 +333,10 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                 </HStack>
 
                 <Box
-                    bg="white"
+                    bg="var(--color-bg-card)"
                     borderRadius="md"
                     border="1px solid"
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                 >
                     <Table.ScrollArea>
                         <Table.Root variant="line" size="sm">
@@ -360,7 +360,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                                     ];
 
                                     return (
-                                        <Table.Row key={rowIndex} _hover={{ bg: 'gray.50' }} className={classNames.join(' ')} >
+                                        <Table.Row key={rowIndex} _hover={{ bg: 'var(--color-bg-hover)' }} className={classNames.join(' ')} >
                                             {columns.map((column) => (
                                                 <Table.Cell key={column} fontSize="xs" px={2} py={2}>
                                                     <Text fontSize="xs" lineClamp={2}>
@@ -377,38 +377,38 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
                 </Box>
 
                 <Box
-                    bg="gray.50"
+                    bg="var(--color-bg-stripe)"
                     p={4}
                     borderRadius="md"
                     border="1px solid"
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                 >
                     <Text>
-                        Score: <span style={{ color: 'green', fontWeight: 'bold' }}>{Math.exp(acc["log_score"] / acc["total"]).toFixed(2)}</span>
+                        Score: <span style={{ color: 'var(--color-text-success)', fontWeight: 'bold' }}>{Math.exp(acc["log_score"] / acc["total"]).toFixed(2)}</span>
                     </Text>
 
                 </Box>
 
                 <Box
-                    bg="gray.50"
+                    bg="var(--color-bg-stripe)"
                     p={4}
                     borderRadius="md"
                     border="1px solid"
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                 >
-                    <Text fontSize="sm" color="gray.600" mb={2}>
+                    <Text fontSize="sm" color="var(--color-text-muted)" mb={2}>
                         Execution ID: {executionId}
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="var(--color-text-muted)">
                         Generated using /api/report/fast endpoint
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="var(--color-text-muted)">
                         Rows: {filteredDataArray.length} | Columns: {columns.length}
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="var(--color-text-muted)">
                         Drop Min/Max: {dropMinMax ? 'Enabled' : 'Disabled'}
                     </Text>
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="var(--color-text-muted)">
                         Filter: {filterType === 'all' ? 'All Benches' : filterType === 'weight' ? 'Weight > 0' : 'Enabled Only'}
                     </Text>
                 </Box>

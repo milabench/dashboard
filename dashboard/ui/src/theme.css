@@ -1,0 +1,267 @@
+/*
+ * Semantic color tokens for Milabench Dashboard
+ *
+ * next-themes adds `class="dark"` to <html> when dark mode is active.
+ * Define all colors here; components reference var(--color-*) instead of
+ * hardcoding values or calling useColorModeValue().
+ */
+
+/* ── Light mode defaults ──────────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --color-bg-page:    #f7fafc;  /* gray.50  */
+  --color-bg-card:    #ffffff;  /* white    */
+  --color-bg-header:  #f7fafc;  /* gray.50  */
+  --color-bg-hover:   #edf2f7;  /* gray.100 */
+  --color-bg-stripe:  #f7fafc;  /* gray.50  */
+
+  /* Borders */
+  --color-border:     #e2e8f0;  /* gray.200 */
+
+  /* Text */
+  --color-text:       #2d3748;  /* gray.700 */
+  --color-text-muted: #718096;  /* gray.500 */
+  --color-text-on-dark: #ffffff;
+
+  /* Primary action (buttons, links) */
+  --color-primary:        #4299e1;  /* blue.500 */
+  --color-primary-hover:  #3182ce;  /* blue.600 */
+  --color-primary-text:   #ffffff;
+
+  /* Sidebar */
+  --color-sidebar-bg:     #1a202c;  /* gray.800 */
+  --color-sidebar-hover:  #2d3748;  /* gray.700 */
+  --color-sidebar-active: #4299e1;  /* blue.500 */
+  --color-sidebar-border: #2d3748;  /* gray.700 */
+  --color-sidebar-text:   #ffffff;
+  --color-sidebar-text-muted: #a0aec0; /* gray.400 */
+
+  /* Status / semantic */
+  --color-status-running:   #48bb78;  /* green.500  */
+  --color-status-pending:   #ecc94b;  /* yellow.500 */
+  --color-status-completed: #4299e1;  /* blue.500   */
+  --color-status-failed:    #f56565;  /* red.500    */
+  --color-status-cancelled: #718096;  /* gray.500   */
+
+  /* Logs */
+  --color-log-stdout-bg:   #f7fafc;  /* gray.50   */
+  --color-log-stderr-bg:   #fff5f5;  /* red.50    */
+  --color-log-stdout-text: #1a202c;  /* gray.800  */
+  --color-log-stderr-text: #822727;  /* red.800   */
+
+  /* Input fields */
+  --color-input-bg:     #ffffff;  /* white     */
+  --color-input-border: #cbd5e0;  /* gray.300  */
+
+  /* Buttons – success (green) */
+  --color-btn-success:       #48bb78;  /* green.500 */
+  --color-btn-success-hover: #38a169;  /* green.600 */
+
+  /* Buttons – danger (red) */
+  --color-btn-danger:        #e53e3e;  /* red.500   */
+  --color-btn-danger-hover:  #c53030;  /* red.600   */
+  --color-btn-danger-subtle: #fff5f5;  /* red.50    */
+
+  /* Semantic text */
+  --color-text-success: #38a169;  /* green.600 */
+  --color-text-danger:  #e53e3e;  /* red.500   */
+  --color-text-info:    #3182ce;  /* blue.600  */
+
+  /* Freshness gradient endpoints (Dashboard) */
+  --color-freshness-good: #48bb78;  /* green.500  */
+  --color-freshness-stale: #7b341e; /* orange.800 */
+
+  /* Info box (blue tinted messages) */
+  --color-info-bg:     #ebf8ff;  /* blue.50   */
+  --color-info-border: #90cdf4;  /* blue.200  */
+  --color-info-text:   #2a4365;  /* blue.800  */
+
+  /* Code / pre blocks */
+  --color-code-bg:     #ffffff;  /* white     */
+
+  /* Pivot – Row zone (blue) */
+  --color-pivot-row-bg:           #ebf8ff;  /* blue.50   */
+  --color-pivot-row-border:       #bee3f8;  /* blue.200  */
+  --color-pivot-row-border-hover: #90cdf4;  /* blue.300  */
+  --color-pivot-row-text:         #4299e1;  /* blue.400  */
+  --color-pivot-row-heading:      #2b6cb0;  /* blue.600  */
+  --color-pivot-row-accent:       #3182ce;  /* blue.500  */
+
+  /* Pivot – Col zone (green) */
+  --color-pivot-col-bg:           #f0fff4;  /* green.50  */
+  --color-pivot-col-border:       #9ae6b4;  /* green.200 */
+  --color-pivot-col-border-hover: #68d391;  /* green.300 */
+  --color-pivot-col-text:         #48bb78;  /* green.400 */
+  --color-pivot-col-heading:      #2f855a;  /* green.600 */
+
+  /* Pivot – Value zone (purple) */
+  --color-pivot-value-bg:           #faf5ff;  /* purple.50  */
+  --color-pivot-value-border:       #d6bcfa;  /* purple.200 */
+  --color-pivot-value-border-hover: #b794f4;  /* purple.300 */
+  --color-pivot-value-text:         #9f7aea;  /* purple.400 */
+  --color-pivot-value-heading:      #6b46c1;  /* purple.600 */
+
+  /* Pivot – Filter zone (orange) */
+  --color-pivot-filter-bg:           #fffaf0;  /* orange.50  */
+  --color-pivot-filter-border:       #fbd38d;  /* orange.200 */
+  --color-pivot-filter-border-hover: #f6ad55;  /* orange.300 */
+  --color-pivot-filter-text:         #ed8936;  /* orange.400 */
+  --color-pivot-filter-heading:      #c05621;  /* orange.600 */
+
+  /* Pipeline node backgrounds */
+  --color-pipeline-job-bg:      #fffaf0;  /* orange.50  */
+  --color-pipeline-job-border:  #fbd38d;  /* orange.200 */
+  --color-pipeline-seq-bg:      #f0fff4;  /* green.50   */
+  --color-pipeline-seq-border:  #9ae6b4;  /* green.200  */
+  --color-pipeline-par-bg:      #ebf8ff;  /* blue.50    */
+  --color-pipeline-par-border:  #90cdf4;  /* blue.200   */
+
+  /* Drag-zone highlights (PivotView) */
+  --color-drop-row:    #bee3f8;  /* blue.100   */
+  --color-drop-col:    #c6f6d5;  /* green.100  */
+  --color-drop-value:  #e9d8fd;  /* purple.100 */
+  --color-drop-filter: #feebc8;  /* orange.100 */
+
+  /* PivotTable – header & data cell accents */
+  --color-table-row-header-bg:  #bee3f8;  /* blue.100   */
+  --color-table-row-header-text:#2a4365;  /* blue.800   */
+  --color-table-col-header-bg:  #c6f6d5;  /* green.100  */
+  --color-table-col-header-text:#22543d;  /* green.800  */
+  --color-table-agg-bg:         #e9d8fd;  /* purple.100 */
+  --color-table-agg-text:       #553c9a;  /* purple.800 */
+  --color-table-baseline-bg:    #ebf8ff;  /* blue.50    */
+  --color-table-baseline-selected:#bee3f8;/* blue.200   */
+  --color-table-baseline-badge: #2b6cb0;  /* blue.600   */
+  --color-table-empty-text:     #718096;  /* gray.500   */
+  --color-table-empty-bg:       #f7fafc;  /* gray.50    */
+}
+
+/* ── Dark mode overrides ──────────────────────────────────────────────── */
+html.dark {
+  /* Backgrounds */
+  --color-bg-page:    #171923;  /* gray.900  */
+  --color-bg-card:    #1a202c;  /* gray.800  */
+  --color-bg-header:  #1a202c;  /* gray.800  */
+  --color-bg-hover:   #2d3748;  /* gray.700  */
+  --color-bg-stripe:  #1a202c;  /* gray.800  */
+
+  /* Borders */
+  --color-border:     #2d3748;  /* gray.700  */
+
+  /* Text */
+  --color-text:       #cbd5e0;  /* gray.300  */
+  --color-text-muted: #a0aec0;  /* gray.400  */
+  --color-text-on-dark: #ffffff;
+
+  /* Primary action */
+  --color-primary:        #63b3ed;  /* blue.400 */
+  --color-primary-hover:  #90cdf4;  /* blue.300 */
+  --color-primary-text:   #1a202c;  /* gray.800 */
+
+  /* Sidebar */
+  --color-sidebar-bg:     #171923;  /* gray.900 */
+  --color-sidebar-hover:  #1a202c;  /* gray.800 */
+  --color-sidebar-active: #63b3ed;  /* blue.400 */
+  --color-sidebar-border: #2d3748;  /* gray.700 */
+  --color-sidebar-text:   #f7fafc;  /* gray.100 */
+  --color-sidebar-text-muted: #a0aec0; /* gray.400 */
+
+  /* Status / semantic */
+  --color-status-running:   #68d391;  /* green.400  */
+  --color-status-pending:   #f6e05e;  /* yellow.400 */
+  --color-status-completed: #63b3ed;  /* blue.400   */
+  --color-status-failed:    #fc8181;  /* red.400    */
+  --color-status-cancelled: #a0aec0;  /* gray.400   */
+
+  /* Logs */
+  --color-log-stdout-bg:   #171923;  /* gray.900  */
+  --color-log-stderr-bg:   #63171b;  /* red.900   */
+  --color-log-stdout-text: #edf2f7;  /* gray.100  */
+  --color-log-stderr-text: #fed7d7;  /* red.100   */
+
+  /* Input fields */
+  --color-input-bg:     #2d3748;  /* gray.700  */
+  --color-input-border: #4a5568;  /* gray.600  */
+
+  /* Buttons – success (green) — bright enough for dark text */
+  --color-btn-success:       #68d391;  /* green.300 */
+  --color-btn-success-hover: #9ae6b4;  /* green.200 */
+
+  /* Buttons – danger (red) — bright enough for dark text */
+  --color-btn-danger:        #fc8181;  /* red.300   */
+  --color-btn-danger-hover:  #feb2b2;  /* red.200   */
+  --color-btn-danger-subtle: #63171b;  /* red.900   */
+
+  /* Semantic text */
+  --color-text-success: #68d391;  /* green.400 */
+  --color-text-danger:  #fc8181;  /* red.400   */
+  --color-text-info:    #63b3ed;  /* blue.400  */
+
+  /* Freshness gradient endpoints (Dashboard) */
+  --color-freshness-good: #68d391;  /* green.400  */
+  --color-freshness-stale: #c05621; /* orange.600 */
+
+  /* Info box (blue tinted messages) */
+  --color-info-bg:     #1a365d;  /* blue.900  */
+  --color-info-border: #2c5282;  /* blue.700  */
+  --color-info-text:   #bee3f8;  /* blue.100  */
+
+  /* Code / pre blocks */
+  --color-code-bg:     #1a202c;  /* gray.800  */
+
+  /* Pivot – Row zone (blue) */
+  --color-pivot-row-bg:           #0f2942;  /* blue.950  */
+  --color-pivot-row-border:       #2c5282;  /* blue.700  */
+  --color-pivot-row-border-hover: #2b6cb0;  /* blue.600  */
+  --color-pivot-row-text:         #63b3ed;  /* blue.300  */
+  --color-pivot-row-heading:      #4299e1;  /* blue.400  */
+  --color-pivot-row-accent:       #4299e1;  /* blue.400  */
+
+  /* Pivot – Col zone (green) */
+  --color-pivot-col-bg:           #0a3622;  /* green.950 */
+  --color-pivot-col-border:       #276749;  /* green.700 */
+  --color-pivot-col-border-hover: #2f855a;  /* green.600 */
+  --color-pivot-col-text:         #68d391;  /* green.300 */
+  --color-pivot-col-heading:      #48bb78;  /* green.400 */
+
+  /* Pivot – Value zone (purple) */
+  --color-pivot-value-bg:           #2d1b4e;  /* purple.950 */
+  --color-pivot-value-border:       #553c9a;  /* purple.700 */
+  --color-pivot-value-border-hover: #6b46c1;  /* purple.600 */
+  --color-pivot-value-text:         #b794f4;  /* purple.300 */
+  --color-pivot-value-heading:      #9f7aea;  /* purple.400 */
+
+  /* Pivot – Filter zone (orange) */
+  --color-pivot-filter-bg:           #3c1a05;  /* orange.950 */
+  --color-pivot-filter-border:       #9c4221;  /* orange.700 */
+  --color-pivot-filter-border-hover: #c05621;  /* orange.600 */
+  --color-pivot-filter-text:         #f6ad55;  /* orange.300 */
+  --color-pivot-filter-heading:      #ed8936;  /* orange.400 */
+
+  /* Pipeline node backgrounds */
+  --color-pipeline-job-bg:      #1a202c;  /* gray.800  */
+  --color-pipeline-job-border:  #4a5568;  /* gray.600  */
+  --color-pipeline-seq-bg:      #1a202c;  /* gray.800  */
+  --color-pipeline-seq-border:  #4a5568;  /* gray.600  */
+  --color-pipeline-par-bg:      #1a202c;  /* gray.800  */
+  --color-pipeline-par-border:  #4a5568;  /* gray.600  */
+
+  /* Drag-zone highlights (PivotView) */
+  --color-drop-row:    #2a4365;  /* blue.900   */
+  --color-drop-col:    #1c4532;  /* green.900  */
+  --color-drop-value:  #44337a;  /* purple.900 */
+  --color-drop-filter: #7b341e;  /* orange.800 */
+
+  /* PivotTable – header & data cell accents */
+  --color-table-row-header-bg:  #2a4365;  /* blue.800   */
+  --color-table-row-header-text:#bee3f8;  /* blue.100   */
+  --color-table-col-header-bg:  #1c4532;  /* green.800  */
+  --color-table-col-header-text:#c6f6d5;  /* green.100  */
+  --color-table-agg-bg:         #44337a;  /* purple.800 */
+  --color-table-agg-text:       #e9d8fd;  /* purple.100 */
+  --color-table-baseline-bg:    #1a365d;  /* blue.900   */
+  --color-table-baseline-selected:#2a4365;/* blue.800   */
+  --color-table-baseline-badge: #63b3ed;  /* blue.400   */
+  --color-table-empty-text:     #a0aec0;  /* gray.400   */
+  --color-table-empty-bg:       #1a202c;  /* gray.800   */
+}

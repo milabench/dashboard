@@ -13,15 +13,15 @@ export const SecondarySidebar = ({ isOpen, onClose, title, children }: Secondary
         <Box
             w="320px"
             h="100vh"
-            bg="gray.800"
-            color="white"
+            bg="var(--color-sidebar-bg)"
+            color="var(--color-sidebar-text)"
             p={6}
             position="fixed"
             left={isOpen ? '280px' : '-320px'}
             top={0}
             transition="left 0.3s ease"
             borderRight="1px"
-            borderColor="gray.700"
+            borderColor="var(--color-sidebar-border)"
             zIndex={1}
         >
             <Box position="relative">

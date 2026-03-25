@@ -2,7 +2,6 @@ import {
     Table,
 } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
-import { useColorModeValue } from '../ui/color-mode';
 
 export interface Column<T> {
     header: string;
@@ -17,24 +16,17 @@ interface TableProps<T> {
 }
 
 export function DataTable<T>({ data, columns, onRowClick }: TableProps<T>) {
-    // Theme-aware colors
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.800');
-    const headerBg = useColorModeValue('gray.50', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const headerTextColor = useColorModeValue('gray.700', 'gray.300');
-
     return (
         <Table.ScrollArea>
             <Table.Root variant="line">
-                <Table.Header bg={headerBg}>
+                <Table.Header bg="var(--color-bg-header)">
                     <Table.Row>
                         {columns.map((column, index) => (
                             <Table.ColumnHeader
                                 key={index}
                                 width={column.width}
-                                color={headerTextColor}
-                                borderColor={borderColor}
+                                color="var(--color-text)"
+                                borderColor="var(--color-border)"
                             >
                                 {column.header}
                             </Table.ColumnHeader>
@@ -47,14 +39,14 @@ export function DataTable<T>({ data, columns, onRowClick }: TableProps<T>) {
                             key={rowIndex}
                             onClick={() => onRowClick?.(item)}
                             cursor={onRowClick ? 'pointer' : 'default'}
-                            _hover={onRowClick ? { bg: rowHoverBg } : undefined}
-                            borderColor={borderColor}
+                            _hover={onRowClick ? { bg: 'var(--color-bg-hover)' } : undefined}
+                            borderColor="var(--color-border)"
                         >
                             {columns.map((column, colIndex) => (
                                 <Table.Cell
                                     key={colIndex}
-                                    color={textColor}
-                                    borderColor={borderColor}
+                                    color="var(--color-text)"
+                                    borderColor="var(--color-border)"
                                 >
                                     {typeof column.accessor === 'function'
                                         ? column.accessor(item)

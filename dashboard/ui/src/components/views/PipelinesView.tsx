@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { useColorModeValue } from '../ui/color-mode';
 import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
@@ -21,7 +20,6 @@ import {
     Flex,
     Spacer,
     Separator,
-    useToken,
     useListCollection
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
@@ -76,22 +74,6 @@ const JobNode: React.FC<{
     depth?: number;
     canDelete?: boolean;
 }> = ({ node, onUpdate, onDelete, profiles, templates, depth = 0, canDelete = true }) => {
-    // Theme-aware colors
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const [orange50, orange200] = useToken('colors', ['orange.50', 'orange.200']);
-    const [green50, green200] = useToken('colors', ['green.50', 'green.200']);
-    const [blue50, blue200] = useToken('colors', ['blue.50', 'blue.200']);
-
-    // Pre-compute theme-aware node colors
-    const jobBg = useColorModeValue(orange50, 'gray.800');
-    const sequentialBg = useColorModeValue(green50, 'gray.800');
-    const parallelBg = useColorModeValue(blue50, 'gray.800');
-    const jobBorder = useColorModeValue(orange200, 'gray.600');
-    const sequentialBorder = useColorModeValue(green200, 'gray.600');
-    const parallelBorder = useColorModeValue(blue200, 'gray.600');
-    const nodeBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-
     const handleTypeChange = (newType: 'job' | 'sequential' | 'parallel') => {
         const updatedNode = {
             ...node,
@@ -142,30 +124,21 @@ const JobNode: React.FC<{
 
     const getNodeBgColor = (nodeType: string) => {
         switch (nodeType) {
-            case 'job': return jobBg;
-            case 'sequential': return sequentialBg;
-            case 'parallel': return parallelBg;
-            default: return nodeBg;
+            case 'job': return 'var(--color-pipeline-job-bg)';
+            case 'sequential': return 'var(--color-pipeline-seq-bg)';
+            case 'parallel': return 'var(--color-pipeline-par-bg)';
+            default: return 'var(--color-bg-card)';
         }
     };
 
     const getNodeBorderColor = (nodeType: string) => {
         switch (nodeType) {
-            case 'job': return jobBorder;
-            case 'sequential': return sequentialBorder;
-            case 'parallel': return parallelBorder;
-            default: return borderColor;
+            case 'job': return 'var(--color-pipeline-job-border)';
+            case 'sequential': return 'var(--color-pipeline-seq-border)';
+            case 'parallel': return 'var(--color-pipeline-par-border)';
+            default: return 'var(--color-border)';
         }
     };
-
-
-
-    const inputBg = useColorModeValue('white', 'gray.700');
-    const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
-    const inputFocusBorderColor = useColorModeValue('blue.500', 'blue.400');
-    const labelColor = useColorModeValue('gray.700', 'gray.300');
-    const buttonBg = useColorModeValue('blue.500', 'blue.600');
-    const buttonHoverBg = useColorModeValue('blue.600', 'blue.500');
 
     // Collections for Select components
     const nodeTypeItems = useMemo(() => [
@@ -194,7 +167,7 @@ const JobNode: React.FC<{
                 <HStack gap={3} justify="space-between" flexWrap="wrap" align="flex-end">
                     <HStack gap={3} flex={1} minW="300px" align="flex-end">
                         <VStack align="start" gap={1} w="140px">
-                            <Text fontSize="xs" fontWeight="medium" color={labelColor} visibility="hidden">Type</Text>
+                            <Text fontSize="xs" fontWeight="medium" color="var(--color-text)" visibility="hidden">Type</Text>
                             <Select.Root
                                 size="sm"
                                 collection={nodeTypeCollection.collection}
@@ -210,7 +183,7 @@ const JobNode: React.FC<{
                                     h="32px"
                                 >
                                     <Select.Trigger>
-                                        <Select.ValueText fontWeight="semibold" color={textColor} />
+                                        <Select.ValueText fontWeight="semibold" color="var(--color-text)" />
                                     </Select.Trigger>
                                     <Select.IndicatorGroup>
                                         <Select.Indicator />
@@ -231,7 +204,7 @@ const JobNode: React.FC<{
                         {node.type === 'job' ? (
                             <>
                                 <VStack align="start" gap={1} flex={1}>
-                                    <Text fontSize="xs" fontWeight="medium" color={labelColor}>Script</Text>
+                                    <Text fontSize="xs" fontWeight="medium" color="var(--color-text)">Script</Text>
                                     <Select.Root
                                         size="sm"
                                         collection={templatesCollection.collection}
@@ -241,14 +214,14 @@ const JobNode: React.FC<{
                                     >
                                         <Select.HiddenSelect />
                                         <Select.Control
-                                            bg={inputBg}
-                                            borderColor={inputBorderColor}
+                                            bg="var(--color-input-bg)"
+                                            borderColor="var(--color-input-border)"
                                             borderRadius="md"
-                                            _focus={{ borderColor: inputFocusBorderColor }}
+                                            _focus={{ borderColor: 'var(--color-primary)' }}
                                             h="32px"
                                         >
                                             <Select.Trigger>
-                                                <Select.ValueText placeholder="Select template" color={textColor} />
+                                                <Select.ValueText placeholder="Select template" color="var(--color-text)" />
                                             </Select.Trigger>
                                             <Select.IndicatorGroup>
                                                 <Select.Indicator />
@@ -266,7 +239,7 @@ const JobNode: React.FC<{
                                     </Select.Root>
                                 </VStack>
                                 <VStack align="start" gap={1} w="300px">
-                                    <Text fontSize="xs" fontWeight="medium" color={labelColor}>Resources</Text>
+                                    <Text fontSize="xs" fontWeight="medium" color="var(--color-text)">Resources</Text>
                                     <Select.Root
                                         size="sm"
                                         collection={profilesCollection.collection}
@@ -276,14 +249,14 @@ const JobNode: React.FC<{
                                     >
                                         <Select.HiddenSelect />
                                         <Select.Control
-                                            bg={inputBg}
-                                            borderColor={inputBorderColor}
+                                            bg="var(--color-input-bg)"
+                                            borderColor="var(--color-input-border)"
                                             borderRadius="md"
-                                            _focus={{ borderColor: inputFocusBorderColor }}
+                                            _focus={{ borderColor: 'var(--color-primary)' }}
                                             h="32px"
                                         >
                                             <Select.Trigger>
-                                                <Select.ValueText placeholder="Select profile" color={textColor} />
+                                                <Select.ValueText placeholder="Select profile" color="var(--color-text)" />
                                             </Select.Trigger>
                                             <Select.IndicatorGroup>
                                                 <Select.Indicator />
@@ -303,7 +276,7 @@ const JobNode: React.FC<{
                             </>
                         ) : (
                             <VStack align="start" gap={1} flex={1}>
-                                <Text fontSize="xs" fontWeight="medium" color={labelColor}>Name</Text>
+                                <Text fontSize="xs" fontWeight="medium" color="var(--color-text)">Name</Text>
                                 <Input
                                     pl="10px"
                                     size="sm"
@@ -311,10 +284,10 @@ const JobNode: React.FC<{
                                     onChange={(e) => handleFieldChange('name', e.target.value)}
                                     placeholder="Enter name"
                                     w="100%"
-                                    bg={inputBg}
-                                    borderColor={inputBorderColor}
-                                    color={textColor}
-                                    _focus={{ borderColor: inputFocusBorderColor }}
+                                    bg="var(--color-input-bg)"
+                                    borderColor="var(--color-input-border)"
+                                    color="var(--color-text)"
+                                    _focus={{ borderColor: 'var(--color-primary)' }}
                                     borderRadius="md"
                                     h="32px"
                                 />
@@ -327,9 +300,9 @@ const JobNode: React.FC<{
                             <Button
                                 size="sm"
                                 onClick={handleAddChild}
-                                bg={buttonBg}
-                                color="white"
-                                _hover={{ bg: buttonHoverBg }}
+                                bg="var(--color-primary)"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                                 borderRadius="md"
                             >
                                 + Add
@@ -379,7 +352,7 @@ const JobNode: React.FC<{
 
     if (node.type === 'job') {
         return (
-            <Box ml={depth * 2} bg={nodeBg} padding="2px" borderRadius="md" border="1px" borderColor={borderColor} mb={1}>
+            <Box ml={depth * 2} bg="var(--color-bg-card)" padding="2px" borderRadius="md" border="1px" borderColor="var(--color-border)" mb={1}>
                 {renderNodeHeader()}
                 {renderChildren()}
             </Box>
@@ -391,11 +364,11 @@ const JobNode: React.FC<{
             ml={depth * 2}
             padding="10px"
             border="1px"
-            borderColor={borderColor}
+            borderColor="var(--color-border)"
             borderRadius="lg"
             mb={1}
-            bg={nodeBg}
-            boxShadow={useColorModeValue('sm', 'dark-lg')}
+            bg="var(--color-bg-card)"
+            boxShadow="sm"
         >
             <Box p={4}>
                 {renderNodeHeader()}
@@ -408,16 +381,13 @@ const JobNode: React.FC<{
 const PipelineNodeDisplay: React.FC<{ node: PipelineNode; depth?: number }> = ({ node, depth = 0 }) => {
     const indent = depth * 20;
 
-    // Theme-aware colors
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-
     const renderNode = () => {
         if (node.type === 'job') {
             const job = node as PipelineJob;
             return (
                 <HStack>
                     <Badge colorScheme="orange">Job</Badge>
-                    <Text fontWeight="bold" color={textColor}>{job.script}</Text>
+                    <Text fontWeight="bold" color="var(--color-text)">{job.script}</Text>
                     <Badge variant="outline">{job.profile}</Badge>
                 </HStack>
             );
@@ -428,7 +398,7 @@ const PipelineNodeDisplay: React.FC<{ node: PipelineNode; depth?: number }> = ({
             return (<>
                 <HStack>
                     <Badge colorScheme="green">Sequential</Badge>
-                    <Text fontWeight="bold" color={textColor}>{seq.name}</Text>
+                    <Text fontWeight="bold" color="var(--color-text)">{seq.name}</Text>
                 </HStack>
                 <VStack align="stretch" pl={6} gap={1}>
                     {seq.jobs.map((job, index) => (
@@ -446,7 +416,7 @@ const PipelineNodeDisplay: React.FC<{ node: PipelineNode; depth?: number }> = ({
             return (<>
                 <HStack>
                     <Badge colorScheme="blue">Parallel</Badge>
-                    <Text fontWeight="bold" color={textColor}>{par.name}</Text>
+                    <Text fontWeight="bold" color="var(--color-text)">{par.name}</Text>
                 </HStack>
                 <VStack align="stretch" pl={6} gap={1}>
                     {par.jobs.map((job, index) => (
@@ -482,11 +452,6 @@ const PipelineBuilder: React.FC<{
         name: 'Main Sequence',
         children: []
     });
-
-    // Theme-aware colors for PipelineBuilder
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const structureBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
 
     // Convert backend PipelineNode format to frontend JobNodeData format
     const convertFromBackendFormat = (node: PipelineNode): JobNodeData => {
@@ -603,16 +568,16 @@ const PipelineBuilder: React.FC<{
 
                             <Box>
                                 <HStack mb={4}>
-                                    <Heading size="md" color={textColor}>Pipeline Structure</Heading>
+                                    <Heading size="md" color="var(--color-text)">Pipeline Structure</Heading>
                                 </HStack>
 
                                 <Box
                                     border="1px"
-                                    borderColor={borderColor}
+                                    borderColor="var(--color-border)"
                                     borderRadius="lg"
                                     p={6}
-                                    bg={structureBg}
-                                    boxShadow={useColorModeValue('sm', 'dark-lg')}
+                                    bg="var(--color-bg-page)"
+                                    boxShadow="sm"
                                 >
                                     <JobNode
                                         node={rootNode}
@@ -631,17 +596,17 @@ const PipelineBuilder: React.FC<{
                             variant="ghost"
                             mr={3}
                             onClick={onClose}
-                            color={textColor}
-                            _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                            color="var(--color-text)"
+                            _hover={{ bg: 'var(--color-bg-hover)' }}
                         >
                             Cancel
                         </Button>
                         <Button
                             onClick={handleSavePipeline}
                             disabled={!pipelineName}
-                            bg={useColorModeValue('blue.500', 'blue.600')}
-                            color="white"
-                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            bg="var(--color-primary)"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
                             fontWeight="medium"
                         >
                             Save Pipeline
@@ -657,19 +622,16 @@ const PipelineBuilder: React.FC<{
 const PipelinesHeader: React.FC<{
     onCreateOpen: () => void;
 }> = ({ onCreateOpen }) => {
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-
     return (
         <>
             <Flex align="center" flexWrap="wrap" gap={4}>
-                <Heading size="lg" color={textColor}>Pipeline Management</Heading>
+                <Heading size="lg" color="var(--color-text)">Pipeline Management</Heading>
                 <Spacer />
                 <Button
                     onClick={onCreateOpen}
-                    bg={useColorModeValue('blue.500', 'blue.600')}
-                    color="white"
-                    _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                    bg="var(--color-primary)"
+                    color="var(--color-primary-text)"
+                    _hover={{ bg: 'var(--color-primary-hover)' }}
                     fontWeight="medium"
                     borderRadius="md"
                 >
@@ -680,7 +642,7 @@ const PipelinesHeader: React.FC<{
                 </Button>
             </Flex>
 
-            <Text color={mutedTextColor}>
+            <Text color="var(--color-text-muted)">
                 Manage and run SLURM job pipelines with dependencies and scheduling.
             </Text>
         </>
@@ -694,14 +656,6 @@ const PipelineTemplatesTable: React.FC<{
     onTemplateLoaded: (templateData: any) => void;
     isLoading: boolean;
 }> = ({ pipelineTemplateFiles, onLoadTemplate, onTemplateLoaded, isLoading }) => {
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.800');
-    const headerBg = useColorModeValue('gray.50', 'gray.800');
-    const headerTextColor = useColorModeValue('gray.700', 'gray.300');
-    const buttonBg = useColorModeValue('blue.500', 'blue.600');
-    const buttonHoverBg = useColorModeValue('blue.600', 'blue.500');
-
     if (pipelineTemplateFiles.length === 0) {
         return (
             <Alert.Root status="info">
@@ -718,24 +672,24 @@ const PipelineTemplatesTable: React.FC<{
     return (
         <VStack align="stretch" gap={3}>
             <Table.Root>
-                <Table.Header bg={headerBg}>
+                <Table.Header bg="var(--color-bg-header)">
                     <Table.Row>
-                        <Table.ColumnHeader color={headerTextColor} borderColor={borderColor} fontWeight="semibold" pl={4}>Template Name</Table.ColumnHeader>
-                        <Table.ColumnHeader color={headerTextColor} borderColor={borderColor} fontWeight="semibold" pr={4}>Actions</Table.ColumnHeader>
+                        <Table.ColumnHeader color="var(--color-text)" borderColor="var(--color-border)" fontWeight="semibold" pl={4}>Template Name</Table.ColumnHeader>
+                        <Table.ColumnHeader color="var(--color-text)" borderColor="var(--color-border)" fontWeight="semibold" pr={4}>Actions</Table.ColumnHeader>
                     </Table.Row>
                 </Table.Header>
                 <Table.Body>
                     {pipelineTemplateFiles.map((fileName) => (
                         <Table.Row
                             key={fileName}
-                            _hover={{ bg: rowHoverBg }}
-                            borderColor={borderColor}
+                            _hover={{ bg: 'var(--color-bg-hover)' }}
+                            borderColor="var(--color-border)"
                             transition="background-color 0.2s"
                         >
-                            <Table.Cell fontWeight="medium" color={textColor} borderColor={borderColor} py={3} pl={4}>
+                            <Table.Cell fontWeight="medium" color="var(--color-text)" borderColor="var(--color-border)" py={3} pl={4}>
                                 {fileName}
                             </Table.Cell>
-                            <Table.Cell borderColor={borderColor} py={3} pr={4}>
+                            <Table.Cell borderColor="var(--color-border)" py={3} pr={4}>
                                 <HStack gap={2}>
                                     <Tooltip content="Load template to create new pipeline">
                                         <Button
@@ -746,9 +700,9 @@ const PipelineTemplatesTable: React.FC<{
                                                 });
                                             }}
                                             loading={isLoading}
-                                            bg={buttonBg}
-                                            color="white"
-                                            _hover={{ bg: buttonHoverBg }}
+                                            bg="var(--color-primary)"
+                                            color="var(--color-primary-text)"
+                                            _hover={{ bg: 'var(--color-primary-hover)' }}
                                             fontWeight="medium"
                                         >
                                             Open
@@ -769,9 +723,6 @@ const PipelineStructureModal: React.FC<{
     pipeline: Pipeline | null;
     onClose: () => void;
 }> = ({ pipeline, onClose }) => {
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const cardBg = useColorModeValue('white', 'gray.800');
-
     return (
         <Dialog.Root open={!!pipeline} onOpenChange={(details) => { if (!details.open) onClose(); }} size="xl">
             <Dialog.Backdrop />
@@ -783,7 +734,7 @@ const PipelineStructureModal: React.FC<{
                     </Dialog.Header>
                     <Dialog.Body>
                         {pipeline && (
-                            <Box border="1px" borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
+                            <Box border="1px" borderColor="var(--color-border)" borderRadius="md" p={4} bg="var(--color-bg-card)">
                                 <PipelineNodeDisplay node={pipeline.definition} />
                             </Box>
                         )}
@@ -791,9 +742,9 @@ const PipelineStructureModal: React.FC<{
                     <Dialog.Footer>
                         <Button
                             onClick={onClose}
-                            bg={useColorModeValue('blue.500', 'blue.600')}
-                            color="white"
-                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            bg="var(--color-primary)"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
                             fontWeight="medium"
                         >
                             Close
@@ -810,12 +761,6 @@ const PipelineRunDetailsModal: React.FC<{
     run: PipelineRun | null;
     onClose: () => void;
 }> = ({ run, onClose }) => {
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.800');
-    const headerBg = useColorModeValue('gray.50', 'gray.800');
-    const headerTextColor = useColorModeValue('gray.700', 'gray.300');
-
     return (
         <Dialog.Root open={!!run} onOpenChange={(details) => { if (!details.open) onClose(); }} size="xl">
             <Dialog.Backdrop />
@@ -829,42 +774,42 @@ const PipelineRunDetailsModal: React.FC<{
                         {run && (
                             <VStack align="start" gap={4}>
                                 <HStack>
-                                    <Text fontWeight="bold" color={textColor}>Status:</Text>
+                                    <Text fontWeight="bold" color="var(--color-text)">Status:</Text>
                                     <Badge colorScheme={getStatusColor(run.status)}>
                                         {run.status}
                                     </Badge>
                                 </HStack>
                                 <HStack>
-                                    <Text fontWeight="bold" color={textColor}>Pipeline:</Text>
-                                    <Text color={textColor}>{run.pipeline.name}</Text>
+                                    <Text fontWeight="bold" color="var(--color-text)">Pipeline:</Text>
+                                    <Text color="var(--color-text)">{run.pipeline.name}</Text>
                                 </HStack>
                                 <HStack>
-                                    <Text fontWeight="bold" color={textColor}>Created:</Text>
-                                    <Text color={textColor}>{new Date(run.created_at).toLocaleString()}</Text>
+                                    <Text fontWeight="bold" color="var(--color-text)">Created:</Text>
+                                    <Text color="var(--color-text)">{new Date(run.created_at).toLocaleString()}</Text>
                                 </HStack>
                                 {run.jobs.length > 0 && (
                                     <Box width="100%">
-                                        <Text fontWeight="bold" mb={2} color={textColor}>Jobs:</Text>
+                                        <Text fontWeight="bold" mb={2} color="var(--color-text)">Jobs:</Text>
                                         <Table.Root size="sm" variant="line">
-                                            <Table.Header bg={headerBg}>
+                                            <Table.Header bg="var(--color-bg-header)">
                                                 <Table.Row>
-                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Job ID</Table.ColumnHeader>
-                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Slurm ID</Table.ColumnHeader>
-                                                    <Table.ColumnHeader color={headerTextColor} borderColor={borderColor}>Status</Table.ColumnHeader>
+                                                    <Table.ColumnHeader color="var(--color-text)" borderColor="var(--color-border)">Job ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader color="var(--color-text)" borderColor="var(--color-border)">Slurm ID</Table.ColumnHeader>
+                                                    <Table.ColumnHeader color="var(--color-text)" borderColor="var(--color-border)">Status</Table.ColumnHeader>
                                                 </Table.Row>
                                             </Table.Header>
                                             <Table.Body>
                                                 {run.jobs.map((job) => (
                                                     <Table.Row
                                                         key={job.job_id}
-                                                        _hover={{ bg: rowHoverBg }}
-                                                        borderColor={borderColor}
+                                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                                        borderColor="var(--color-border)"
                                                     >
-                                                        <Table.Cell fontFamily="mono" fontSize="sm" color={textColor} borderColor={borderColor}>{job.job_id}</Table.Cell>
-                                                        <Table.Cell fontFamily="mono" fontSize="sm" color={textColor} borderColor={borderColor}>
+                                                        <Table.Cell fontFamily="mono" fontSize="sm" color="var(--color-text)" borderColor="var(--color-border)">{job.job_id}</Table.Cell>
+                                                        <Table.Cell fontFamily="mono" fontSize="sm" color="var(--color-text)" borderColor="var(--color-border)">
                                                             {job.slurm_jobid || '-'}
                                                         </Table.Cell>
-                                                        <Table.Cell borderColor={borderColor}>
+                                                        <Table.Cell borderColor="var(--color-border)">
                                                             <Badge colorScheme={getStatusColor(job.status)} size="sm">
                                                                 {job.status}
                                                             </Badge>
@@ -881,9 +826,9 @@ const PipelineRunDetailsModal: React.FC<{
                     <Dialog.Footer>
                         <Button
                             onClick={onClose}
-                            bg={useColorModeValue('blue.500', 'blue.600')}
-                            color="white"
-                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                            bg="var(--color-primary)"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
                             fontWeight="medium"
                         >
                             Close
@@ -904,12 +849,6 @@ export const PipelinesView: React.FC = () => {
     const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
     const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null);
     const [loadedTemplateData, setLoadedTemplateData] = useState<any>(null);
-
-    // Theme-aware colors
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
 
     // Queries
     const { data: profiles = [] } = useQuery({
@@ -968,7 +907,7 @@ export const PipelinesView: React.FC = () => {
     });
 
     return (
-        <Box p={6} bg={pageBg} minH="100vh">
+        <Box p={6} bg="var(--color-bg-page)" minH="100vh">
             <VStack gap={6} align="stretch">
                 <PipelinesHeader onCreateOpen={onCreateOpen} />
 
@@ -979,13 +918,13 @@ export const PipelinesView: React.FC = () => {
 
                     <Tabs.Content value="templates" p={0} pt={4}>
                         <Card.Root
-                            bg={cardBg}
-                            borderColor={borderColor}
+                            bg="var(--color-bg-card)"
+                            borderColor="var(--color-border)"
                             borderRadius="lg"
-                            boxShadow={useColorModeValue('sm', 'dark-lg')}
+                            boxShadow="sm"
                         >
-                            <Card.Header borderBottom="1px" borderColor={borderColor}>
-                                <Heading size="md" color={textColor}>Pipeline Templates</Heading>
+                            <Card.Header borderBottom="1px" borderColor="var(--color-border)">
+                                <Heading size="md" color="var(--color-text)">Pipeline Templates</Heading>
                             </Card.Header>
                             <Card.Body pt={4}>
                                 <PipelineTemplatesTable

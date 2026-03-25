@@ -18,8 +18,6 @@ import { useNavigate } from 'react-router-dom';
 import { LuTrash2, LuExternalLink } from 'react-icons/lu';
 import { getAllSavedQueries, deleteSavedQuery } from '../../services/api';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
-
 interface SavedQuery {
     _id: number;
     name: string;
@@ -32,22 +30,6 @@ interface SavedQuery {
 
 const SavedQueriesView: React.FC = () => {
     usePageTitle('Saved Queries');
-
-    // Theme-aware colors - all hooks must be called at the top level
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
-    const redButtonBg = useColorModeValue('red.500', 'red.600');
-    const redButtonHoverBg = useColorModeValue('red.600', 'red.500');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const headerBg = useColorModeValue('gray.100', 'gray.800');
-    const headerTextColor = useColorModeValue('gray.900', 'gray.100');
-    const badgeBg = useColorModeValue('blue.100', 'blue.900');
-    const badgeTextColor = useColorModeValue('blue.800', 'blue.100');
-    const errorTextColor = useColorModeValue('red.500', 'red.400');
 
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -125,26 +107,26 @@ const SavedQueriesView: React.FC = () => {
 
     if (isLoading) {
         return (
-            <Box p={4} bg={pageBg}>
-                <Text color={textColor}>Loading saved queries...</Text>
+            <Box p={4} bg="var(--color-bg-page)">
+                <Text color="var(--color-text)">Loading saved queries...</Text>
             </Box>
         );
     }
 
     if (error) {
         return (
-            <Box p={4} bg={pageBg}>
-                <Text color={errorTextColor}>Error loading saved queries: {error instanceof Error ? error.message : 'Unknown error'}</Text>
+            <Box p={4} bg="var(--color-bg-page)">
+                <Text color="var(--color-text)">Error loading saved queries: {error instanceof Error ? error.message : 'Unknown error'}</Text>
             </Box>
         );
     }
 
     return (
-        <Box p={4} bg={pageBg}>
+        <Box p={4} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6}>
                 <HStack justify="space-between">
-                    <Heading size="lg" color={textColor}>Saved Queries</Heading>
-                    <Text color={mutedTextColor}>
+                    <Heading size="lg" color="var(--color-text)">Saved Queries</Heading>
+                    <Text color="var(--color-text-muted)">
                         {savedQueries?.length || 0} saved query{(savedQueries?.length || 0) !== 1 ? 's' : ''}
                     </Text>
                 </HStack>
@@ -152,31 +134,31 @@ const SavedQueriesView: React.FC = () => {
                 {savedQueries && savedQueries.length > 0 ? (
                     <Table.ScrollArea>
                         <Table.Root>
-                            <Table.Header bg={headerBg}>
+                            <Table.Header bg="var(--color-bg-header)">
                                 <Table.Row>
-                                    <Table.ColumnHeader color={headerTextColor}>Name</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Type</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Created</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Actions</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Name</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Type</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Created</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Actions</Table.ColumnHeader>
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {savedQueries.map((query: SavedQuery) => (
                                     <Table.Row
                                         key={query._id}
-                                        _hover={{ bg: rowHoverBg }}
-                                        borderColor={borderColor}
+                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                        borderColor="var(--color-border)"
                                     >
                                         <Table.Cell>
-                                            <Text fontWeight="medium" color={textColor}>{query.name}</Text>
+                                            <Text fontWeight="medium" color="var(--color-text)">{query.name}</Text>
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <Badge bg={badgeBg} color={badgeTextColor}>
+                                            <Badge bg="var(--color-primary)" color="var(--color-primary-text)">
                                                 {getQueryType(query.query.url)}
                                             </Badge>
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <Text fontSize="sm" color={mutedTextColor}>
+                                            <Text fontSize="sm" color="var(--color-text-muted)">
                                                 {formatDate(query.created_time)}
                                             </Text>
                                         </Table.Cell>
@@ -187,8 +169,8 @@ const SavedQueriesView: React.FC = () => {
                                                         aria-label="View query"
                                                         size="sm"
                                                         variant="ghost"
-                                                        color={textColor}
-                                                        _hover={{ bg: buttonHoverBg }}
+                                                        color="var(--color-text)"
+                                                        _hover={{ bg: 'var(--color-bg-hover)' }}
                                                         onClick={() => handleViewQuery(query)}
                                                     >
                                                         <LuExternalLink />
@@ -199,8 +181,8 @@ const SavedQueriesView: React.FC = () => {
                                                         aria-label="Delete query"
                                                         size="sm"
                                                         variant="ghost"
-                                                        color={textColor}
-                                                        _hover={{ bg: buttonHoverBg }}
+                                                        color="var(--color-text)"
+                                                        _hover={{ bg: 'var(--color-bg-hover)' }}
                                                         onClick={() => handleDeleteClick(query.name)}
                                                     >
                                                         <LuTrash2 />
@@ -215,10 +197,10 @@ const SavedQueriesView: React.FC = () => {
                     </Table.ScrollArea>
                 ) : (
                     <Box textAlign="center" py={8}>
-                        <Text color={mutedTextColor} fontSize="lg">
+                        <Text color="var(--color-text-muted)" fontSize="lg">
                             No saved queries found
                         </Text>
-                        <Text color={mutedTextColor} mt={2} opacity={0.7}>
+                        <Text color="var(--color-text-muted)" mt={2} opacity={0.7}>
                             Save queries from other views to see them here
                         </Text>
                     </Box>
@@ -229,15 +211,15 @@ const SavedQueriesView: React.FC = () => {
             <Dialog.Root open={isDeleteOpen} onOpenChange={(details) => setIsDeleteOpen(details.open)} role="alertdialog">
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
-                    <Dialog.Content bg={cardBg}>
+                    <Dialog.Content bg="var(--color-bg-card)">
                         <Dialog.Header>
-                            <Dialog.Title fontSize="lg" fontWeight="bold" color={textColor}>
+                            <Dialog.Title fontSize="lg" fontWeight="bold" color="var(--color-text)">
                                 Delete Saved Query
                             </Dialog.Title>
                         </Dialog.Header>
 
                         <Dialog.Body>
-                            <Text color={textColor}>
+                            <Text color="var(--color-text)">
                                 Are you sure you want to delete "{queryToDelete}"? This action cannot be undone.
                             </Text>
                         </Dialog.Body>
@@ -247,18 +229,18 @@ const SavedQueriesView: React.FC = () => {
                                 ref={cancelRef}
                                 onClick={() => setIsDeleteOpen(false)}
                                 variant="outline"
-                                borderColor={borderColor}
-                                color={textColor}
-                                _hover={{ bg: buttonHoverBg }}
+                                borderColor="var(--color-border)"
+                                color="var(--color-text)"
+                                _hover={{ bg: 'var(--color-bg-hover)' }}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={handleDeleteConfirm}
                                 ml={3}
-                                bg={redButtonBg}
-                                color="white"
-                                _hover={{ bg: redButtonHoverBg }}
+                                bg="var(--color-btn-danger)"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-btn-danger-hover)' }}
                             >
                                 Delete
                             </Button>

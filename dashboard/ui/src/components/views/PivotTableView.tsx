@@ -9,7 +9,6 @@ import {
     IconButton,
     Alert,
     NativeSelect,
-    useToken,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { LuCopy, LuDownload } from 'react-icons/lu';
@@ -37,8 +36,6 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
 
-    // Theme colors for cell styling
-    const [blue500, green500, red500] = useToken('colors', ['blue.500', 'green.500', 'red.500']);
     // Helper to convert hex to rgba
     const hexToRgba = (hex: string, alpha: number): string => {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -460,17 +457,17 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             // Highlight baseline column
             if (columnName === selectedBaselineColumn) {
                 return {
-                    backgroundColor: hexToRgba(blue500, 0.2),
-                    border: `2px solid ${hexToRgba(blue500, 0.6)}`,
+                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                    border: '2px solid rgba(59, 130, 246, 0.6)',
                     fontWeight: 'bold'
                 };
             }
 
             const intensity = Math.min(Math.abs(value - 1), 0.5) * 2;
             if (value > 1) {
-                return { backgroundColor: hexToRgba(green500, intensity * 0.3) };
+                return { backgroundColor: `rgba(34, 197, 94, ${intensity * 0.3})` };
             } else if (value < 1) {
-                return { backgroundColor: hexToRgba(red500, intensity * 0.3) };
+                return { backgroundColor: `rgba(239, 68, 68, ${intensity * 0.3})` };
             }
         }
         return {};
@@ -528,9 +525,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
 
             {/* Baseline column selector for relative pivot */}
             {isRelativePivot && sortedData.length > 0 && (
-                <Box mb={4} p={4} bg="blue.50" borderRadius="md" borderWidth={1} borderColor="blue.200">
+                <Box mb={4} p={4} bg="var(--color-info-bg)" borderRadius="md" borderWidth={1} borderColor="var(--color-info-border)">
                     <VStack gap={2} align="start">
-                        <Text fontSize="sm" fontWeight="semibold" color="blue.800">
+                        <Text fontSize="sm" fontWeight="semibold" color="var(--color-info-text)">
                             Select Baseline Column for Relative Values:
                         </Text>
                         <Tooltip
@@ -543,9 +540,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 <NativeSelect.Field
                                     value={selectedBaselineColumn || ''}
                                     onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedBaselineColumn(e.currentTarget.value || null)}
-                                    bg="white"
-                                    borderColor="blue.300"
-                                    _hover={{ borderColor: "blue.400" }}
+                                    bg="var(--color-input-bg)"
+                                    borderColor="var(--color-info-border)"
+                                    _hover={{ borderColor: "var(--color-primary)" }}
                                 >
                                     <option value="">Auto-select first numeric column</option>
                                     {columnStructure.valueColumns.map((columnName, index) => (
@@ -557,7 +554,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 <NativeSelect.Indicator />
                             </NativeSelect.Root>
                         </Tooltip>
-                        <Text fontSize="xs" color="blue.600">
+                        <Text fontSize="xs" color="var(--color-text-info)">
                             All values will be calculated relative to the selected column (baseline = 1.0)
                         </Text>
                     </VStack>
@@ -567,12 +564,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             {sortedData.length > 0 && (
                 <Box
                     borderWidth={1}
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                     borderRadius="lg"
                     minH="400px"
                     height="100%"
                     width="100%"
-                    bg="white"
+                    bg="var(--color-bg-card)"
                     boxShadow="sm"
                     _hover={{
                         boxShadow: "md"
@@ -596,9 +593,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 variant="outline"
                                 onClick={copyJsonToClipboard}
                                 aria-label="Copy JSON to clipboard"
-                                bg="white"
+                                bg="var(--color-bg-card)"
                                 _hover={{
-                                    bg: "blue.50"
+                                    bg: "var(--color-info-bg)"
                                 }}
                             >
                                 <LuCopy />
@@ -611,9 +608,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                 variant="outline"
                                 onClick={copyTableToClipboard}
                                 aria-label="Copy table to clipboard"
-                                bg="white"
+                                bg="var(--color-bg-card)"
                                 _hover={{
-                                    bg: "green.50"
+                                    bg: "var(--color-pivot-col-bg)"
                                 }}
                             >
                                 <LuDownload />
@@ -638,9 +635,9 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                             px={4}
                                                             py={3}
                                                             borderWidth={1}
-                                                            borderColor="gray.200"
-                                                            bg="blue.100"
-                                                            color="blue.800"
+                                                            borderColor="var(--color-border)"
+                                                            bg="var(--color-table-row-header-bg)"
+                                                            color="var(--color-table-row-header-text)"
                                                             fontWeight="semibold"
                                                             textAlign="left"
                                                         >
@@ -653,8 +650,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                     <Table.Cell
                                                         colSpan={backendColumnNames.length}
                                                         borderBottomWidth={3}
-                                                        borderBottomColor="blue.300"
-                                                        bg="blue.100"
+                                                        borderBottomColor="var(--color-info-border)"
+                                                        bg="var(--color-table-row-header-bg)"
                                                         h="4px"
                                                         p={0}
                                                         position="relative"
@@ -702,14 +699,14 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         px={4}
                                                         py={3}
                                                         borderWidth={1}
-                                                        borderColor="gray.200"
-                                                        bg={fieldRow.name === 'Aggregator' ? 'purple.100' : 'green.100'}
-                                                        color={fieldRow.name === 'Aggregator' ? 'purple.800' : 'green.800'}
+                                                        borderColor="var(--color-border)"
+                                                        bg={fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-bg)' : 'var(--color-table-col-header-bg)'}
+                                                        color={fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-text)' : 'var(--color-table-col-header-text)'}
                                                         fontWeight="semibold"
                                                         textAlign="left"
                                                         minW="140px"
                                                         borderRightWidth={2}
-                                                        borderRightColor={fieldRow.name === 'Aggregator' ? 'purple.200' : 'green.200'}
+                                                        borderRightColor={fieldRow.name === 'Aggregator' ? 'var(--color-pivot-value-border)' : 'var(--color-pivot-col-border)'}
                                                     >
                                                         {fieldRow.name}
                                                     </Table.ColumnHeader>
@@ -723,18 +720,18 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                             py={3}
                                                             textAlign="center"
                                                             borderWidth={1}
-                                                            borderColor="gray.200"
+                                                            borderColor="var(--color-border)"
                                                             bg={
-                                                                fieldRow.name === 'Aggregator' ? 'purple.50' :
-                                                                    'green.50'
+                                                                fieldRow.name === 'Aggregator' ? 'var(--color-pivot-value-bg)' :
+                                                                    'var(--color-pivot-col-bg)'
                                                             }
                                                             color={
-                                                                fieldRow.name === 'Aggregator' ? 'purple.700' :
-                                                                    'green.700'
+                                                                fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-text)' :
+                                                                    'var(--color-table-col-header-text)'
                                                             }
                                                             fontWeight="medium"
                                                             _hover={{
-                                                                bg: fieldRow.name === 'Aggregator' ? 'purple.100' : 'green.100'
+                                                                bg: fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-bg)' : 'var(--color-table-col-header-bg)'
                                                             }}
                                                             transition="background-color 0.2s"
                                                         >
@@ -754,13 +751,13 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         px={4}
                                                         py={3}
                                                         borderWidth={1}
-                                                        borderColor="gray.200"
-                                                        bg="blue.100"
-                                                        color="blue.800"
+                                                        borderColor="var(--color-border)"
+                                                        bg="var(--color-table-row-header-bg)"
+                                                        color="var(--color-table-row-header-text)"
                                                         fontWeight="semibold"
                                                         textAlign="left"
                                                         borderRightWidth={colIndex === columnStructure.rowColumns.length - 1 ? 2 : 1}
-                                                        borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "blue.200" : "gray.200"}
+                                                        borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "var(--color-pivot-row-border)" : "var(--color-border)"}
                                                     >
                                                         {rowColumn.replace(/_/g, ':')}
                                                     </Table.ColumnHeader>
@@ -774,8 +771,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         px={4}
                                                         py={3}
                                                         borderWidth={1}
-                                                        borderColor="gray.200"
-                                                        bg={columnName === selectedBaselineColumn ? "blue.200" : "blue.50"}
+                                                        borderColor="var(--color-border)"
+                                                        bg={columnName === selectedBaselineColumn ? "var(--color-table-baseline-selected)" : "var(--color-table-baseline-bg)"}
                                                         position="relative"
                                                     >
                                                         {columnName === selectedBaselineColumn && (
@@ -783,8 +780,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                                 position="absolute"
                                                                 top={1}
                                                                 right={1}
-                                                                bg="blue.600"
-                                                                color="white"
+                                                                bg="var(--color-table-baseline-badge)"
+                                                                color="var(--color-primary-text)"
                                                                 fontSize="xs"
                                                                 px={1}
                                                                 py={0.5}
@@ -803,8 +800,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                 <Table.Cell
                                                     colSpan={columnStructure.rowColumns.length + columnStructure.valueColumns.length}
                                                     borderBottomWidth={3}
-                                                    borderBottomColor="blue.300"
-                                                    bg="blue.100"
+                                                    borderBottomColor="var(--color-info-border)"
+                                                    bg="var(--color-table-row-header-bg)"
                                                     h="4px"
                                                     p={0}
                                                     position="relative"
@@ -819,10 +816,10 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                     <Table.Row
                                         key={rowIndex}
                                         _hover={{
-                                            bg: 'gray.50'
+                                            bg: 'var(--color-bg-stripe)'
                                         }}
                                         transition="background-color 0.2s"
-                                        bg={rowIndex % 2 === 0 ? 'white' : 'gray.25'}
+                                        bg={rowIndex % 2 === 0 ? 'var(--color-bg-card)' : 'var(--color-bg-card)'}
                                     >
                                         {/* Row column values */}
                                         {columnStructure.rowColumns.map((rowColumn, colIndex) => (
@@ -831,12 +828,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                 fontSize="sm"
                                                 fontWeight="semibold"
                                                 borderWidth={1}
-                                                borderColor="gray.200"
+                                                borderColor="var(--color-border)"
                                                 borderRightWidth={colIndex === columnStructure.rowColumns.length - 1 ? 2 : 1}
-                                                borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "blue.200" : "gray.200"}
-                                                bg="blue.25"
+                                                borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "var(--color-pivot-row-border)" : "var(--color-border)"}
+                                                bg="var(--color-table-baseline-bg)"
                                                 textAlign="left"
-                                                color="blue.800"
+                                                color="var(--color-table-row-header-text)"
                                                 px={4}
                                                 py={3}
                                             >
@@ -852,12 +849,12 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                 style={getCellStyle(row[columnName], columnName)}
                                                 fontWeight="medium"
                                                 borderWidth={1}
-                                                borderColor="gray.200"
+                                                borderColor="var(--color-border)"
                                                 textAlign="center"
                                                 px={4}
                                                 py={3}
                                                 _hover={{
-                                                    bg: 'blue.50'
+                                                    bg: 'var(--color-table-baseline-bg)'
                                                 }}
                                                 transition="background-color 0.2s"
                                             >
@@ -878,19 +875,19 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                     justifyContent="center"
                     alignItems="center"
                     h="300px"
-                    color="gray.500"
-                    bg="gray.50"
+                    color="var(--color-table-empty-text)"
+                    bg="var(--color-table-empty-bg)"
                     borderRadius="lg"
                     borderWidth={1}
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                     borderStyle="dashed"
                     flexDirection="column"
                     gap={4}
                 >
-                    <Text fontSize="lg" fontWeight="medium" color="gray.600">
+                    <Text fontSize="lg" fontWeight="medium" color="var(--color-text-muted)">
                         No data available
                     </Text>
-                    <Text fontSize="sm" color="gray.500" textAlign="center">
+                    <Text fontSize="sm" color="var(--color-table-empty-text)" textAlign="center">
                         Configure your pivot fields and press execute
                     </Text>
                 </Box>

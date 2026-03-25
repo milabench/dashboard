@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useColorModeValue } from '../ui/color-mode';
 import {
     Box,
     Heading,
@@ -30,9 +29,6 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     fetchLogData,
     getSlurmJobLogSize
 }) => {
-    const bgColor = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-
     // Internal state for truncation and log size
     const [isTruncated, setIsTruncated] = useState(false);
     const [logSize, setLogSize] = useState<number | null>(null);
@@ -41,16 +37,8 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     const logRef = useRef<HTMLDivElement>(null);
 
     const displayName = logType === 'stdout' ? 'Standard Output (stdout)' : 'Standard Error (stderr)';
-    // Theme-aware log colors
-    const logBgColor = useColorModeValue(
-        logType === 'stdout' ? 'gray.50' : 'red.50',
-        logType === 'stdout' ? 'gray.900' : 'red.900'
-    );
-    const logTextColor = useColorModeValue(
-        logType === 'stdout' ? 'gray.800' : 'red.800',
-        logType === 'stdout' ? 'gray.100' : 'red.100'
-    );
-    const mutedTextColor = useColorModeValue('gray.500', 'gray.400');
+    const logBgColor = logType === 'stdout' ? 'var(--color-log-stdout-bg)' : 'var(--color-log-stderr-bg)';
+    const logTextColor = logType === 'stdout' ? 'var(--color-log-stdout-text)' : 'var(--color-log-stderr-text)';
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
     const CHUNK_SIZE = 500 * 1024;
@@ -114,7 +102,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
     }, [logData]);
 
     return (
-        <Card.Root bg={bgColor} padding="10px" border="1px solid" borderColor={borderColor} className="logview" flex={1} minH={0} display="flex" flexDirection="column">
+        <Card.Root bg="var(--color-bg-card)" padding="10px" border="1px solid" borderColor="var(--color-border)" className="logview" flex={1} minH={0} display="flex" flexDirection="column">
             <Card.Header paddingBottom="5px" flexShrink={0}>
                 <HStack justify="space-between">
                     <Heading size="md">{displayName}</Heading>
@@ -174,7 +162,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                                 {logData}
                             </Code>
                         ) : (
-                            <Text color={mutedTextColor} textAlign="center" py={8}>
+                            <Text color="var(--color-text-muted)" textAlign="center" py={8}>
                                 No {logType} content available
                             </Text>
                         )}

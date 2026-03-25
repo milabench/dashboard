@@ -20,27 +20,12 @@ import {
     useListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import type { Weight } from '../../services/types';
 import { getProfileList, getProfileDetails, saveProfile, copyProfile } from '../../services/api';
 import Cookies from 'js-cookie';
 
 export const Profile: React.FC = () => {
     usePageTitle('Profiles');
-
-    // Theme-aware colors - all hooks must be called at the top level
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
-    const blueButtonBg = useColorModeValue('blue.500', 'blue.600');
-    const blueButtonHoverBg = useColorModeValue('blue.600', 'blue.500');
-    const inputBg = useColorModeValue('white', 'gray.800');
-    const selectBg = useColorModeValue('white', 'gray.800');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const headerBg = useColorModeValue('gray.100', 'gray.800');
-    const headerTextColor = useColorModeValue('gray.900', 'gray.100');
 
     const [profiles, setProfiles] = useState<string[]>([]);
     const [selectedProfile, setSelectedProfile] = useState<string>('');
@@ -212,23 +197,23 @@ export const Profile: React.FC = () => {
     const sourceProfileCollection = useListCollection({ initialItems: sourceProfileItems });
 
     return (
-        <Box p={4} bg={pageBg}>
+        <Box p={4} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6}>
-                <Heading color={textColor}>Profile Management</Heading>
+                <Heading color="var(--color-text)">Profile Management</Heading>
 
-                <Box borderWidth={1} borderRadius="md" p={4} bg={cardBg} borderColor={borderColor}>
+                <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color={textColor}>Profile Selection</Heading>
+                        <Heading size="md" color="var(--color-text)">Profile Selection</Heading>
                         <HStack gap={4}>
                             <Field.Root>
-                                <Field.Label color={textColor}>Score Profile</Field.Label>
+                                <Field.Label color="var(--color-text)">Score Profile</Field.Label>
                                 <Select.Root
                                     collection={scoreProfileCollection.collection}
                                     value={scoreProfile ? [scoreProfile] : []}
                                     onValueChange={handleScoreProfileChange}
                                 >
                                     <Select.HiddenSelect />
-                                    <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                    <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" color="var(--color-text)">
                                         <Select.Trigger>
                                             <Select.ValueText placeholder="Select score profile" />
                                         </Select.Trigger>
@@ -249,10 +234,10 @@ export const Profile: React.FC = () => {
                             </Field.Root>
                             <Button
                                 onClick={handleSetScoreProfile}
-                                bg={blueButtonBg}
-                                color="white"
+                                bg="var(--color-primary)"
+                                color="var(--color-primary-text)"
                                 alignSelf="flex-end"
-                                _hover={{ bg: blueButtonHoverBg }}
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 Set Score Profile
                             </Button>
@@ -260,19 +245,19 @@ export const Profile: React.FC = () => {
                     </VStack>
                 </Box>
 
-                <Box borderWidth={1} borderRadius="md" p={4} bg={cardBg} borderColor={borderColor}>
+                <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color={textColor}>Copy Profile</Heading>
+                        <Heading size="md" color="var(--color-text)">Copy Profile</Heading>
                         <HStack gap={4}>
                             <Field.Root>
-                                <Field.Label color={textColor}>Source Profile</Field.Label>
+                                <Field.Label color="var(--color-text)">Source Profile</Field.Label>
                                 <Select.Root
                                     collection={sourceProfileCollection.collection}
                                     value={sourceProfile ? [sourceProfile] : []}
                                     onValueChange={(details) => setSourceProfile(details.value[0] || '')}
                                 >
                                     <Select.HiddenSelect />
-                                    <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                    <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" color="var(--color-text)">
                                         <Select.Trigger>
                                             <Select.ValueText placeholder="Select source profile" />
                                         </Select.Trigger>
@@ -292,23 +277,23 @@ export const Profile: React.FC = () => {
                                 </Select.Root>
                             </Field.Root>
                             <Field.Root>
-                                <Field.Label color={textColor}>New Profile Name</Field.Label>
+                                <Field.Label color="var(--color-text)">New Profile Name</Field.Label>
                                 <Input
                                     value={newProfileName}
                                     onChange={(e: ChangeEvent<HTMLInputElement>) => setNewProfileName(e.target.value)}
-                                    bg={inputBg}
-                                    borderColor={borderColor}
-                                    color={textColor}
-                                    _focus={{ borderColor: focusBorderColor }}
+                                    bg="var(--color-bg-card)"
+                                    borderColor="var(--color-border)"
+                                    color="var(--color-text)"
+                                    _focus={{ borderColor: 'var(--color-primary)' }}
                                 />
                             </Field.Root>
                             <Button
                                 onClick={handleCopyProfile}
                                 disabled={!sourceProfile || !newProfileName}
-                                bg={blueButtonBg}
-                                color="white"
+                                bg="var(--color-primary)"
+                                color="var(--color-primary-text)"
                                 alignSelf="flex-end"
-                                _hover={{ bg: blueButtonHoverBg }}
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                                 _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                             >
                                 {isCopying ? 'Copying...' : 'Copy Profile'}
@@ -317,19 +302,19 @@ export const Profile: React.FC = () => {
                     </VStack>
                 </Box>
 
-                <Box borderWidth={1} borderRadius="md" p={4} bg={cardBg} borderColor={borderColor}>
+                <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color={textColor}>Update Profile</Heading>
+                        <Heading size="md" color="var(--color-text)">Update Profile</Heading>
                         <HStack gap={4}>
                             <Field.Root>
-                                <Field.Label color={textColor}>Profile</Field.Label>
+                                <Field.Label color="var(--color-text)">Profile</Field.Label>
                                 <Select.Root
                                     collection={profileCollection.collection}
                                     value={selectedProfile ? [selectedProfile] : []}
                                     onValueChange={handleProfileChange}
                                 >
                                     <Select.HiddenSelect />
-                                    <Select.Control bg={selectBg} borderColor={borderColor} color={textColor}>
+                                    <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" color="var(--color-text)">
                                         <Select.Trigger>
                                             <Select.ValueText placeholder="Select profile" />
                                         </Select.Trigger>
@@ -351,10 +336,10 @@ export const Profile: React.FC = () => {
 
                             <Button
                                 onClick={handleSave}
-                                bg={blueButtonBg}
-                                color="white"
+                                bg="var(--color-primary)"
+                                color="var(--color-primary-text)"
                                 alignSelf="flex-end"
-                                _hover={{ bg: blueButtonHoverBg }}
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                                 _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                             >
                                 {isSaving ? 'Saving...' : 'Save Changes'}
@@ -362,36 +347,36 @@ export const Profile: React.FC = () => {
                         </HStack>
 
                         <Table.Root>
-                            <Table.Header bg={headerBg}>
+                            <Table.Header bg="var(--color-bg-header)">
                                 <Table.Row>
-                                    <Table.ColumnHeader color={headerTextColor}>Pack</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Weight</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Order</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Enabled</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Group 1</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Group 2</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Group 3</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerTextColor}>Group 4</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Pack</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Weight</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Order</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Enabled</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Group 1</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Group 2</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Group 3</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Group 4</Table.ColumnHeader>
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {weights.map((weight) => (
                                     <Table.Row
                                         key={weight._id}
-                                        _hover={{ bg: rowHoverBg }}
-                                        borderColor={borderColor}
+                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                        borderColor="var(--color-border)"
                                     >
-                                        <Table.Cell color={textColor}>{weight.pack}</Table.Cell>
+                                        <Table.Cell color="var(--color-text)">{weight.pack}</Table.Cell>
                                         <Table.Cell>
                                             <Input
                                                 type="number"
                                                 value={weight.weight}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'weight', parseInt(e.target.value))}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
@@ -400,10 +385,10 @@ export const Profile: React.FC = () => {
                                                 value={weight.priority}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'priority', parseInt(e.target.value))}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
@@ -422,10 +407,10 @@ export const Profile: React.FC = () => {
                                                 value={weight.group1 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group1', e.target.value)}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
@@ -433,10 +418,10 @@ export const Profile: React.FC = () => {
                                                 value={weight.group2 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group2', e.target.value)}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
@@ -444,10 +429,10 @@ export const Profile: React.FC = () => {
                                                 value={weight.group3 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group3', e.target.value)}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
@@ -455,10 +440,10 @@ export const Profile: React.FC = () => {
                                                 value={weight.group4 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group4', e.target.value)}
                                                 size="sm"
-                                                bg={inputBg}
-                                                borderColor={borderColor}
-                                                color={textColor}
-                                                _focus={{ borderColor: focusBorderColor }}
+                                                bg="var(--color-bg-card)"
+                                                borderColor="var(--color-border)"
+                                                color="var(--color-text)"
+                                                _focus={{ borderColor: 'var(--color-primary)' }}
                                             />
                                         </Table.Cell>
                                     </Table.Row>

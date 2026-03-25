@@ -17,13 +17,11 @@ import {
     Grid,
     GridItem,
     ButtonGroup,
-    useToken,
     useDisclosure,
     Field,
     useListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
 import { PivotIframeView } from './PivotIframeView';
@@ -75,69 +73,6 @@ export const PivotView = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [executionTime, setExecutionTime] = useState<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
-
-    // Theme-aware colors
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const fieldsPanelBg = useColorModeValue('gray.50', 'gray.800');
-    const fieldItemBg = useColorModeValue('white', 'gray.700');
-    const fieldItemHoverBg = useColorModeValue('gray.50', 'gray.600');
-    const fieldItemBorderHover = useColorModeValue('gray.300', 'gray.600');
-    const fieldItemShadow = useColorModeValue('sm', 'dark-lg');
-
-    // Color tokens for drop zones
-    const [blue50, blue200, blue300, blue400, blue500, blue600] = useToken('colors', ['blue.50', 'blue.200', 'blue.300', 'blue.400', 'blue.500', 'blue.600']);
-    const [green50, green200, green300, green400, green600] = useToken('colors', ['green.50', 'green.200', 'green.300', 'green.400', 'green.600']);
-    const [purple50, purple200, purple300, purple400, purple600] = useToken('colors', ['purple.50', 'purple.200', 'purple.300', 'purple.400', 'purple.600']);
-    const [orange50, orange200, orange300, orange400, orange600] = useToken('colors', ['orange.50', 'orange.200', 'orange.300', 'orange.400', 'orange.600']);
-
-    // Theme-aware drop zone colors - keep colors visible in both modes
-    const rowBg = useColorModeValue(blue50, 'blue.950');
-    const rowBorder = useColorModeValue(blue200, 'blue.700');
-    const rowBorderHover = useColorModeValue(blue300, 'blue.600');
-    const rowText = useColorModeValue(blue400, blue300);
-    const rowHeading = useColorModeValue(blue600, blue400);
-
-    const colBg = useColorModeValue(green50, 'green.950');
-    const colBorder = useColorModeValue(green200, 'green.700');
-    const colBorderHover = useColorModeValue(green300, 'green.600');
-    const colText = useColorModeValue(green400, green300);
-    const colHeading = useColorModeValue(green600, green400);
-
-    const valueBg = useColorModeValue(purple50, 'purple.950');
-    const valueBorder = useColorModeValue(purple200, 'purple.700');
-    const valueBorderHover = useColorModeValue(purple300, 'purple.600');
-    const valueText = useColorModeValue(purple400, purple300);
-    const valueHeading = useColorModeValue(purple600, purple400);
-    const valueItemBg = useColorModeValue('white', 'gray.700');
-    const valueItemHoverBg = useColorModeValue(purple50, 'purple.900');
-
-    const filterBg = useColorModeValue(orange50, 'orange.950');
-    const filterBorder = useColorModeValue(orange200, 'orange.700');
-    const filterBorderHover = useColorModeValue(orange300, 'orange.600');
-    const filterText = useColorModeValue(orange400, orange300);
-    const filterHeading = useColorModeValue(orange600, orange400);
-    const filterItemBg = useColorModeValue('white', 'gray.700');
-    const filterItemHoverBg = useColorModeValue(orange50, 'orange.900');
-    const queryItemHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
-
-    // Theme colors for drag handlers
-    // Helper to convert hex to rgba
-    const hexToRgba = (hex: string, alpha: number): string => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (result) {
-            const r = parseInt(result[1], 16);
-            const g = parseInt(result[2], 16);
-            const b = parseInt(result[3], 16);
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        return `rgba(59, 130, 246, ${alpha})`; // fallback
-    };
-    const dragOverBg = useColorModeValue(hexToRgba(blue500, 0.1), hexToRgba(blue400, 0.1));
-    const dragOverBorder = useColorModeValue(blue500, blue400);
 
     // Collections for Select components
     const operatorItems = [
@@ -645,8 +580,8 @@ export const PivotView = () => {
         e.preventDefault();
         e.stopPropagation();
         const target = e.currentTarget as HTMLElement;
-        target.style.backgroundColor = dragOverBg;
-        target.style.borderTop = `2px solid ${dragOverBorder}`;
+        target.style.backgroundColor = "color-mix(in srgb, var(--color-primary) 10%, transparent)";
+        target.style.borderTop = "2px solid var(--color-primary)";
     };
 
     const handleFieldDragLeave = (e: React.DragEvent) => {
@@ -814,9 +749,9 @@ export const PivotView = () => {
     };
 
     return (
-        <Box p={4} h="100vh" display="flex" flexDirection="column" bg={pageBg}>
+        <Box p={4} h="100vh" display="flex" flexDirection="column" bg="var(--color-bg-page)">
             <HStack justify="space-between" mb={6}>
-                <Heading color={textColor}>Pivot View</Heading>
+                <Heading color="var(--color-text)">Pivot View</Heading>
                 <HStack gap={4}>
                     <Button
                         colorScheme="green"
@@ -838,31 +773,31 @@ export const PivotView = () => {
                 {/* Fields Panel */}
                 <GridItem rowSpan={3} colSpan={1} className="pivot-fields">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color={mutedTextColor}>Available Fields</Heading>
+                        <Heading size="md" color="var(--color-text-muted)">Available Fields</Heading>
                         <Box
                             h="calc(100vh - 170px)"
                             overflowY="auto"
-                            bg={fieldsPanelBg}
+                            bg="var(--color-bg-header)"
                             borderRadius="md"
                             p={3}
                             borderWidth={1}
-                            borderColor={borderColor}
+                            borderColor="var(--color-border)"
                         >
                             <VStack align="stretch" gap={2}>
                                 {availableFields?.map((field: string) => (
                                     <Box
                                         key={field}
                                         p={3}
-                                        bg={fieldItemBg}
+                                        bg="var(--color-input-bg)"
                                         borderWidth={1}
-                                        borderColor={borderColor}
+                                        borderColor="var(--color-border)"
                                         borderRadius="md"
                                         cursor="move"
                                         _hover={{
-                                            bg: fieldItemHoverBg,
-                                            borderColor: fieldItemBorderHover,
+                                            bg: "var(--color-bg-hover)",
+                                            borderColor: "var(--color-input-border)",
                                             transform: 'translateY(-1px)',
-                                            boxShadow: fieldItemShadow
+                                            boxShadow: "sm"
                                         }}
                                         transition="all 0.2s"
                                         draggable
@@ -872,7 +807,7 @@ export const PivotView = () => {
                                         whiteSpace="nowrap"
                                         fontSize="sm"
                                         fontWeight="medium"
-                                        color={textColor}
+                                        color="var(--color-text)"
                                     >
                                         {field}
                                     </Box>
@@ -886,21 +821,21 @@ export const PivotView = () => {
                     <HStack align="stretch" gap={4}>
                         {/* Rows */}
                         <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color={rowHeading}>Rows</Heading>
+                            <Heading size="sm" color="var(--color-pivot-row-heading)">Rows</Heading>
                             <Box
                                 ref={(el: HTMLDivElement | null) => { dropZonesRef.current['row'] = el; }}
                                 p={4}
-                                bg={rowBg}
+                                bg="var(--color-pivot-row-bg)"
                                 borderWidth={2}
                                 borderStyle="dashed"
-                                borderColor={rowBorder}
+                                borderColor="var(--color-pivot-row-border)"
                                 borderRadius="md"
                                 minH="150px"
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, 'row')}
                                 _hover={{
-                                    borderColor: rowBorderHover
+                                    borderColor: "var(--color-pivot-row-border-hover)"
                                 }}
                                 transition="all 0.2s"
                                 data-drop-zone="row"
@@ -930,7 +865,7 @@ export const PivotView = () => {
                                                     draggable
                                                     onClick={() => removeField(globalIndex)}
                                                     _hover={{
-                                                        bg: 'blue.600',
+                                                        bg: 'var(--color-pivot-row-heading)',
                                                         transform: 'scale(1.05)'
                                                     }}
                                                     transition="all 0.2s"
@@ -955,7 +890,7 @@ export const PivotView = () => {
                                         );
                                     })}
                                 {fields.filter((f) => f.type === 'row').length === 0 && (
-                                    <Text color={rowText} fontSize="sm" textAlign="center" mt={8}>
+                                    <Text color="var(--color-pivot-row-text)" fontSize="sm" textAlign="center" mt={8}>
                                         Drop row fields here
                                     </Text>
                                 )}
@@ -964,21 +899,21 @@ export const PivotView = () => {
 
                         {/* Columns */}
                         <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color={colHeading}>Columns</Heading>
+                            <Heading size="sm" color="var(--color-pivot-col-heading)">Columns</Heading>
                             <Box
                                 ref={(el: HTMLDivElement | null) => { dropZonesRef.current['column'] = el; }}
                                 p={4}
-                                bg={colBg}
+                                bg="var(--color-pivot-col-bg)"
                                 borderWidth={2}
                                 borderStyle="dashed"
-                                borderColor={colBorder}
+                                borderColor="var(--color-pivot-col-border)"
                                 borderRadius="md"
                                 minH="150px"
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, 'column')}
                                 _hover={{
-                                    borderColor: colBorderHover
+                                    borderColor: "var(--color-pivot-col-border-hover)"
                                 }}
                                 transition="all 0.2s"
                                 data-drop-zone="column"
@@ -1008,7 +943,7 @@ export const PivotView = () => {
                                                     draggable
                                                     onClick={() => removeField(globalIndex)}
                                                     _hover={{
-                                                        bg: 'green.600',
+                                                        bg: 'var(--color-pivot-col-heading)',
                                                         transform: 'scale(1.05)'
                                                     }}
                                                     transition="all 0.2s"
@@ -1033,7 +968,7 @@ export const PivotView = () => {
                                         );
                                     })}
                                 {fields.filter((f) => f.type === 'column').length === 0 && (
-                                    <Text color={colText} fontSize="sm" textAlign="center" mt={8}>
+                                    <Text color="var(--color-pivot-col-text)" fontSize="sm" textAlign="center" mt={8}>
                                         Drop column fields here
                                     </Text>
                                 )}
@@ -1041,21 +976,21 @@ export const PivotView = () => {
                         </VStack>
 
                         <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color={valueHeading}>Values</Heading>
+                            <Heading size="sm" color="var(--color-pivot-value-heading)">Values</Heading>
                             <Box
                                 ref={(el: HTMLDivElement | null) => { dropZonesRef.current['value'] = el; }}
                                 p={4}
-                                bg={valueBg}
+                                bg="var(--color-pivot-value-bg)"
                                 borderWidth={2}
                                 borderStyle="dashed"
-                                borderColor={valueBorder}
+                                borderColor="var(--color-pivot-value-border)"
                                 borderRadius="md"
                                 minH="150px"
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, 'value')}
                                 _hover={{
-                                    borderColor: valueBorderHover
+                                    borderColor: "var(--color-pivot-value-border-hover)"
                                 }}
                                 transition="all 0.2s"
                                 data-drop-zone="value"
@@ -1078,15 +1013,15 @@ export const PivotView = () => {
                                                 <Box
                                                     m={1}
                                                     p={2}
-                                                    bg={valueItemBg}
+                                                    bg="var(--color-input-bg)"
                                                     borderRadius="md"
                                                     borderWidth={1}
-                                                    borderColor={valueBorder}
+                                                    borderColor="var(--color-pivot-value-border)"
                                                     cursor="move"
                                                     draggable
                                                     _hover={{
-                                                        borderColor: valueBorderHover,
-                                                        bg: valueItemHoverBg
+                                                        borderColor: "var(--color-pivot-value-border-hover)",
+                                                        bg: "var(--color-pivot-value-bg)"
                                                     }}
                                                     transition="all 0.2s"
                                                     onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'value')}
@@ -1103,7 +1038,7 @@ export const PivotView = () => {
                                                                     handleEditValue(fieldIndex);
                                                                 }}
                                                                 _hover={{
-                                                                    bg: 'purple.600',
+                                                                    bg: 'var(--color-pivot-value-heading)',
                                                                     transform: 'scale(1.05)'
                                                                 }}
                                                                 transition="all 0.2s"
@@ -1122,7 +1057,7 @@ export const PivotView = () => {
                                                                     removeField(fieldIndex);
                                                                 }}
                                                                 _hover={{
-                                                                    bg: 'red.600',
+                                                                    bg: 'var(--color-btn-danger)',
                                                                     transform: 'scale(1.05)'
                                                                 }}
                                                                 transition="all 0.2s"
@@ -1168,7 +1103,7 @@ export const PivotView = () => {
                                         );
                                     })}
                                 {fields.filter((f) => f.type === 'value').length === 0 && (
-                                    <Text color={valueText} fontSize="sm" textAlign="center" mt={8}>
+                                    <Text color="var(--color-pivot-value-text)" fontSize="sm" textAlign="center" mt={8}>
                                         Drop value fields here
                                     </Text>
                                 )}
@@ -1176,21 +1111,21 @@ export const PivotView = () => {
                         </VStack>
 
                         <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color={filterHeading}>Filters</Heading>
+                            <Heading size="sm" color="var(--color-pivot-filter-heading)">Filters</Heading>
                             <Box
                                 ref={(el: HTMLDivElement | null) => { dropZonesRef.current['filter'] = el; }}
                                 p={4}
-                                bg={filterBg}
+                                bg="var(--color-pivot-filter-bg)"
                                 borderWidth={2}
                                 borderStyle="dashed"
-                                borderColor={filterBorder}
+                                borderColor="var(--color-pivot-filter-border)"
                                 borderRadius="md"
                                 minH="150px"
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, 'filter')}
                                 _hover={{
-                                    borderColor: filterBorderHover
+                                    borderColor: "var(--color-pivot-filter-border-hover)"
                                 }}
                                 transition="all 0.2s"
                                 data-drop-zone="filter"
@@ -1213,15 +1148,15 @@ export const PivotView = () => {
                                                 <Box
                                                     m={1}
                                                     p={2}
-                                                    bg={filterItemBg}
+                                                    bg="var(--color-input-bg)"
                                                     borderRadius="md"
                                                     borderWidth={1}
-                                                    borderColor={filterBorder}
+                                                    borderColor="var(--color-pivot-filter-border)"
                                                     cursor="move"
                                                     draggable
                                                     _hover={{
-                                                        borderColor: filterBorderHover,
-                                                        bg: filterItemHoverBg
+                                                        borderColor: "var(--color-pivot-filter-border-hover)",
+                                                        bg: "var(--color-pivot-filter-bg)"
                                                     }}
                                                     transition="all 0.2s"
                                                     onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'filter')}
@@ -1237,7 +1172,7 @@ export const PivotView = () => {
                                                                 handleEditFilter(fieldIndex);
                                                             }}
                                                             _hover={{
-                                                                bg: 'orange.600',
+                                                                bg: 'var(--color-pivot-filter-heading)',
                                                                 transform: 'scale(1.05)'
                                                             }}
                                                             transition="all 0.2s"
@@ -1256,7 +1191,7 @@ export const PivotView = () => {
                                                                 removeField(fieldIndex);
                                                             }}
                                                             _hover={{
-                                                                bg: 'red.600',
+                                                                bg: 'var(--color-btn-danger)',
                                                                 transform: 'scale(1.05)'
                                                             }}
                                                             transition="all 0.2s"
@@ -1286,7 +1221,7 @@ export const PivotView = () => {
                                         );
                                     })}
                                 {fields.filter((f) => f.type === 'filter').length === 0 && (
-                                    <Text color={filterText} fontSize="sm" textAlign="center" mt={8}>
+                                    <Text color="var(--color-pivot-filter-text)" fontSize="sm" textAlign="center" mt={8}>
                                         Drop filter fields here
                                     </Text>
                                 )}
@@ -1302,11 +1237,11 @@ export const PivotView = () => {
                                 colorScheme={viewMode === 'iframe' ? 'blue' : 'gray'}
                                 variant={viewMode === 'iframe' ? 'solid' : 'outline'}
                                 onClick={() => handleModeChange('iframe')}
-                                color={viewMode === 'iframe' ? 'white' : textColor}
-                                borderColor={viewMode === 'iframe' ? undefined : borderColor}
+                                color={viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'}
+                                borderColor={viewMode === 'iframe' ? undefined : 'var(--color-border)'}
                                 _hover={{
-                                    bg: viewMode === 'iframe' ? undefined : buttonHoverBg,
-                                    color: viewMode === 'iframe' ? 'white' : textColor
+                                    bg: viewMode === 'iframe' ? undefined : 'var(--color-bg-hover)',
+                                    color: viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'
                                 }}
                             >
                                 Pandas
@@ -1315,11 +1250,11 @@ export const PivotView = () => {
                                 colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
                                 variant={viewMode === 'table' ? 'solid' : 'outline'}
                                 onClick={() => handleModeChange('table')}
-                                color={viewMode === 'table' ? 'white' : textColor}
-                                borderColor={viewMode === 'table' ? undefined : borderColor}
+                                color={viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'}
+                                borderColor={viewMode === 'table' ? undefined : 'var(--color-border)'}
                                 _hover={{
-                                    bg: viewMode === 'table' ? undefined : buttonHoverBg,
-                                    color: viewMode === 'table' ? 'white' : textColor
+                                    bg: viewMode === 'table' ? undefined : 'var(--color-bg-hover)',
+                                    color: viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'
                                 }}
                             >
                                 SQL
@@ -1330,9 +1265,9 @@ export const PivotView = () => {
                             onClick={resetPivot}
                             colorScheme="gray"
                             variant="outline"
-                            color={textColor}
-                            borderColor={borderColor}
-                            _hover={{ bg: buttonHoverBg }}
+                            color="var(--color-text)"
+                            borderColor="var(--color-border)"
+                            _hover={{ bg: "var(--color-bg-hover)" }}
                         >
                             Reset
                         </Button>
@@ -1341,9 +1276,9 @@ export const PivotView = () => {
                             colorScheme={isRelativePivot ? "green" : "gray"}
                             variant={isRelativePivot ? "solid" : "outline"}
                             onClick={() => handleRelativePivotChange(!isRelativePivot)}
-                            color={!isRelativePivot ? textColor : undefined}
-                            borderColor={!isRelativePivot ? borderColor : undefined}
-                            _hover={{ bg: !isRelativePivot ? buttonHoverBg : undefined }}
+                            color={!isRelativePivot ? "var(--color-text)" : undefined}
+                            borderColor={!isRelativePivot ? "var(--color-border)" : undefined}
+                            _hover={{ bg: !isRelativePivot ? "var(--color-bg-hover)" : undefined }}
                         >
                             {!isRelativePivot ? "Relative View" : "Normal View"}
                         </Button>
@@ -1354,24 +1289,24 @@ export const PivotView = () => {
                             loading={isGenerating}
                             colorScheme="blue"
                             variant="solid"
-                            color="white"
-                            _hover={{ color: 'white' }}
+                            color="var(--color-primary-text)"
+                            _hover={{ color: 'var(--color-primary-text)' }}
                         >
                             Execute Query
                         </Button>
                         {executionTime !== null && (
                             <HStack gap={1} ml={2}>
-                                <Text fontSize="sm" color={useColorModeValue('green.600', 'green.400')} fontWeight="semibold">
+                                <Text fontSize="sm" color="var(--color-text-success)" fontWeight="semibold">
                                     ✓
                                 </Text>
-                                <Text fontSize="sm" color={mutedTextColor} fontWeight="medium">
+                                <Text fontSize="sm" color="var(--color-text-muted)" fontWeight="medium">
                                     {executionTime < 1000 ? `${executionTime.toFixed(0)}ms` : `${(executionTime / 1000).toFixed(2)}s`}
                                 </Text>
                             </HStack>
                         )}
                         {isGenerating && executionTime === null && (
                             <HStack gap={1} ml={2}>
-                                <Text fontSize="sm" color={useColorModeValue('blue.600', 'blue.400')} fontWeight="medium">
+                                <Text fontSize="sm" color="var(--color-text-info)" fontWeight="medium">
                                     Generating...
                                 </Text>
                             </HStack>
@@ -1511,16 +1446,16 @@ export const PivotView = () => {
                                                 borderWidth={1}
                                                 borderRadius="md"
                                                 cursor="pointer"
-                                                _hover={{ bg: queryItemHoverBg }}
+                                                _hover={{ bg: "var(--color-bg-hover)" }}
                                                 onClick={() => handleLoadQuery(query)}
                                             >
                                                 <HStack justify="space-between">
                                                     <VStack align="start" gap={1}>
                                                         <Text fontWeight="medium">{query.name}</Text>
-                                                        <Text fontSize="sm" color={mutedTextColor}>
+                                                        <Text fontSize="sm" color={"var(--color-text-muted)"}>
                                                             Pivot View
                                                         </Text>
-                                                        <Text fontSize="sm" color={mutedTextColor}>
+                                                        <Text fontSize="sm" color={"var(--color-text-muted)"}>
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
@@ -1531,12 +1466,12 @@ export const PivotView = () => {
                                             </Box>
                                         ))
                                 ) : (
-                                    <Text color={mutedTextColor} textAlign="center">
+                                    <Text color={"var(--color-text-muted)"} textAlign="center">
                                         No saved queries found
                                     </Text>
                                 )}
                                 {savedQueries && savedQueries.filter((query: any) => query.query.url === '/pivot').length === 0 && savedQueries.length > 0 && (
-                                    <Text color={mutedTextColor} textAlign="center">
+                                    <Text color={"var(--color-text-muted)"} textAlign="center">
                                         No saved pivot queries found. Save queries from this view to see them here.
                                     </Text>
                                 )}
@@ -1562,7 +1497,7 @@ export const PivotView = () => {
                                     <Input
                                         value={editableValue.field}
                                         disabled
-                                        bg={useColorModeValue('gray.100', 'gray.700')}
+                                        bg="var(--color-bg-hover)"
                                     />
                                 </Field.Root>
                                 <Field.Root>
@@ -1656,7 +1591,7 @@ export const PivotView = () => {
                                     <Input
                                         value={editableFilter.field}
                                         disabled
-                                        bg={useColorModeValue('gray.100', 'gray.700')}
+                                        bg="var(--color-bg-hover)"
                                     />
                                 </Field.Root>
                                 <Field.Root>

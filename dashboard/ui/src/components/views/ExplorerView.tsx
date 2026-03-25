@@ -16,10 +16,9 @@ import {
     Field,
     Table,
     IconButton,
-    useListCollection,
+    createListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { useColorModeValue } from '../ui/color-mode';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import type { Execution } from '../../services/types';
 import { Loading } from '../common/Loading';
@@ -82,18 +81,6 @@ const ensureFieldFormat = (field: string) => {
 
 export const ExplorerView = () => {
     usePageTitle('Explorer');
-
-    // Theme-aware colors - all hooks must be called at the top level
-    const pageBg = useColorModeValue('gray.50', 'gray.900');
-    const textColor = useColorModeValue('gray.900', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.400');
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const buttonHoverBg = useColorModeValue('gray.100', 'gray.700');
-    const queryItemHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const focusBorderColor = useColorModeValue('blue.500', 'blue.400');
-    const greenButtonBg = useColorModeValue('green.500', 'green.600');
-    const greenButtonHoverBg = useColorModeValue('green.600', 'green.500');
 
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -197,7 +184,7 @@ export const ExplorerView = () => {
             .map((gpu: string) => ({ label: gpu, value: gpu })),
         [gpuList]
     );
-    const gpuCollection = useListCollection({ initialItems: gpuItems });
+    const gpuCollection = useMemo(() => createListCollection({ items: gpuItems }), [gpuItems]);
 
     const pytorchItems = useMemo<SelectItem[]>(() =>
         (pytorchList || [])
@@ -205,7 +192,7 @@ export const ExplorerView = () => {
             .map((version: string) => ({ label: version, value: version })),
         [pytorchList]
     );
-    const pytorchCollection = useListCollection({ initialItems: pytorchItems });
+    const pytorchCollection = useMemo(() => createListCollection({ items: pytorchItems }), [pytorchItems]);
 
     const milabenchItems = useMemo<SelectItem[]>(() =>
         (milabenchList || [])
@@ -213,7 +200,7 @@ export const ExplorerView = () => {
             .map((version: string) => ({ label: version, value: version })),
         [milabenchList]
     );
-    const milabenchCollection = useListCollection({ initialItems: milabenchItems });
+    const milabenchCollection = useMemo(() => createListCollection({ items: milabenchItems }), [milabenchItems]);
 
     const fieldItems = useMemo<SelectItem[]>(() =>
         (availableFields || [])
@@ -221,7 +208,7 @@ export const ExplorerView = () => {
             .map((field: string) => ({ label: formatFieldName(field), value: field })),
         [availableFields]
     );
-    const fieldCollection = useListCollection({ initialItems: fieldItems });
+    const fieldCollection = useMemo(() => createListCollection({ items: fieldItems }), [fieldItems]);
 
     const operatorItems = useMemo<SelectItem[]>(() => [
         { label: 'Equals (==)', value: '==' },
@@ -237,7 +224,7 @@ export const ExplorerView = () => {
         { label: 'Is', value: 'is' },
         { label: 'Is Not', value: 'is not' },
     ], []);
-    const operatorCollection = useListCollection({ initialItems: operatorItems });
+    const operatorCollection = useMemo(() => createListCollection({ items: operatorItems }), [operatorItems]);
 
     const addFilter = () => {
         const newFilters = [...filters, { field: '', operator: '==', value: '' }];
@@ -510,17 +497,17 @@ export const ExplorerView = () => {
     };
 
     return (
-        <Box p={4} bg={pageBg} minH="100vh">
+        <Box p={4} bg="var(--color-bg-page)" minH="100vh">
             <VStack align="stretch" gap={6}>
                 <HStack justify="space-between">
-                    <Heading color={textColor}>Execution Explorer</Heading>
+                    <Heading color="var(--color-text)">Execution Explorer</Heading>
                     <HStack gap={4}>
                         <Button
-                            colorScheme="green"
+                            bg="var(--color-btn-success)"
                             onClick={onSaveModalOpen}
                             variant="solid"
-                            color="white"
-                            _hover={{ color: 'white', bg: greenButtonHoverBg }}
+                            color="var(--color-primary-text)"
+                            _hover={{ color: 'var(--color-primary-text)', bg: 'var(--color-btn-success-hover)' }}
                         >
                             <HStack gap={2} as="span">
                                 <LuPlus />
@@ -528,10 +515,11 @@ export const ExplorerView = () => {
                             </HStack>
                         </Button>
                         <Button
-                            colorScheme="blue"
+                            bg="var(--color-primary)"
                             onClick={onLoadModalOpen}
                             variant="solid"
-                            color="white"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
                         >
                             Load Query
                         </Button>
@@ -539,12 +527,12 @@ export const ExplorerView = () => {
                 </HStack>
 
                 {/* Quick Filters Section */}
-                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
+                <Box borderWidth={1} borderColor="var(--color-border)" borderRadius="md" p={4} bg="var(--color-bg-card)">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color={textColor}>Quick Filters</Heading>
+                        <Heading size="md" color="var(--color-text)">Quick Filters</Heading>
                         <HStack>
                             <Select.Root
-                                collection={gpuCollection.collection}
+                                collection={gpuCollection}
                                 value={quickFilters.gpu.filter((val: string) => gpuItems.some(item => item.value === val))}
                                 onValueChange={(details) => {
                                     setQuickFilters({ ...quickFilters, gpu: details.value });
@@ -553,9 +541,9 @@ export const ExplorerView = () => {
                                 size="md"
                             >
                                 <Select.HiddenSelect />
-                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" _focus={{ borderColor: 'var(--color-primary)' }}>
                                     <Select.Trigger>
-                                        <Select.ValueText placeholder="Select GPUs" color={textColor} />
+                                        <Select.ValueText placeholder="Select GPUs" color="var(--color-text)" />
                                     </Select.Trigger>
                                     <Select.IndicatorGroup>
                                         <Select.Indicator />
@@ -575,16 +563,17 @@ export const ExplorerView = () => {
                                 size="sm"
                                 onClick={() => addQuickFilter('gpu', quickFilters.gpu)}
                                 disabled={!quickFilters.gpu.length}
-                                colorScheme="blue"
+                                bg="var(--color-primary)"
                                 variant="solid"
-                                color="white"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 Add
                             </Button>
                         </HStack>
                         <HStack>
                             <Select.Root
-                                collection={pytorchCollection.collection}
+                                collection={pytorchCollection}
                                 value={quickFilters.pytorch.filter((val: string) => pytorchItems.some(item => item.value === val))}
                                 onValueChange={(details) => {
                                     setQuickFilters({ ...quickFilters, pytorch: details.value });
@@ -593,9 +582,9 @@ export const ExplorerView = () => {
                                 size="md"
                             >
                                 <Select.HiddenSelect />
-                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" _focus={{ borderColor: 'var(--color-primary)' }}>
                                     <Select.Trigger>
-                                        <Select.ValueText placeholder="Select PyTorch versions" color={textColor} />
+                                        <Select.ValueText placeholder="Select PyTorch versions" color="var(--color-text)" />
                                     </Select.Trigger>
                                     <Select.IndicatorGroup>
                                         <Select.Indicator />
@@ -615,16 +604,17 @@ export const ExplorerView = () => {
                                 size="sm"
                                 onClick={() => addQuickFilter('pytorch', quickFilters.pytorch)}
                                 disabled={!quickFilters.pytorch.length}
-                                colorScheme="blue"
+                                bg="var(--color-primary)"
                                 variant="solid"
-                                color="white"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 Add
                             </Button>
                         </HStack>
                         <HStack>
                             <Select.Root
-                                collection={milabenchCollection.collection}
+                                collection={milabenchCollection}
                                 value={quickFilters.milabench.filter((val: string) => milabenchItems.some(item => item.value === val))}
                                 onValueChange={(details) => {
                                     setQuickFilters({ ...quickFilters, milabench: details.value });
@@ -633,9 +623,9 @@ export const ExplorerView = () => {
                                 size="md"
                             >
                                 <Select.HiddenSelect />
-                                <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" _focus={{ borderColor: 'var(--color-primary)' }}>
                                     <Select.Trigger>
-                                        <Select.ValueText placeholder="Select Milabench versions" color={textColor} />
+                                        <Select.ValueText placeholder="Select Milabench versions" color="var(--color-text)" />
                                     </Select.Trigger>
                                     <Select.IndicatorGroup>
                                         <Select.Indicator />
@@ -655,9 +645,10 @@ export const ExplorerView = () => {
                                 size="sm"
                                 onClick={() => addQuickFilter('milabench', quickFilters.milabench)}
                                 disabled={!quickFilters.milabench.length}
-                                colorScheme="blue"
+                                bg="var(--color-primary)"
                                 variant="solid"
-                                color="white"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 Add
                             </Button>
@@ -666,16 +657,17 @@ export const ExplorerView = () => {
                 </Box>
 
                 {/* Filters Section */}
-                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
+                <Box borderWidth={1} borderColor="var(--color-border)" borderRadius="md" p={4} bg="var(--color-bg-card)">
                     <VStack align="stretch" gap={4}>
                         <HStack justify="space-between">
-                            <Heading size="md" color={textColor}>Filters</Heading>
+                            <Heading size="md" color="var(--color-text)">Filters</Heading>
                             <Button
                                 onClick={addFilter}
                                 size="sm"
-                                colorScheme="blue"
+                                bg="var(--color-primary)"
                                 variant="solid"
-                                color="white"
+                                color="var(--color-primary-text)"
+                                _hover={{ bg: 'var(--color-primary-hover)' }}
                             >
                                 <HStack gap={2} as="span">
                                     <LuPlus />
@@ -687,15 +679,15 @@ export const ExplorerView = () => {
                         {filters.map((filter, index) => (
                             <HStack key={index} gap={2}>
                                 <Select.Root
-                                    collection={fieldCollection.collection}
+                                    collection={fieldCollection}
                                     value={filter.field && fieldItems.some(item => item.value === filter.field) ? [filter.field] : []}
                                     onValueChange={(details) => updateFilter(index, details.value[0] || '', filter.operator, filter.value)}
                                     size="sm"
                                 >
                                     <Select.HiddenSelect />
-                                    <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                    <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" _focus={{ borderColor: 'var(--color-primary)' }}>
                                         <Select.Trigger>
-                                            <Select.ValueText placeholder="Select field" color={textColor} />
+                                            <Select.ValueText placeholder="Select field" color="var(--color-text)" />
                                         </Select.Trigger>
                                         <Select.IndicatorGroup>
                                             <Select.Indicator />
@@ -713,15 +705,15 @@ export const ExplorerView = () => {
                                 </Select.Root>
 
                                 <Select.Root
-                                    collection={operatorCollection.collection}
+                                    collection={operatorCollection}
                                     value={filter.operator && operatorItems.some(item => item.value === filter.operator) ? [filter.operator] : ['==']}
                                     onValueChange={(details) => updateFilter(index, filter.field, details.value[0] || '==', filter.value)}
                                     size="sm"
                                 >
                                     <Select.HiddenSelect />
-                                    <Select.Control bg={cardBg} borderColor={borderColor} _focus={{ borderColor: focusBorderColor }}>
+                                    <Select.Control bg="var(--color-bg-card)" borderColor="var(--color-border)" _focus={{ borderColor: 'var(--color-primary)' }}>
                                         <Select.Trigger>
-                                            <Select.ValueText color={textColor} />
+                                            <Select.ValueText color="var(--color-text)" />
                                         </Select.Trigger>
                                         <Select.IndicatorGroup>
                                             <Select.Indicator />
@@ -752,10 +744,10 @@ export const ExplorerView = () => {
                                     }}
                                     placeholder="Enter value"
                                     size="sm"
-                                    bg={cardBg}
-                                    borderColor={borderColor}
-                                    color={textColor}
-                                    _focus={{ borderColor: focusBorderColor }}
+                                    bg="var(--color-bg-card)"
+                                    borderColor="var(--color-border)"
+                                    color="var(--color-text)"
+                                    _focus={{ borderColor: 'var(--color-primary)' }}
                                 />
 
                                 <IconButton
@@ -773,9 +765,10 @@ export const ExplorerView = () => {
                         <Button
                             onClick={handleSearch}
                             loading={isLoading}
-                            colorScheme="blue"
+                            bg="var(--color-primary)"
                             variant="solid"
-                            color="white"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
                             alignSelf="flex-end"
                         >
                             <HStack gap={2} as="span">
@@ -787,16 +780,17 @@ export const ExplorerView = () => {
                 </Box>
 
                 {/* Results Section */}
-                <Box borderWidth={1} borderColor={borderColor} borderRadius="md" p={4} bg={cardBg}>
+                <Box borderWidth={1} borderColor="var(--color-border)" borderRadius="md" p={4} bg="var(--color-bg-card)">
                     <VStack align="stretch" gap={4}>
                         <HStack justify="space-between">
-                            <Heading size="md" color={textColor}>Results</Heading>
+                            <Heading size="md" color="var(--color-text)">Results</Heading>
                             <HStack>
                                 <Button
                                     onClick={handleCompare}
-                                    colorScheme="purple"
+                                    bg="var(--color-pivot-value-heading)"
                                     variant="solid"
-                                    color="white"
+                                    color="var(--color-primary-text)"
+                                    _hover={{ bg: 'var(--color-pivot-value-border-hover)' }}
                                     disabled={!executions || executions.length === 0}
                                 >
                                     <HStack gap={2} as="span">
@@ -806,12 +800,12 @@ export const ExplorerView = () => {
                                 </Button>
                                 <Button
                                     asChild
-                                    bg={greenButtonBg}
+                                    bg="var(--color-btn-success)"
                                     variant="solid"
-                                    color="white"
+                                    color="var(--color-primary-text)"
                                     disabled={!executions || executions.length === 0}
-                                    _hover={{ color: 'white', bg: greenButtonHoverBg }}
-                                    _disabled={{ opacity: 0.6, color: 'white', bg: greenButtonBg }}
+                                    _hover={{ color: 'var(--color-primary-text)', bg: 'var(--color-btn-success-hover)' }}
+                                    _disabled={{ opacity: 0.6, color: 'var(--color-primary-text)', bg: 'var(--color-btn-success)' }}
                                 >
                                     <Link to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}>
                                         Plot
@@ -845,8 +839,9 @@ export const ExplorerView = () => {
                                                         <Button
                                                             asChild
                                                             size="sm"
-                                                            colorScheme="blue"
+                                                            color="var(--color-primary)"
                                                             variant="ghost"
+                                                            _hover={{ bg: 'var(--color-bg-hover)' }}
                                                         >
                                                             <Link to={`/executions/${execution._id}`}>
                                                                 Report
@@ -860,9 +855,9 @@ export const ExplorerView = () => {
                                 </Table.Body>
                             </Table.Root>
                         ) : filters.length > 0 ? (
-                            <Text color={mutedTextColor} textAlign="center">No results found</Text>
+                            <Text color="var(--color-text-muted)" textAlign="center">No results found</Text>
                         ) : (
-                            <Text color={mutedTextColor} textAlign="center">Add filters and click Search to see results</Text>
+                            <Text color="var(--color-text-muted)" textAlign="center">Add filters and click Search to see results</Text>
                         )}
                     </VStack>
                 </Box>
@@ -885,19 +880,20 @@ export const ExplorerView = () => {
                                         value={saveQueryName}
                                         onChange={(e) => setSaveQueryName(e.target.value)}
                                         placeholder="Enter a name for your query"
-                                        bg={cardBg}
-                                        borderColor={borderColor}
-                                        color={textColor}
-                                        _focus={{ borderColor: focusBorderColor }}
+                                        bg="var(--color-bg-card)"
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _focus={{ borderColor: 'var(--color-primary)' }}
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
                                     <Button
-                                        colorScheme="blue"
+                                        bg="var(--color-primary)"
                                         onClick={handleSaveQuery}
                                         width="100%"
                                         variant="solid"
-                                        color="white"
+                                        color="var(--color-primary-text)"
+                                        _hover={{ bg: 'var(--color-primary-hover)' }}
                                     >
                                         Save
                                     </Button>
@@ -905,9 +901,9 @@ export const ExplorerView = () => {
                                         onClick={onSaveModalClose}
                                         width="100%"
                                         variant="outline"
-                                        color={textColor}
-                                        borderColor={borderColor}
-                                        _hover={{ bg: buttonHoverBg }}
+                                        color="var(--color-text)"
+                                        borderColor="var(--color-border)"
+                                        _hover={{ bg: 'var(--color-bg-hover)' }}
                                     >
                                         Cancel
                                     </Button>
@@ -937,28 +933,29 @@ export const ExplorerView = () => {
                                                 key={query._id}
                                                 p={4}
                                                 borderWidth={1}
-                                                borderColor={borderColor}
+                                                borderColor="var(--color-border)"
                                                 borderRadius="md"
-                                                bg={cardBg}
+                                                bg="var(--color-bg-card)"
                                                 cursor="pointer"
-                                                _hover={{ bg: queryItemHoverBg }}
+                                                _hover={{ bg: 'var(--color-bg-hover)' }}
                                                 onClick={() => handleLoadQuery(query)}
                                             >
                                                 <HStack justify="space-between">
                                                     <VStack align="start" gap={1}>
-                                                        <Text fontWeight="medium" color={textColor}>{query.name}</Text>
-                                                        <Text fontSize="sm" color={mutedTextColor}>
+                                                        <Text fontWeight="medium" color="var(--color-text)">{query.name}</Text>
+                                                        <Text fontSize="sm" color="var(--color-text-muted)">
                                                             Explorer View
                                                         </Text>
-                                                        <Text fontSize="sm" color={mutedTextColor}>
+                                                        <Text fontSize="sm" color="var(--color-text-muted)">
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
                                                     <Button
                                                         size="sm"
-                                                        colorScheme="blue"
+                                                        bg="var(--color-primary)"
                                                         variant="solid"
-                                                        color="white"
+                                                        color="var(--color-primary-text)"
+                                                        _hover={{ bg: 'var(--color-primary-hover)' }}
                                                     >
                                                         Load
                                                     </Button>
@@ -966,12 +963,12 @@ export const ExplorerView = () => {
                                             </Box>
                                         ))
                                 ) : (
-                                    <Text color={mutedTextColor} textAlign="center">
+                                    <Text color="var(--color-text-muted)" textAlign="center">
                                         No saved queries found
                                     </Text>
                                 )}
                                 {savedQueries && savedQueries.filter((query: any) => query.query.url === '/explorer').length === 0 && savedQueries.length > 0 && (
-                                    <Text color={mutedTextColor} textAlign="center">
+                                    <Text color="var(--color-text-muted)" textAlign="center">
                                         No saved explorer queries found. Save queries from this view to see them here.
                                     </Text>
                                 )}

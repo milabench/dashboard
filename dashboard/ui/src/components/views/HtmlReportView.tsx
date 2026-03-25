@@ -49,7 +49,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
     if (error) {
         return (
             <Box p={4}>
-                <Text color="red.500">Error: {error}</Text>
+                <Text color="var(--color-text-danger)">Error: {error}</Text>
             </Box>
         );
     }
@@ -68,7 +68,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                     alignItems="center"
                     p={4}
                     borderBottom="1px solid"
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                 >
                     <VStack align="start" gap={1}>
                         <Heading size="md">HTML Report</Heading>
@@ -79,7 +79,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                         onClick={onClose}
                         fontSize="lg"
                         fontWeight="bold"
-                        _hover={{ color: 'gray.600' }}
+                        _hover={{ color: 'var(--color-text-muted)' }}
                     >
                         ×
                     </Text>
@@ -101,12 +101,12 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
 
                 {/* Information box */}
                 <Box
-                    bg="gray.50"
+                    bg="var(--color-bg-stripe)"
                     p={3}
                     borderBottom="1px solid"
-                    borderColor="gray.200"
+                    borderColor="var(--color-border)"
                 >
-                    <Text fontSize="sm" color="gray.600">
+                    <Text fontSize="sm" color="var(--color-text-muted)">
                         Execution ID: {executionId} | Generated using /html/report/{executionId} endpoint
                     </Text>
                 </Box>

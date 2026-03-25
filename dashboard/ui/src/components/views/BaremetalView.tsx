@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { useColorModeValue } from '../ui/color-mode';
 import {
     Box,
     Heading,
@@ -77,19 +76,6 @@ export const BaremetalView: React.FC = () => {
     usePageTitle('Baremetal');
 
     const queryClient = useQueryClient();
-    const cardBg = useColorModeValue('white', 'gray.800');
-    const borderColor = useColorModeValue('gray.200', 'gray.700');
-    const headerBg = useColorModeValue('gray.100', 'gray.700');
-    const headerText = useColorModeValue('gray.700', 'gray.200');
-    const rowHoverBg = useColorModeValue('gray.50', 'gray.700');
-    const textColor = useColorModeValue('gray.800', 'gray.100');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
-    const modalBg = useColorModeValue('gray.50', 'gray.900');
-    const shadow = useColorModeValue('sm', 'md');
-    const primaryButtonBg = useColorModeValue('blue.600', 'blue.400');
-    const primaryButtonHover = useColorModeValue('blue.700', 'blue.300');
-    const secondaryButtonBg = useColorModeValue('green.600', 'green.400');
-    const secondaryButtonHover = useColorModeValue('green.700', 'green.300');
 
     const [addOpen, setAddOpen] = useState(false);
     const [submitOpen, setSubmitOpen] = useState(false);
@@ -231,24 +217,24 @@ export const BaremetalView: React.FC = () => {
     }, [jobs]);
 
     return (
-        <Box p={6} color={textColor}>
+        <Box p={6} color="var(--color-text)">
             <Flex mb={6} align="center" justify="space-between">
                 <Heading size="lg">Baremetal Nodes</Heading>
                 <HStack gap={3}>
                     <Button
                         onClick={() => setAddOpen(true)}
-                        bg={primaryButtonBg}
-                        color="white"
-                        _hover={{ bg: primaryButtonHover }}
+                        bg="var(--color-primary)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: "var(--color-primary-hover)" }}
                         boxShadow="sm"
                     >
                         Register Node
                     </Button>
                     <Button
                         onClick={() => setSubmitOpen(true)}
-                        bg={secondaryButtonBg}
-                        color="white"
-                        _hover={{ bg: secondaryButtonHover }}
+                        bg="var(--color-btn-success)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: "var(--color-btn-success-hover)" }}
                         boxShadow="sm"
                     >
                         Submit Job
@@ -256,10 +242,10 @@ export const BaremetalView: React.FC = () => {
                 </HStack>
             </Flex>
 
-            <Card.Root bg={cardBg} borderColor={borderColor} borderWidth="1px" mb={8}>
+            <Card.Root bg="var(--color-bg-card)" borderColor="var(--color-border)" borderWidth="1px" mb={8}>
                 <Card.Header>
                     <Heading size="md">Registered Nodes</Heading>
-                    <Text color="gray.500" fontSize="sm">
+                    <Text color="var(--color-text-muted)" fontSize="sm">
                         {hosts.length} node{hosts.length === 1 ? '' : 's'} registered
                     </Text>
                 </Card.Header>
@@ -267,20 +253,20 @@ export const BaremetalView: React.FC = () => {
                     {hostsQuery.isLoading ? (
                         <Text>Loading nodes...</Text>
                     ) : hosts.length === 0 ? (
-                        <Text color="gray.500">No nodes registered yet.</Text>
+                        <Text color="var(--color-text-muted)">No nodes registered yet.</Text>
                     ) : (
                         <Table.Root>
-                            <Table.Header bg={headerBg}>
+                            <Table.Header bg="var(--color-bg-hover)">
                                 <Table.Row>
-                                    <Table.ColumnHeader color={headerText}>Name</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>URL</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>SSH</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>Remote Folder</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Name</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">URL</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">SSH</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Remote Folder</Table.ColumnHeader>
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {hosts.map((host) => (
-                                    <Table.Row key={host.name} _hover={{ bg: rowHoverBg }} borderColor={borderColor}>
+                                    <Table.Row key={host.name} _hover={{ bg: "var(--color-bg-hover)" }} borderColor="var(--color-border)">
                                         <Table.Cell>{host.name}</Table.Cell>
                                         <Table.Cell>{host.url || '—'}</Table.Cell>
                                         <Table.Cell>{host.ssh || '—'}</Table.Cell>
@@ -293,33 +279,33 @@ export const BaremetalView: React.FC = () => {
                 </Card.Body>
             </Card.Root>
 
-            <Card.Root bg={cardBg} borderColor={borderColor} borderWidth="1px">
+            <Card.Root bg="var(--color-bg-card)" borderColor="var(--color-border)" borderWidth="1px">
                 <Card.Header>
                     <Heading size="md">Jobs Across Nodes</Heading>
-                    <Text color="gray.500" fontSize="sm">
+                    <Text color="var(--color-text-muted)" fontSize="sm">
                         Aggregated job list from all registered nodes
                     </Text>
                 </Card.Header>
                 <Card.Body>
                     {hosts.length === 0 ? (
-                        <Text color="gray.500">Register a node to start listing jobs.</Text>
+                        <Text color="var(--color-text-muted)">Register a node to start listing jobs.</Text>
                     ) : jobsQuery.isLoading ? (
                         <Text>Loading jobs...</Text>
                     ) : sortedJobs.length === 0 ? (
-                        <Text color="gray.500">No jobs reported yet.</Text>
+                        <Text color="var(--color-text-muted)">No jobs reported yet.</Text>
                     ) : (
                         <Table.Root>
-                            <Table.Header bg={headerBg}>
+                            <Table.Header bg="var(--color-bg-hover)">
                                 <Table.Row>
-                                    <Table.ColumnHeader color={headerText}>Host</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>Job</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>Status</Table.ColumnHeader>
-                                    <Table.ColumnHeader color={headerText}>Created</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Host</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Job</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Status</Table.ColumnHeader>
+                                    <Table.ColumnHeader color="var(--color-text)">Created</Table.ColumnHeader>
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {sortedJobs.map((job, idx) => (
-                                    <Table.Row key={`${job.host}-${job.job_id || idx}`} _hover={{ bg: rowHoverBg }} borderColor={borderColor}>
+                                    <Table.Row key={`${job.host}-${job.job_id || idx}`} _hover={{ bg: "var(--color-bg-hover)" }} borderColor="var(--color-border)">
                                         <Table.Cell>{job.host}</Table.Cell>
                                         <Table.Cell>{formatJobName(job)}</Table.Cell>
                                         <Table.Cell>
@@ -336,7 +322,7 @@ export const BaremetalView: React.FC = () => {
                     {Object.keys(jobErrors).length > 0 && (
                         <VStack align="start" mt={4} gap={2}>
                             {Object.entries(jobErrors).map(([host, message]) => (
-                                <Text key={host} color="red.500" fontSize="sm">
+                                <Text key={host} color="var(--color-text-danger)" fontSize="sm">
                                     {host}: {message}
                                 </Text>
                             ))}
@@ -408,25 +394,25 @@ export const BaremetalView: React.FC = () => {
                             <Dialog.CloseTrigger />
                         </Dialog.Header>
                         <Dialog.Body>
-                            <Box width="100%" height="100%" p={6} bg={modalBg}>
+                            <Box width="100%" height="100%" p={6} bg="var(--color-bg-page)">
                                 <VStack align="stretch" gap={6} height="100%">
                                     <Grid templateColumns="repeat(2, 1fr)" gap={6} width="100%" flex="1" overflow="hidden">
                                         <VStack align="stretch" gap={4} overflowY="auto" pr={2}>
                                             <Card.Root
-                                                bg={cardBg}
+                                                bg="var(--color-bg-card)"
                                                 borderWidth="1px"
-                                                borderColor={borderColor}
+                                                borderColor="var(--color-border)"
                                                 borderRadius="lg"
-                                                boxShadow={shadow}
+                                                boxShadow="sm"
                                                 p={4}
                                             >
                                                 <VStack align="stretch" gap={4}>
-                                                    <Heading size="sm" fontWeight="semibold" color={textColor}>
+                                                    <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                                         Job Options
                                                     </Heading>
                                                     <Field.Root>
                                                         <HStack gap={3} align="center">
-                                                            <Field.Label minW="120px" mb={0} color={textColor}>Target Node</Field.Label>
+                                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Target Node</Field.Label>
                                                             <NativeSelect.Root flex={1}>
                                                                 <NativeSelect.Field
                                                                     value={selectedHost}
@@ -444,7 +430,7 @@ export const BaremetalView: React.FC = () => {
                                                     </Field.Root>
                                                     <Field.Root>
                                                         <HStack gap={3} align="center">
-                                                            <Field.Label minW="120px" mb={0} color={textColor}>Job Name</Field.Label>
+                                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Job Name</Field.Label>
                                                             <Input
                                                                 placeholder="my-job"
                                                                 value={jobName}
@@ -455,7 +441,7 @@ export const BaremetalView: React.FC = () => {
                                                     </Field.Root>
                                                     <Field.Root>
                                                         <HStack gap={3} align="center">
-                                                            <Field.Label minW="120px" fontWeight="semibold" mb={0} color={textColor}>Dependency</Field.Label>
+                                                            <Field.Label minW="120px" fontWeight="semibold" mb={0} color="var(--color-text)">Dependency</Field.Label>
                                                             <NativeSelect.Root flex={1}>
                                                                 <NativeSelect.Field
                                                                     value={dependencyEvent}
@@ -487,7 +473,7 @@ export const BaremetalView: React.FC = () => {
                                                                 </NativeSelect.Field>
                                                             </NativeSelect.Root>
                                                         </HStack>
-                                                        <Text fontSize="sm" color={mutedTextColor} mt={1}>
+                                                        <Text fontSize="sm" color="var(--color-text-muted)" mt={1}>
                                                             Dependency settings are optional for baremetal jobs.
                                                         </Text>
                                                     </Field.Root>
@@ -496,18 +482,18 @@ export const BaremetalView: React.FC = () => {
                                         </VStack>
                                         <VStack align="stretch" gap={4} minH={0}>
                                             <Card.Root
-                                                bg={cardBg}
+                                                bg="var(--color-bg-card)"
                                                 borderWidth="1px"
-                                                borderColor={borderColor}
+                                                borderColor="var(--color-border)"
                                                 borderRadius="lg"
-                                                boxShadow={shadow}
+                                                boxShadow="sm"
                                                 flex="1"
                                                 overflow="hidden"
                                                 display="flex"
                                                 flexDirection="column"
                                                 p={4}
                                             >
-                                                <Heading size="sm" fontWeight="semibold" color={textColor} mb={3}>
+                                                <Heading size="sm" fontWeight="semibold" color="var(--color-text)" mb={3}>
                                                     Script
                                                 </Heading>
                                                 <Textarea
@@ -523,14 +509,14 @@ export const BaremetalView: React.FC = () => {
                                         justify="flex-end"
                                         pt={4}
                                         borderTopWidth="1px"
-                                        borderTopColor={borderColor}
+                                        borderTopColor="var(--color-border)"
                                     >
                                         <Button
                                             variant="ghost"
                                             onClick={() => setSubmitOpen(false)}
                                             fontWeight="medium"
-                                            color={textColor}
-                                            _hover={{ bg: useColorModeValue('gray.100', 'gray.700') }}
+                                            color="var(--color-text)"
+                                            _hover={{ bg: "var(--color-bg-hover)" }}
                                         >
                                             Cancel
                                         </Button>
@@ -540,9 +526,9 @@ export const BaremetalView: React.FC = () => {
                                             loading={submitMutation.isPending}
                                             fontWeight="medium"
                                             size="md"
-                                            bg={useColorModeValue('blue.500', 'blue.600')}
-                                            color="white"
-                                            _hover={{ bg: useColorModeValue('blue.600', 'blue.500') }}
+                                            bg="var(--color-primary)"
+                                            color="var(--color-primary-text)"
+                                            _hover={{ bg: "var(--color-primary-hover)" }}
                                         >
                                             Submit Job
                                         </Button>
