@@ -159,22 +159,25 @@ def view_server(config):
             with Session(logger.client) as sess:
                 yield sess
 
-    try:
-        slurm_integration(app, cache)
-    except:
-        pass
+    dev_mode = config.get("DEV_MODE", True)
 
-    baremetal_server(app)
+    if dev_mode:
+        try:
+            slurm_integration(app, cache)
+        except:
+            pass
 
-    metric_receiver(app)
+        baremetal_server(app)
 
-    push_routes(app, DATABASE_URI)
+        metric_receiver(app)
 
-    # FIXME: create a way to ignore failing extension
-    try:
-        datafile_processor(app, cache)
-    except:
-        pass
+        push_routes(app, DATABASE_URI)
+
+        # FIXME: create a way to ignore failing extension
+        try:
+            datafile_processor(app, cache)
+        except:
+            pass
 
     @socketio.on('connect')
     def handle_connect():

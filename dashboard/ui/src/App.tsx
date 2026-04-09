@@ -38,22 +38,29 @@ function App() {
           <Router>
             <Layout>
               <Routes>
-                <Route path="/" element={<DashboardView />} />
-                <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
-                <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
+                {import.meta.env.DEV ? (
+                  <>
+                    <Route path="/" element={<DashboardView />} />
+                    <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
+                    <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
+                    <Route path="/pipelines" element={<PipelinesView />} />
+                    <Route path="/realtime" element={<RealtimeMetricsView />} />
+                    <Route path="/datafile" element={<DatafileView />} />
+                    <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
+                    <Route path="/baremetal" element={<BaremetalView />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/saved-queries" element={<SavedQueriesView />} />
+                  </>
+                ) : (
+                  <Route path="/" element={<Executions />} />
+                )}
+
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />
                 <Route path="/pivot" element={<PivotView />} />
                 <Route path="/explorer" element={<ExplorerView />} />
                 <Route path="/scaling" element={<Scaling />} />
                 <Route path="/grouped" element={<GroupedView />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/saved-queries" element={<SavedQueriesView />} />
-                <Route path="/pipelines" element={<PipelinesView />} />
-                <Route path="/realtime" element={<RealtimeMetricsView />} />
-                <Route path="/datafile" element={<DatafileView />} />
-                <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
-                <Route path="/baremetal" element={<BaremetalView />} />
               </Routes>
             </Layout>
           </Router>

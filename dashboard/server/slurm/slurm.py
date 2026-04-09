@@ -7,6 +7,7 @@ import os
 import subprocess
 import json
 import re
+import shlex
 import tempfile
 import os
 import yaml
@@ -222,13 +223,17 @@ def system_file(jr_job_id, filename, defaults):
             limiter = defaults
 
             if os.path.exists(cache_file):
-                with open(cache_file, "r") as fp:
-                    limiter = json.load(fp)
+                try:
+                    with open(cache_file, "r") as fp:
+                        limiter = json.load(fp)
+                except:
+                    pass
 
             yield limiter
 
             with open(cache_file, "w") as fp:
                 json.dump(limiter, fp)
+        
     except Timeout:
         yield False
 
@@ -947,6 +952,57 @@ def slurm_integration(app, cache):
             })
         else:
             return jsonify({'error': result['stderr']}), 500
+
+    @app.route('/api/slurm/jobs/<string:jr_job_id>/script')
+    def api_slurm_job_script(jr_job_id: str):
+        """Get the script and sbatch args used for a previous job"""
+        try:
+            local_dir = f"{_local_folder()}/{jr_job_id}"
+            script_path = f"{local_dir}/script.sbatch"
+            cmd_path = f"{local_dir}/cmd.sh"
+
+            script_content = ""
+            if os.path.exists(script_path):
+                with open(script_path, "r") as fp:
+                    script_content = fp.read()
+
+            sbatch_args = []
+            job_name = ""
+            if os.path.exists(cmd_path):
+                with open(cmd_path, "r") as fp:
+                    cmd_content = fp.read().strip()
+
+                # Parse sbatch args from cmd.sh: "sbatch --arg1=val1 --arg2 ... -- /path/to/script"
+                # Split on " -- " to separate args from the script path
+                parts = cmd_content.split(" -- ", 1)
+                if parts:
+                    args_str = parts[0]
+                    # Remove 'sbatch' prefix
+                    args_str = re.sub(r'^sbatch\s+', '', args_str).strip()
+                    try:
+                        tokens = shlex.split(args_str)
+                    except ValueError:
+                        tokens = args_str.split()
+
+                    for token in tokens:
+                        if token.startswith('--job-name='):
+                            job_name = token.split('=', 1)[1]
+                        elif token.startswith('--comment='):
+                            continue
+                        elif token.startswith('--output='):
+                            continue
+                        elif token.startswith('--error='):
+                            continue
+                        else:
+                            sbatch_args.append(token)
+
+            return jsonify({
+                'script': script_content,
+                'sbatch_args': sbatch_args,
+                'job_name': job_name,
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/slurm/jobs/<jr_job_id>/earlysync/<job_id>')
     def api_early_sync(jr_job_id, job_id):

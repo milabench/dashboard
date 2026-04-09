@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, VStack, Text, Badge } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
@@ -13,7 +13,7 @@ interface NavItem {
 
 
 const navItems: NavItem[] = [
-    { label: 'Dashboard', path: '/' },
+    { label: 'Dashboard', path: '/', env: 'dev' },
     { label: 'Latest Executions', path: '/executions' },
     {
         label: 'Slurm',
@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
         routes: [
             { label: 'Pivot View', path: '/pivot' },
             { label: 'Explorer', path: '/explorer' },
-            { label: 'Datafile', path: '/datafile' },
+            { label: 'Datafile', path: '/datafile', env: 'dev' },
         ]
     },
 
@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
     },
     {
         label: 'Manage',
+        env: 'dev',
         routes: [
             { label: 'Profiles', path: '/profile' },
             { label: 'Saved Queries', path: '/saved-queries' }
@@ -49,11 +50,29 @@ const navItems: NavItem[] = [
     },
     {
         label: 'Baremetal',
+        env: 'dev',
         routes: [
             { label: 'Nodes & Jobs', path: '/baremetal' }
         ]
     }
 ];
+
+function filterNavItems(items: NavItem[], devMode: boolean): NavItem[] {
+    if (devMode) return items;
+
+    return items.reduce<NavItem[]>((acc, item) => {
+        if (item.env === 'dev') return acc;
+
+        if (item.routes) {
+            const filteredRoutes = item.routes.filter(r => r.env !== 'dev');
+            if (filteredRoutes.length === 0) return acc;
+            acc.push({ ...item, routes: filteredRoutes });
+        } else {
+            acc.push(item);
+        }
+        return acc;
+    }, []);
+}
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
@@ -65,6 +84,8 @@ export const MainSidebar: React.FC = () => {
             setCurrentProfile(savedProfile);
         }
     }, []);
+
+    const visibleNavItems = useMemo(() => filterNavItems(navItems, import.meta.env.DEV), []);
 
     const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
         if (item.routes) {
@@ -128,7 +149,7 @@ export const MainSidebar: React.FC = () => {
                 </Badge>
             </Text>
             <VStack gap={2} align="stretch">
-                {navItems.map((item) => renderNavItem(item))}
+                {visibleNavItems.map((item) => renderNavItem(item))}
             </VStack>
         </Box>
     );

@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, Suspense, useState } from 'react';
+import React, { useRef, useMemo, Suspense, useState, useEffect } from 'react';
 import {
     Grid,
     VStack,
@@ -77,18 +77,26 @@ const updateScriptWithExportVars = (script: string, scriptArgs: Record<string, s
     return updatedScript;
 };
 
+export interface JobSubmissionInitialData {
+    script?: string;
+    job_name?: string;
+    sbatch_args?: string[];
+}
+
 interface JobSubmissionFormProps {
     templates?: string[];
     profiles: SlurmProfile[];
     activeJobs?: SlurmJob[];
     onClose?: () => void;
+    initialData?: JobSubmissionInitialData;
 }
 
 export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     templates = [],
     profiles = [],
     activeJobs = [],
-    onClose
+    onClose,
+    initialData
 }) => {
     const queryClient = useQueryClient();
 
@@ -377,6 +385,65 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const dependencyEventRef = useRef<HTMLSelectElement>(null);
     const dependencyJobRef = useRef<HTMLSelectElement>(null);
 
+    // Apply initial data when provided (e.g., from "Edit & Resubmit")
+    const initialDataApplied = useRef(false);
+    useEffect(() => {
+        if (!initialData || initialDataApplied.current) return;
+        initialDataApplied.current = true;
+
+        if (initialData.job_name && jobNameRef.current) {
+            jobNameRef.current.value = initialData.job_name;
+        }
+
+        // Script is applied via the MonacoEditor value prop or onMount callback
+        if (initialData.sbatch_args) {
+            const parseSbatchArg = (args: string[], prefix: string): string | undefined => {
+                const arg = args.find(a => a.startsWith(prefix));
+                return arg ? arg.split('=', 2)[1] : undefined;
+            };
+
+            const partition = parseSbatchArg(initialData.sbatch_args, '--partition=');
+            if (partition && partitionRef.current) partitionRef.current.value = partition;
+
+            const nodesVal = parseSbatchArg(initialData.sbatch_args, '--nodes=');
+            if (nodesVal) setNodes(nodesVal);
+
+            const ntasksVal = parseSbatchArg(initialData.sbatch_args, '--ntasks=');
+            if (ntasksVal) setNtasks(ntasksVal);
+
+            const cpusVal = parseSbatchArg(initialData.sbatch_args, '--cpus-per-task=');
+            if (cpusVal) setCpusPerTask(cpusVal);
+
+            const ntasksPerNodeVal = parseSbatchArg(initialData.sbatch_args, '--ntasks-per-node=');
+            if (ntasksPerNodeVal) setNtasksPerNode(ntasksPerNodeVal);
+
+            const memVal = parseSbatchArg(initialData.sbatch_args, '--mem=');
+            if (memVal && memRef.current) memRef.current.value = memVal;
+
+            const timeVal = parseSbatchArg(initialData.sbatch_args, '--time=');
+            if (timeVal && timeLimitRef.current) timeLimitRef.current.value = timeVal;
+
+            const gpusVal = parseSbatchArg(initialData.sbatch_args, '--gpus-per-task=');
+            if (gpusVal && gpusPerTaskRef.current) gpusPerTaskRef.current.value = gpusVal;
+
+            const exclusiveArg = initialData.sbatch_args.includes('--exclusive');
+            if (exclusiveArg && exclusiveRef.current) exclusiveRef.current.checked = true;
+
+            const exportVal = parseSbatchArg(initialData.sbatch_args, '--export=');
+            if (exportVal && exportVarsRef.current) exportVarsRef.current.value = exportVal;
+
+            // Handle -w (nodelist) — can be "-w value" or "-w=value"
+            const nodelistIdx = initialData.sbatch_args.findIndex(a => a === '-w' || a.startsWith('-w '));
+            if (nodelistIdx >= 0 && nodelistRef.current) {
+                const arg = initialData.sbatch_args[nodelistIdx];
+                const val = arg === '-w'
+                    ? initialData.sbatch_args[nodelistIdx + 1]
+                    : arg.replace(/^-w\s*/, '');
+                if (val) nodelistRef.current.value = val;
+            }
+        }
+    }, [initialData]);
+
     // Minimal state only for displaying script args section (not for values)
     const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>({});
 
@@ -452,7 +519,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         <Box width="100%" height="100%" p={6} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} height="100%">
                 <Heading size="lg" fontWeight="bold" color="var(--color-text)" mb={2}>
-                    Submit New Job
+                    {initialData ? 'Edit & Resubmit Job' : 'Submit New Job'}
                 </Heading>
 
                 <Grid templateColumns="repeat(2, 1fr)" gap={6} width="100%" flex="1" overflow="hidden">
@@ -539,7 +606,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         <Field.Label minW="120px" mb={0} color="var(--color-text)">Job Name</Field.Label>
                                         <Input
                                             ref={jobNameRef}
-                                            defaultValue="milabench_job"
+                                            defaultValue={initialData?.job_name || "milabench_job"}
                                             placeholder="milabench_job"
                                             flex={1}
                                         />
@@ -880,11 +947,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                     <Box flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
                                         <MonacoEditor
                                             height="100%"
-                                            value=""
+                                            value={initialData?.script || ""}
                                             onChange={() => refreshScriptArgs()}
                                             onMount={(editor: any) => {
-                                                console.log('Editor mounted', editor);
                                                 editorRef.current = editor;
+                                                if (initialData?.script) {
+                                                    editor.setValue(initialData.script);
+                                                    refreshScriptArgs();
+                                                }
                                             }}
                                         />
                                     </Box>
@@ -921,7 +991,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                         color="var(--color-primary-text)"
                         _hover={{ bg: 'var(--color-primary-hover)' }}
                     >
-                        Submit Job
+                        {initialData ? 'Resubmit Job' : 'Submit Job'}
                     </Button>
                 </HStack>
             </VStack>

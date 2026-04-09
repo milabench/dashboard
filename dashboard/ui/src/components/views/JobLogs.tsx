@@ -21,9 +21,11 @@ import {
     Field,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { LuArrowLeft, LuRefreshCw, LuX, LuDownload, LuInfo, LuExternalLink, LuClock } from 'react-icons/lu';
+import { LuArrowLeft, LuRefreshCw, LuX, LuDownload, LuInfo, LuExternalLink, LuClock, LuPencil } from 'react-icons/lu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob, getSlurmJobScript, getSlurmTemplates, getSlurmProfiles } from '../../services/api';
+import { JobSubmissionForm } from './JobSubmit';
+import type { JobSubmissionInitialData } from './JobSubmit';
 import { LogDisplay } from './LogDisplay';
 import { NO_JOB_ID } from '../../Constant';
 
@@ -113,6 +115,11 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
 
     // Early sync state
     const [isEarlySync, setIsEarlySync] = useState(false);
+
+    // Edit & Resubmit state
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editInitialData, setEditInitialData] = useState<JobSubmissionInitialData | undefined>(undefined);
+    const [isLoadingEditData, setIsLoadingEditData] = useState(false);
 
     // Helper function to format file size
     const formatFileSize = (bytes: number): string => {
@@ -556,6 +563,61 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
     };
 
+    // Lazy-loaded templates & profiles for the edit modal
+    const { data: templateNames } = useQuery<string[]>({
+        queryKey: ['slurm-templates'],
+        queryFn: getSlurmTemplates,
+        enabled: isEditModalOpen,
+        refetchOnWindowFocus: false,
+        staleTime: 600000,
+    });
+
+    const { data: profiles } = useQuery({
+        queryKey: ['slurm-profiles'],
+        queryFn: getSlurmProfiles,
+        enabled: isEditModalOpen,
+        refetchOnWindowFocus: false,
+        staleTime: 300000,
+    });
+
+    const handleEditResubmit = async () => {
+        if (!jrJobId) return;
+
+        setIsLoadingEditData(true);
+        try {
+            const data = await getSlurmJobScript(jrJobId);
+            if (data.error) {
+                toaster.create({
+                    title: 'Failed to Load Job Data',
+                    description: data.error,
+                    type: 'error',
+                    duration: 5000,
+                });
+                return;
+            }
+            setEditInitialData({
+                script: data.script,
+                job_name: data.job_name,
+                sbatch_args: data.sbatch_args,
+            });
+            setIsEditModalOpen(true);
+        } catch (error: any) {
+            toaster.create({
+                title: 'Failed to Load Job Data',
+                description: error.message || 'Could not retrieve job script data',
+                type: 'error',
+                duration: 5000,
+            });
+        } finally {
+            setIsLoadingEditData(false);
+        }
+    };
+
+    const handleEditModalClose = () => {
+        setIsEditModalOpen(false);
+        setEditInitialData(undefined);
+    };
+
     if (!jrJobId) {
         return (
             <Box p={6}>
@@ -606,15 +668,30 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             <LuRefreshCw />
                             Refresh Now
                         </Button>
-                        <Button
-                            variant="outline"
-                            colorScheme="green"
-                            onClick={handleRerun}
-                            loading={isRerunning}
-                        >
-                            <LuRefreshCw />
-                            Rerun Job
-                        </Button>
+                        <HStack gap={0}>
+                            <Button
+                                variant="outline"
+                                colorScheme="green"
+                                onClick={handleRerun}
+                                loading={isRerunning}
+                                borderRightRadius={0}
+                            >
+                                <LuRefreshCw />
+                                Rerun Job
+                            </Button>
+                            <Button
+                                variant="outline"
+                                colorScheme="green"
+                                onClick={handleEditResubmit}
+                                loading={isLoadingEditData}
+                                borderLeftRadius={0}
+                                borderLeft="none"
+                                px={2}
+                                title="Edit job before resubmitting"
+                            >
+                                <LuPencil />
+                            </Button>
+                        </HStack>
                         <Button
                             variant="outline"
                             colorScheme="orange"
@@ -847,6 +924,34 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                                 Save Job
                             </Button>
                         </Dialog.Footer>
+                    </Dialog.Content>
+                </Dialog.Positioner>
+            </Dialog.Root>
+
+            {/* Edit & Resubmit Modal */}
+            <Dialog.Root
+                open={isEditModalOpen}
+                onOpenChange={(details) => {
+                    if (!details.open) handleEditModalClose();
+                }}
+                size="cover"
+            >
+                <Dialog.Backdrop />
+                <Dialog.Positioner>
+                    <Dialog.Content maxW="95vw" maxH="95vh" overflow="hidden" display="flex" flexDirection="column">
+                        <Dialog.Header>
+                            <Dialog.Title>Edit & Resubmit Job</Dialog.Title>
+                            <Dialog.CloseTrigger />
+                        </Dialog.Header>
+                        <Dialog.Body flex="1" overflow="auto" p={0}>
+                            <JobSubmissionForm
+                                templates={templateNames}
+                                profiles={profiles || []}
+                                activeJobs={[]}
+                                onClose={handleEditModalClose}
+                                initialData={editInitialData}
+                            />
+                        </Dialog.Body>
                     </Dialog.Content>
                 </Dialog.Positioner>
             </Dialog.Root>

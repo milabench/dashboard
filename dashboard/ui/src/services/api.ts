@@ -520,6 +520,20 @@ export const submitSlurmJob = async (request: {
     }
 };
 
+export const getSlurmJobScript = async (jrJobId: string): Promise<{
+    script: string;
+    sbatch_args: string[];
+    job_name: string;
+    error?: string;
+}> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jrJobId}/script`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export const rerunSlurmJob = async (jrJobId: string): Promise<SlurmJobSubmitResponse> => {
     try {
         const response = await api.get(`/slurm/rerun/${jrJobId}`);
