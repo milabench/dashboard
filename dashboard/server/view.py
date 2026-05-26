@@ -159,7 +159,7 @@ def view_server(config):
             with Session(logger.client) as sess:
                 yield sess
 
-    dev_mode = config.get("DEV_MODE", True)
+    dev_mode = os.environ.get("DEV_MODE", "true").lower() not in ("0", "false", "no")
     app.config["DEV_MODE"] = dev_mode
 
     def dev_only(f):
