@@ -1,0 +1,44 @@
+name: wheel
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: dashboard/ui/package-lock.json
+
+    - name: Build React app
+      working-directory: dashboard/ui
+      run: |
+        npm ci
+        npm run build
+
+    - name: Bundle static assets into Python package
+      run: cp -r dashboard/ui/dist dashboard/static
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Build wheel
+      run: |
+        pip install build
+        python -m build --wheel
+
+    - name: Upload wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: dashboard-wheel
+        path: dist/*.whl

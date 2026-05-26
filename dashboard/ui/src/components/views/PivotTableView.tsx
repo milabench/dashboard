@@ -36,18 +36,6 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
 
-    // Helper to convert hex to rgba
-    const hexToRgba = (hex: string, alpha: number): string => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (result) {
-            const r = parseInt(result[1], 16);
-            const g = parseInt(result[2], 16);
-            const b = parseInt(result[3], 16);
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        return `rgba(59, 130, 246, ${alpha})`; // fallback
-    };
-
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
             setIsGenerating(true);

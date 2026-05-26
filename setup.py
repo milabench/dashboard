@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("dashboard/server/__init__.py") as file:
     for line in file.readlines():
@@ -30,12 +30,7 @@ if __name__ == "__main__":
             "Programming Language :: Python :: 3.12",
             "Operating System :: OS Independent",
         ],
-        packages=[
-            "dashboard.server",
-            "dashboard.server.slurm",
-            "dashboard.server.display",
-             #"dashboard.plugins.example",
-        ],
+        packages=find_packages(exclude=["tests", "tests.*", "examples"]),
         setup_requires=["setuptools"],
         install_requires=[
             "importlib_resources",
@@ -51,8 +46,9 @@ if __name__ == "__main__":
             "apscheduler",
         ],
         package_data={
-            "dashboard.data": [
-                "dashboard/data",
+            "dashboard": [
+                "static/**/*",
+                "data/*.json",
             ],
         },
     )

@@ -105,3 +105,6 @@ dist-ssr
 
 
 out.txt
+
+# Built React app bundled for wheel (CI artifact)
+dashboard/static/

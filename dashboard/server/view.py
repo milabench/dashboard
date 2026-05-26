@@ -8,7 +8,7 @@ from datetime import datetime
 import importlib_resources
 
 import pandas as pd
-from flask import Flask, jsonify, render_template_string, render_template, send_file
+from flask import Flask, jsonify, render_template_string, render_template, send_file, send_from_directory
 from flask_caching import Cache
 from flask import request
 from flask_socketio import SocketIO, emit
@@ -160,6 +160,16 @@ def view_server(config):
                 yield sess
 
     dev_mode = config.get("DEV_MODE", True)
+    app.config["DEV_MODE"] = dev_mode
+
+    def dev_only(f):
+        from functools import wraps
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if not app.config["DEV_MODE"]:
+                return jsonify({"error": "Server is in read-only mode"}), 403
+            return f(*args, **kwargs)
+        return wrapper
 
     if dev_mode:
         try:
@@ -332,6 +342,7 @@ def view_server(config):
         return jsonify(results)
 
     @app.route('/api/profile/save/<string:profile>', methods=['POST'])
+    @dev_only
     def api_save_profile(profile):
         from flask import request
         weights = request.json
@@ -357,6 +368,7 @@ def view_server(config):
         return jsonify({"status": "success"})
 
     @app.route('/api/profile/copy', methods=['POST'])
+    @dev_only
     def api_copy_profile():
         from flask import request
         data = request.json
@@ -418,6 +430,7 @@ def view_server(config):
                 return jsonify({"error": "Query not found"}), 404
 
     @app.route('/api/query/save', methods=['POST'])
+    @dev_only
     def api_save_query():
         from flask import request
         data = request.json
@@ -449,6 +462,7 @@ def view_server(config):
         return jsonify({"status": "success"})
 
     @app.route('/api/query/delete/<string:name>', methods=['DELETE'])
+    @dev_only
     def api_delete_saved_query(name):
         with sqlexec() as sess:
             result = sess.execute(select(SavedQuery).where(SavedQuery.name == name)).scalar_one_or_none()
@@ -937,6 +951,26 @@ def view_server(config):
             results = cursor_to_json(cursor)
 
         return results
+
+    # Serve the built React SPA when bundled in the wheel
+    _static_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static"
+    )
+
+    if os.path.isdir(_static_dir):
+        @app.errorhandler(404)
+        def spa_fallback(e):
+            if request.path.startswith(("/api/", "/html/", "/socket.io/")):
+                return jsonify({"error": "Not found"}), 404
+
+            requested = request.path.lstrip("/")
+            if requested:
+                try:
+                    return send_from_directory(_static_dir, requested)
+                except Exception:
+                    pass
+
+            return send_file(os.path.join(_static_dir, "index.html"))
 
     return app, socketio
 

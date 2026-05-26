@@ -3,6 +3,7 @@ global-exclude __pycache__
 
 recursive-include dashboard *.json
 recursive-include dashboard *.py
+recursive-include dashboard/static *
 
 include LICENSE
 include requirements.txt
@@ -18,3 +19,4 @@ prune docs
 prune tests
 prune examples
 prune dashboard/plugins
+prune dashboard/ui
