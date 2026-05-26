@@ -1,5 +1,6 @@
 
 import os
+from urllib.parse import quote_plus
 
 
 def database_uri():
@@ -7,11 +8,17 @@ def database_uri():
     PSWD = os.getenv("POSTGRES_PSWD", "password")
     DB = os.getenv("POSTGRES_DB", "milabench")
     HOST = os.getenv("POSTGRES_HOST", "localhost")
-    PORT = os.getenv("POSTGRES_PORT", 5432)
+    PORT = os.getenv("POSTGRES_PORT", "5432")
+    SSLMODE = os.getenv("POSTGRES_SSLMODE", "")
 
     uri_override = os.getenv("DATABASE_URI", None)
+    if uri_override:
+        return uri_override
 
-    return uri_override or f"postgresql://{USER}:{PSWD}@{HOST}:{PORT}/{DB}"
+    base = f"postgresql://{quote_plus(USER)}:{quote_plus(PSWD)}@{HOST}:{PORT}/{DB}"
+    if SSLMODE:
+        base += f"?sslmode={SSLMODE}"
+    return base
 
 
 def page(title, body, more_css=""):
