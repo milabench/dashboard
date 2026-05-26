@@ -4,3 +4,5 @@ pandas
 flask
 flask_caching
 apscheduler
+gunicorn
+milabench @ git+https://github.com/milabench/milabench.git@main
