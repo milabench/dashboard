@@ -141,12 +141,23 @@ def _run_migrations(database_url):
         print(f"[migrations] Warning: auto-migration failed: {err}")
 
 
+def _ensure_scaling_dir():
+    """Auto-detect MILABENCH_SCALING_DIR from the deployment layout if not already set."""
+    if os.environ.get("MILABENCH_SCALING_DIR"):
+        return
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.normpath(os.path.join(here, "..", "..", "milabench", "config", "scaling"))
+    if os.path.isdir(candidate):
+        os.environ["MILABENCH_SCALING_DIR"] = candidate
+
+
 def view_server(config):
     """Display milabench results"""
 
     DATABASE_URI = database_uri()
 
-    _run_migrations(DATABASE_URI)
+    _ensure_scaling_dir()
 
     app = Flask(__name__)
     app.config.update(config)
