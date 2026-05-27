@@ -118,10 +118,35 @@ def pandas_to_html_relative(df, default_float="{:.2f}".format):
 
 
 
+def _run_migrations(database_url):
+    """Run Alembic migrations automatically on startup."""
+    try:
+        from alembic.config import Config
+        from alembic import command
+        import importlib_resources
+
+        migration_dir = importlib_resources.files("milabench.metrics.migration")
+        alembic_cfg = Config(str(migration_dir / "alembic.ini"))
+
+        url_str = (
+            database_url.render_as_string(hide_password=False)
+            if hasattr(database_url, "render_as_string")
+            else str(database_url)
+        )
+        alembic_cfg.set_main_option("sqlalchemy.url", url_str)
+
+        command.upgrade(alembic_cfg, "head")
+        print("[migrations] Database is up to date.")
+    except Exception as err:
+        print(f"[migrations] Warning: auto-migration failed: {err}")
+
+
 def view_server(config):
     """Display milabench results"""
 
     DATABASE_URI = database_uri()
+
+    _run_migrations(DATABASE_URI)
 
     app = Flask(__name__)
     app.config.update(config)
