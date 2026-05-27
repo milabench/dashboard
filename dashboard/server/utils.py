@@ -1,6 +1,6 @@
 
 import os
-from urllib.parse import quote_plus
+from sqlalchemy import URL
 
 
 def database_uri():
@@ -15,10 +15,16 @@ def database_uri():
     if uri_override:
         return uri_override
 
-    base = f"postgresql://{quote_plus(USER)}:{quote_plus(PSWD)}@{HOST}:{PORT}/{DB}"
-    if SSLMODE:
-        base += f"?sslmode={SSLMODE}"
-    return base
+    query = {"sslmode": SSLMODE} if SSLMODE else {}
+    return URL.create(
+        "postgresql",
+        username=USER,
+        password=PSWD,
+        host=HOST,
+        port=int(PORT),
+        database=DB,
+        query=query,
+    )
 
 
 def page(title, body, more_css=""):
