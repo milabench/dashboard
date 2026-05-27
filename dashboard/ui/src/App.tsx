@@ -23,7 +23,10 @@ import { RealtimeMetricsView } from './components/views/RealtimeMetricsView';
 import { DatafileView } from './components/views/DatafileView';
 import { VegaPlotBuilderView } from './components/views/VegaPlotBuilderView';
 import { BaremetalView } from './components/views/BaremetalView';
+import { PushResultsView } from './components/views/PushResultsView';
+import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { Toaster } from "./components/ui/toaster"
+import { VegaProvider } from './contexts/VegaContext'
 
 // Create the theme system for Chakra UI v3
 const system = createSystem(defaultConfig);
@@ -34,6 +37,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ChakraProvider value={system}>
         <ColorModeProvider>
+          <VegaProvider>
           <Toaster />
           <Router>
             <Layout>
@@ -48,8 +52,8 @@ function App() {
                     <Route path="/datafile" element={<DatafileView />} />
                     <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
                     <Route path="/baremetal" element={<BaremetalView />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/saved-queries" element={<SavedQueriesView />} />
+                    <Route path="/scaling" element={<Scaling />} />
+                    <Route path="/db-sync" element={<DatabaseSyncView />} />
                   </>
                 ) : (
                   <Route path="/" element={<Executions />} />
@@ -59,11 +63,14 @@ function App() {
                 <Route path="/executions/:id" element={<ExecutionReport />} />
                 <Route path="/pivot" element={<PivotView />} />
                 <Route path="/explorer" element={<ExplorerView />} />
-                <Route path="/scaling" element={<Scaling />} />
                 <Route path="/grouped" element={<GroupedView />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/saved-queries" element={<SavedQueriesView />} />
+                <Route path="/push" element={<PushResultsView />} />
               </Routes>
             </Layout>
           </Router>
+          </VegaProvider>
         </ColorModeProvider>
       </ChakraProvider>
     </QueryClientProvider>

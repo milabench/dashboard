@@ -27,6 +27,8 @@ import Cookies from 'js-cookie';
 export const Profile: React.FC = () => {
     usePageTitle('Profiles');
 
+    const readOnly = !import.meta.env.DEV;
+
     const [profiles, setProfiles] = useState<string[]>([]);
     const [selectedProfile, setSelectedProfile] = useState<string>('');
     const [scoreProfile, setScoreProfile] = useState<string>('');
@@ -245,6 +247,7 @@ export const Profile: React.FC = () => {
                     </VStack>
                 </Box>
 
+                {!readOnly && (
                 <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                     <VStack align="stretch" gap={4}>
                         <Heading size="md" color="var(--color-text)">Copy Profile</Heading>
@@ -301,10 +304,11 @@ export const Profile: React.FC = () => {
                         </HStack>
                     </VStack>
                 </Box>
+                )}
 
                 <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                     <VStack align="stretch" gap={4}>
-                        <Heading size="md" color="var(--color-text)">Update Profile</Heading>
+                        <Heading size="md" color="var(--color-text)">{readOnly ? 'View Profile' : 'Update Profile'}</Heading>
                         <HStack gap={4}>
                             <Field.Root>
                                 <Field.Label color="var(--color-text)">Profile</Field.Label>
@@ -334,6 +338,7 @@ export const Profile: React.FC = () => {
                                 </Select.Root>
                             </Field.Root>
 
+                            {!readOnly && (
                             <Button
                                 onClick={handleSave}
                                 bg="var(--color-primary)"
@@ -344,6 +349,7 @@ export const Profile: React.FC = () => {
                             >
                                 {isSaving ? 'Saving...' : 'Save Changes'}
                             </Button>
+                            )}
                         </HStack>
 
                         <Table.Root>
@@ -373,6 +379,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.weight}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'weight', parseInt(e.target.value))}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"
@@ -385,6 +392,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.priority}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'priority', parseInt(e.target.value))}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"
@@ -395,6 +403,7 @@ export const Profile: React.FC = () => {
                                             <Switch.Root
                                                 checked={weight.enabled}
                                                 onCheckedChange={(details) => handleWeightChange(weight._id, 'enabled', details.checked)}
+                                                disabled={readOnly}
                                             >
                                                 <Switch.HiddenInput />
                                                 <Switch.Control>
@@ -407,6 +416,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.group1 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group1', e.target.value)}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"
@@ -418,6 +428,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.group2 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group2', e.target.value)}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"
@@ -429,6 +440,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.group3 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group3', e.target.value)}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"
@@ -440,6 +452,7 @@ export const Profile: React.FC = () => {
                                                 value={weight.group4 || ''}
                                                 onChange={(e: ChangeEvent<HTMLInputElement>) => handleWeightChange(weight._id, 'group4', e.target.value)}
                                                 size="sm"
+                                                readOnly={readOnly}
                                                 bg="var(--color-bg-card)"
                                                 borderColor="var(--color-border)"
                                                 color="var(--color-text)"

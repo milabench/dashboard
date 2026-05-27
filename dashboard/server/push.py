@@ -1,10 +1,13 @@
 import os
+import secrets
 import traceback
-from flask import Flask, flash, request, redirect
+from flask import Flask, flash, request, redirect, jsonify
 from werkzeug.utils import secure_filename
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from milabench.metrics.archive import publish_zipped_run
-from milabench.metrics.sqlalchemy import SQLAlchemy
+from milabench.metrics.sqlalchemy import SQLAlchemy, PushKey
 from .utils import database_uri
 
 
@@ -17,18 +20,70 @@ def push_routes(app, database_uri):
     def allowed_file(filename):
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-    # We could also do a event push kind of thing
+    def resolve_push_key(key):
+        """Look up a push key and return the associated name, or None."""
+        with SQLAlchemy(database_uri) as backend:
+            with Session(backend.client) as sess:
+                row = sess.execute(
+                    select(PushKey).where(PushKey.key == key)
+                ).scalar_one_or_none()
+                return row.name if row else None
+
+    @app.route('/api/push/key/request', methods=['POST'])
+    def request_push_key():
+        """Generate a new push key for a given name."""
+        data = request.json
+        name = data.get('name', '').strip()
+
+        if not name:
+            return jsonify({"status": "ERR", "message": "Name is required"}), 400
+
+        with SQLAlchemy(database_uri) as backend:
+            with Session(backend.client) as sess:
+                existing = sess.execute(
+                    select(PushKey).where(PushKey.name == name)
+                ).scalar_one_or_none()
+
+                if existing:
+                    return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
+
+                key = secrets.token_hex(32)
+                push_key = PushKey(name=name, key=key)
+                sess.add(push_key)
+                sess.commit()
+
+                return jsonify({
+                    "status": "OK",
+                    "name": name,
+                    "key": key,
+                    "message": "Save this key — it will not be shown again."
+                })
+
+    @app.route('/api/push/key/list')
+    def list_push_keys():
+        """List all registered push key names (without exposing the secrets)."""
+        with SQLAlchemy(database_uri) as backend:
+            with Session(backend.client) as sess:
+                rows = sess.execute(select(PushKey)).scalars().all()
+                return jsonify([{"name": row.name} for row in rows])
+
     @app.route('/api/push/zip', methods=['POST'])
     def upload_zip_file():
+        push_key = request.form.get('key') or request.headers.get('X-Push-Key')
+        if not push_key:
+            return jsonify({"status": "ERR", "message": "Push key is required"}), 401
+
+        contributor = resolve_push_key(push_key)
+        if not contributor:
+            return jsonify({"status": "ERR", "message": "Invalid push key"}), 403
+
         if 'file' not in request.files:
-            flash('No file part')
-            return redirect('/push')
+            return jsonify({"status": "ERR", "message": "No file provided"}), 400
 
         file = request.files['file']
 
         if file.filename == '':
-            flash('No selected file')
-            return redirect('/push')
+            return jsonify({"status": "ERR", "message": "No file selected"}), 400
 
         if file and allowed_file(file.filename):
             try:
@@ -36,19 +91,33 @@ def push_routes(app, database_uri):
                 dest = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(dest)
 
-                with SQLAlchemy(database_uri, meta_override={}) as backend:
+                user_meta = {}
+                raw = request.form.get('metadata')
+                if raw:
+                    try:
+                        import json
+                        user_meta = json.loads(raw)
+                        if not isinstance(user_meta, dict):
+                            user_meta = {}
+                    except (json.JSONDecodeError, TypeError):
+                        user_meta = {}
+
+                meta_tags = {**user_meta, "contributor": contributor}
+                with SQLAlchemy(database_uri, meta_tags=meta_tags) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
 
                 os.remove(dest)
-                return {
+                return jsonify({
                     "status": "OK",
-                    "message": f"{file.filename} was pushed"
-                }
+                    "message": f"{file.filename} was pushed by {contributor}"
+                })
             except Exception as err:
-                return {
+                return jsonify({
                     "status": "ERR",
                     "message": f"{str(err)}"
-                }
+                })
+
+        return jsonify({"status": "ERR", "message": "Only .zip files are allowed"}), 400
 
     @app.route('/api/push/folder/<string:jr_job_id>', methods=['GET'])
     def upload_job_folder(jr_job_id: str):

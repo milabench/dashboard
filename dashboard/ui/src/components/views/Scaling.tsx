@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     Box,
     HStack,
     NativeSelect,
     Field,
+    Text,
 } from '@chakra-ui/react';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import VegaPlot from '../charts/VegaPlot';
 
 const Scaling = () => {
     usePageTitle('Scaling');
@@ -23,9 +27,78 @@ const Scaling = () => {
         setSearchParams({ ...searchParams, y: event.target.value });
     };
 
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(800);
+    const [containerHeight, setContainerHeight] = useState<number>(600);
+
+    useEffect(() => {
+        const measure = () => {
+            const el = chartContainerRef.current;
+            if (el) {
+                if (el.clientWidth > 0) setContainerWidth(el.clientWidth);
+                if (el.clientHeight > 0) setContainerHeight(el.clientHeight);
+            }
+        };
+
+        measure();
+
+        const observer = new ResizeObserver(() => measure());
+        if (chartContainerRef.current) 
+            observer.observe(chartContainerRef.current);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
+    const { data: scalingData } = useQuery({
+        queryKey: ['scalingData'],
+        queryFn: async () => {
+            const response = await axios.get('/api/scaling');
+            return response.data;
+        },
+    });
+
+    const vegaSpec = useMemo(() => {
+        if (!scalingData || scalingData.length === 0) return null;
+
+        const benchCount = new Set(scalingData.map((d: any) => d.bench)).size;
+        const cols = Math.min(4, benchCount);
+        const rows = Math.ceil(benchCount / cols);
+        const cellPadding = 50;
+        const cellWidth = Math.max(120, Math.floor((containerWidth) / (cols + 1)) - cellPadding);
+        const cellHeight = Math.max(cellWidth, Math.floor(containerHeight / rows) - cellPadding);
+
+        return {
+            data: { values: scalingData },
+            facet: { field: 'bench', type: 'nominal', title: 'Benchmark' },
+            columns: cols,
+            spec: {
+                width: cellWidth,
+                height: cellHeight,
+                mark: 'point',
+                encoding: {
+                    x: { field: xAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
+                    y: { field: yAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
+                    shape: { field: 'gpu', type: 'nominal' },
+                    color: { field: 'gpu', type: 'nominal' },
+                    size: { field: 'perf', type: 'quantitative', legend: null },
+                    tooltip: [
+                        { field: 'bench', type: 'nominal', title: 'Benchmark' },
+                        { field: 'gpu', type: 'nominal', title: 'GPU' },
+                        { field: xAxis, type: 'quantitative', title: xAxis, format: '~s' },
+                        { field: yAxis, type: 'quantitative', title: yAxis, format: '~s' },
+                        { field: 'perf', type: 'quantitative', title: 'perf', format: '~s' },
+                    ],
+                },
+            },
+            resolve: { scale: { y: 'independent', x: 'independent', size: 'independent' } },
+        } as Record<string, any>;
+    }, [scalingData, xAxis, yAxis, containerWidth, containerHeight]);
+
     return (
-        <Box p={4} height="100vh" display="flex" flexDirection="column" className='scaling-container' bg="var(--color-bg-page)">
-            <HStack gap={4} mb={4} width="100%">
+        <Box p={4} h="100%" display="flex" flexDirection="column" overflowX="hidden" overflowY="auto" className='scaling-container' bg="var(--color-bg-page)">
+            <HStack gap={4} mb={4} width="100%" flexShrink={0}>
                 <Field.Root flex="1">
                     <Field.Label color="var(--color-text)">X Axis</Field.Label>
                     <NativeSelect.Root>
@@ -42,8 +115,6 @@ const Scaling = () => {
                             <option value="gpu">gpu</option>
                             <option value="cpu">cpu</option>
                             <option value="perf">perf</option>
-                            {/* <option value="bench">bench</option>
-                            <option value="time">time</option> */}
                         </NativeSelect.Field>
                         <NativeSelect.Indicator />
                     </NativeSelect.Root>
@@ -71,12 +142,18 @@ const Scaling = () => {
                 </Field.Root>
             </HStack>
 
-            <Box flex="1">
-                <iframe
-                    src={`/html/scaling/x=${xAxis}/y=${yAxis}`}
-                    style={{ width: '100%', height: '100%', border: 'none' }}
-                    title="Scaling Plot"
-                />
+            <Box flex="1" minH={0} ref={chartContainerRef}>
+                {vegaSpec ? (
+                    <VegaPlot
+                        spec={vegaSpec}
+                        height="100%"
+                        configOverrides={{ legend: { orient: 'right', direction: 'vertical' } }}
+                    />
+                ) : (
+                    <Box display="flex" alignItems="center" justifyContent="center" h="100%">
+                        <Text color="var(--color-text-muted)">Loading scaling data…</Text>
+                    </Box>
+                )}
             </Box>
         </Box>
     );

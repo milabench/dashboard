@@ -30,6 +30,7 @@ interface SavedQuery {
 
 const SavedQueriesView: React.FC = () => {
     usePageTitle('Saved Queries');
+    const readOnly = !import.meta.env.DEV;
 
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -176,6 +177,7 @@ const SavedQueriesView: React.FC = () => {
                                                         <LuExternalLink />
                                                     </IconButton>
                                                 </Tooltip>
+                                                {!readOnly && (
                                                 <Tooltip content="Delete Query">
                                                     <IconButton
                                                         aria-label="Delete query"
@@ -188,6 +190,7 @@ const SavedQueriesView: React.FC = () => {
                                                         <LuTrash2 />
                                                     </IconButton>
                                                 </Tooltip>
+                                                )}
                                             </HStack>
                                         </Table.Cell>
                                     </Table.Row>

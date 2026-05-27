@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -8,6 +8,7 @@ import axios from 'axios';
 import { LuPlus, LuTrash2, LuCopy, LuDownload } from 'react-icons/lu';
 import { saveQuery, getAllSavedQueries } from '../../services/api';
 import { Tooltip } from "../../components/ui/tooltip"
+import VegaPlot from '../charts/VegaPlot';
 
 interface ExtraField {
     field: string;
@@ -23,6 +24,26 @@ const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
 
     const [searchParams, setSearchParams] = useSearchParams();
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState<number>(800);
+
+    useEffect(() => {
+        const measure = () => {
+            const el = chartContainerRef.current;
+            if (el && el.clientWidth > 0) setContainerWidth(el.clientWidth);
+        };
+
+        measure();
+
+        const observer = new ResizeObserver(() => measure());
+        if (chartContainerRef.current) 
+            observer.observe(chartContainerRef.current);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
     const [selectedField, setSelectedField] = useState<string>('');
     const [fieldAlias, setFieldAlias] = useState<string>('');
@@ -1158,25 +1179,54 @@ const GroupedView: React.FC = () => {
                     </Tooltip>
                 </HStack>
 
-                <Box flex="1">
-                    <iframe
-                        src={`/html/grouped/plot?${[
-                            g1Value && `g1=${g1Value}`,
-                            n1Value && `n1=${n1Value}`,
-                            g2Value && `g2=${g2Value}`,
-                            n2Value && `n2=${n2Value}`,
-                            `metric=${metricValue || 'rate'}`,
-                            `more=${more}`,
-                            `exec_ids=${execIdsValue}`,
-                            `color=${colorValue || 'pytorch'}`,
-                            `profile=${profileValue || 'default'}`,
-                            invertedValue ? 'inverted=true' : '',
-                            weightedValue ? 'weighted=true' : '',
-                            isRelativeView ? `relative=${relativeColumn}=${encodeURIComponent(relativeBaseline)}` : ''
-                        ].filter((param): param is string => Boolean(param)).join('&')}`}
-                        style={{ width: '100%', height: '100%', border: 'none' }}
-                        title="Grouped Plot"
-                    />
+                <Box flex="1" minH="400px" ref={chartContainerRef}>
+                    {relativeData && relativeData.length > 0  ? (
+                        <VegaPlot
+                            spec={(() => {
+                                const metric = metricValue || 'rate';
+                                const color = colorValue || 'pytorch';
+                                const n1 = n1Value || 'Group 1';
+                                const n2 = n2Value || 'Group 2';
+
+                                const xEnc: Record<string, any> = invertedValue
+                                    ? { field: color, type: 'nominal', axis: { labelPadding: 8 } }
+                                    : { field: metric, type: 'quantitative', scale: { zero: false } };
+                                const yEnc: Record<string, any> = invertedValue
+                                    ? { field: metric, type: 'quantitative', scale: { zero: false } }
+                                    : { field: color, type: 'nominal', axis: { titlePadding: 30 } };
+
+                                const encoding: Record<string, any> = {
+                                    x: xEnc,
+                                    y: yEnc,
+                                    color: { field: color, type: 'nominal' },
+                                };
+
+                                if (g2Value) encoding.row = { field: n2, type: 'nominal', title: n2 };
+                                if (g1Value) encoding.column = { field: n1, type: 'nominal', title: n1 };
+
+                                const columnCount = g1Value
+                                    ? new Set(relativeData.map((d: any) => d[n1])).size
+                                    : 1;
+                                const chartPadding = 80;
+                                const cellWidth = Math.max(150, Math.floor((containerWidth - chartPadding) / columnCount) - 40);
+
+                                return {
+                                    data: { values: relativeData },
+                                    mark: { type: 'bar' },
+                                    height: { step: 30 },
+                                    encoding,
+                                    width: cellWidth,
+                                };
+                            })()}
+                            height="100%"
+                        />
+                    ) : (
+                        <Box display="flex" alignItems="center" justifyContent="center" h="100%">
+                            <Text color="var(--color-text-muted)">
+                                {execIdsValue ? 'Loading chart data…' : 'Enter execution IDs to generate a chart'}
+                            </Text>
+                        </Box>
+                    )}
                 </Box>
             </VStack>
 

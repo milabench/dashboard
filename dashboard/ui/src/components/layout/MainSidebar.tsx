@@ -36,16 +36,17 @@ const navItems: NavItem[] = [
     {
         label: 'Plot',
         routes: [
-            { label: 'Scaling', path: '/scaling' },
+            { label: 'Scaling', path: '/scaling', env: 'dev' },
             { label: 'Grouped View', path: '/grouped' },
         ]
     },
     {
         label: 'Manage',
-        env: 'dev',
         routes: [
             { label: 'Profiles', path: '/profile' },
-            { label: 'Saved Queries', path: '/saved-queries' }
+            { label: 'Saved Queries', path: '/saved-queries' },
+            { label: 'Push Results', path: '/push' },
+            { label: 'Database Sync', path: '/db-sync', env: 'dev' },
         ]
     },
     {

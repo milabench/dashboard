@@ -28,6 +28,7 @@ from .realtime import metric_receiver, set_socketio_instance
 from .push import push_routes
 from .report import datafile_processor
 from .metal import baremetal_server
+from .sync import sync_routes
 
 
 class MultiIndexFormater:
@@ -171,7 +172,11 @@ def view_server(config):
             return f(*args, **kwargs)
         return wrapper
 
+    push_routes(app, DATABASE_URI)
+
     if dev_mode:
+        sync_routes(app, DATABASE_URI)
+
         try:
             slurm_integration(app, cache)
         except:
@@ -180,8 +185,6 @@ def view_server(config):
         baremetal_server(app)
 
         metric_receiver(app)
-
-        push_routes(app, DATABASE_URI)
 
         # FIXME: create a way to ignore failing extension
         try:

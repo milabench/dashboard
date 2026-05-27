@@ -122,6 +122,24 @@
   --color-drop-value:  #e9d8fd;  /* purple.100 */
   --color-drop-filter: #feebc8;  /* orange.100 */
 
+  /* Pivot builder badges (solid pills inside drop zones) */
+  --color-pivot-row-badge-bg:      #3182ce;  /* blue.600   */
+  --color-pivot-row-badge-text:    #ffffff;
+  --color-pivot-col-badge-bg:      #2f855a;  /* green.600  */
+  --color-pivot-col-badge-text:    #ffffff;
+  --color-pivot-value-badge-bg:    #6b46c1;  /* purple.600 */
+  --color-pivot-value-badge-text:  #ffffff;
+  --color-pivot-filter-badge-bg:   #c05621;  /* orange.600 */
+  --color-pivot-filter-badge-text: #ffffff;
+
+  /* Pivot action buttons */
+  --color-btn-save-bg:       #38a169;  /* green.600  */
+  --color-btn-save-hover:    #2f855a;  /* green.700  */
+  --color-btn-save-text:     #ffffff;
+  --color-btn-load-bg:       #3182ce;  /* blue.600   */
+  --color-btn-load-hover:    #2b6cb0;  /* blue.700   */
+  --color-btn-load-text:     #ffffff;
+
   /* PivotTable – header & data cell accents */
   --color-table-row-header-bg:  #bee3f8;  /* blue.100   */
   --color-table-row-header-text:#2a4365;  /* blue.800   */
@@ -251,6 +269,24 @@ html.dark {
   --color-drop-col:    #1c4532;  /* green.900  */
   --color-drop-value:  #44337a;  /* purple.900 */
   --color-drop-filter: #7b341e;  /* orange.800 */
+
+  /* Pivot builder badges (solid pills inside drop zones) */
+  --color-pivot-row-badge-bg:      #4299e1;  /* blue.400   */
+  --color-pivot-row-badge-text:    #1a202c;  /* gray.800   */
+  --color-pivot-col-badge-bg:      #48bb78;  /* green.400  */
+  --color-pivot-col-badge-text:    #1a202c;  /* gray.800   */
+  --color-pivot-value-badge-bg:    #9f7aea;  /* purple.400 */
+  --color-pivot-value-badge-text:  #1a202c;  /* gray.800   */
+  --color-pivot-filter-badge-bg:   #ed8936;  /* orange.400 */
+  --color-pivot-filter-badge-text: #1a202c;  /* gray.800   */
+
+  /* Pivot action buttons */
+  --color-btn-save-bg:       #48bb78;  /* green.400  */
+  --color-btn-save-hover:    #68d391;  /* green.300  */
+  --color-btn-save-text:     #1a202c;  /* gray.800   */
+  --color-btn-load-bg:       #4299e1;  /* blue.400   */
+  --color-btn-load-hover:    #63b3ed;  /* blue.300   */
+  --color-btn-load-text:     #1a202c;  /* gray.800   */
 
   /* PivotTable – header & data cell accents */
   --color-table-row-header-bg:  #2a4365;  /* blue.800   */

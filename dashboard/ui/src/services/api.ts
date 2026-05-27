@@ -553,19 +553,45 @@ export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ 
 };
 
 // Push-related API functions
-export const pushZipFile = async (file: File): Promise<PushZipResponse> => {
+export const requestPushKey = async (name: string): Promise<{ status: string; name?: string; key?: string; message: string }> => {
+    try {
+        const response = await axios.post('/api/push/key/request', { name });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const listPushKeys = async (): Promise<{ name: string }[]> => {
+    try {
+        const response = await axios.get('/api/push/key/list');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const pushZipFile = async (file: File, pushKey?: string, metadata?: Record<string, string>): Promise<PushZipResponse> => {
     try {
         const formData = new FormData();
         formData.append('file', file);
+        if (pushKey) formData.append('key', pushKey);
+        if (metadata && Object.keys(metadata).length > 0) formData.append('metadata', JSON.stringify(metadata));
 
-        const response = await axios.post('/push/zip', formData, {
+        const response = await axios.post('/api/push/zip', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
-            timeout: 30000, // 30 seconds for file upload
+            timeout: 120000,
         });
         return response.data;
     } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
         return handleError(error);
     }
 };
@@ -739,6 +765,81 @@ export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields)
         });
         return response.data;
     } catch (error) {
+        return handleError(error);
+    }
+};
+
+// Database sync API functions
+export const getSyncRemoteInfo = async (): Promise<{ default_url: string }> => {
+    try {
+        const response = await api.get('/sync/remote-info');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const downloadLocalBackup = async (): Promise<Blob> => {
+    const response = await axios.get('/api/sync/local-backup', {
+        responseType: 'blob',
+        timeout: 600000,
+    });
+    return response.data;
+};
+
+export const backupRemoteDatabase = async (connInfo: {
+    host: string;
+    port: string;
+    dbname: string;
+    user: string;
+    password: string;
+    sslmode?: string;
+}): Promise<Blob> => {
+    const response = await axios.post('/api/sync/backup', connInfo, {
+        responseType: 'blob',
+        timeout: 600000,
+    });
+    return response.data;
+};
+
+export const pushToRemote = async (connInfo: {
+    host: string;
+    port: string;
+    dbname: string;
+    user: string;
+    password: string;
+    sslmode?: string;
+}): Promise<{ status: string; message: string }> => {
+    try {
+        const response = await axios.post('/api/sync/push-to-remote', connInfo, {
+            timeout: 600000,
+        });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const restoreBackup = async (file: File): Promise<{ status: string; message: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const response = await axios.post('/api/sync/restore', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 600000,
+        });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            if (error.response.data instanceof Blob) {
+                const text = await error.response.data.text();
+                try { return JSON.parse(text); } catch { return { status: 'ERR', message: text }; }
+            }
+            return error.response.data;
+        }
         return handleError(error);
     }
 };

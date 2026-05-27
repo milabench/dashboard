@@ -754,15 +754,18 @@ export const PivotView = () => {
                 <Heading color="var(--color-text)">Pivot View</Heading>
                 <HStack gap={4}>
                     <Button
-                        colorScheme="green"
                         onClick={onSaveModalOpen}
-                    // leftIcon={<LuPlus />}
+                        bg="var(--color-btn-save-bg)"
+                        color="var(--color-btn-save-text)"
+                        _hover={{ bg: 'var(--color-btn-save-hover)' }}
                     >
                         Save Query
                     </Button>
                     <Button
-                        colorScheme="blue"
                         onClick={onLoadModalOpen}
+                        bg="var(--color-btn-load-bg)"
+                        color="var(--color-btn-load-text)"
+                        _hover={{ bg: 'var(--color-btn-load-hover)' }}
                     >
                         Load Query
                     </Button>
@@ -859,8 +862,8 @@ export const PivotView = () => {
                                                     m={1}
                                                     p={2}
                                                     px={3}
-                                                    colorScheme="blue"
-                                                    variant="solid"
+                                                    bg="var(--color-pivot-row-badge-bg)"
+                                                    color="var(--color-pivot-row-badge-text)"
                                                     cursor="move"
                                                     draggable
                                                     onClick={() => removeField(globalIndex)}
@@ -937,8 +940,8 @@ export const PivotView = () => {
                                                     m={1}
                                                     p={2}
                                                     px={3}
-                                                    colorScheme="green"
-                                                    variant="solid"
+                                                    bg="var(--color-pivot-col-badge-bg)"
+                                                    color="var(--color-pivot-col-badge-text)"
                                                     cursor="move"
                                                     draggable
                                                     onClick={() => removeField(globalIndex)}
@@ -1030,8 +1033,8 @@ export const PivotView = () => {
                                                     <VStack align="stretch" gap={2}>
                                                         <HStack gap={2} justify="space-between">
                                                             <Badge
-                                                                colorScheme="purple"
-                                                                variant="solid"
+                                                                bg="var(--color-pivot-value-badge-bg)"
+                                                                color="var(--color-pivot-value-badge-text)"
                                                                 cursor="pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -1049,15 +1052,15 @@ export const PivotView = () => {
                                                                 📝 {field.field}
                                                             </Badge>
                                                             <Badge
-                                                                colorScheme="red"
-                                                                variant="solid"
+                                                                bg="var(--color-btn-danger)"
+                                                                color="var(--color-text-on-dark)"
                                                                 cursor="pointer"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     removeField(fieldIndex);
                                                                 }}
                                                                 _hover={{
-                                                                    bg: 'var(--color-btn-danger)',
+                                                                    bg: 'var(--color-btn-danger-hover)',
                                                                     transform: 'scale(1.05)'
                                                                 }}
                                                                 transition="all 0.2s"
@@ -1075,8 +1078,10 @@ export const PivotView = () => {
                                                             {(field.aggregators || ['avg']).map((aggregator, aggIndex) => (
                                                                 <Badge
                                                                     key={`${field.field}-${aggregator}-${aggIndex}`}
-                                                                    colorScheme="purple"
-                                                                    variant="outline"
+                                                                    borderWidth={1}
+                                                                    borderColor="var(--color-pivot-value-border)"
+                                                                    color="var(--color-pivot-value-heading)"
+                                                                    bg="transparent"
                                                                     fontSize="xs"
                                                                     px={2}
                                                                     py={1}
@@ -1164,8 +1169,8 @@ export const PivotView = () => {
                                                 >
                                                     <HStack gap={2} justify="space-between">
                                                         <Badge
-                                                            colorScheme="orange"
-                                                            variant="solid"
+                                                            bg="var(--color-pivot-filter-badge-bg)"
+                                                            color="var(--color-pivot-filter-badge-text)"
                                                             cursor="pointer"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1183,15 +1188,15 @@ export const PivotView = () => {
                                                             🔍 {field.field} {field.operator} {field.value}
                                                         </Badge>
                                                         <Badge
-                                                            colorScheme="red"
-                                                            variant="solid"
+                                                            bg="var(--color-btn-danger)"
+                                                            color="var(--color-text-on-dark)"
                                                             cursor="pointer"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 removeField(fieldIndex);
                                                             }}
                                                             _hover={{
-                                                                bg: 'var(--color-btn-danger)',
+                                                                bg: 'var(--color-btn-danger-hover)',
                                                                 transform: 'scale(1.05)'
                                                             }}
                                                             transition="all 0.2s"
@@ -1234,26 +1239,26 @@ export const PivotView = () => {
                     <HStack gap={4} align="stretch" flex="1">
                         <ButtonGroup size="sm" attached variant="outline">
                             <Button
-                                colorScheme={viewMode === 'iframe' ? 'blue' : 'gray'}
                                 variant={viewMode === 'iframe' ? 'solid' : 'outline'}
                                 onClick={() => handleModeChange('iframe')}
+                                bg={viewMode === 'iframe' ? 'var(--color-primary)' : undefined}
                                 color={viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                borderColor={viewMode === 'iframe' ? undefined : 'var(--color-border)'}
+                                borderColor={viewMode === 'iframe' ? 'var(--color-primary)' : 'var(--color-border)'}
                                 _hover={{
-                                    bg: viewMode === 'iframe' ? undefined : 'var(--color-bg-hover)',
+                                    bg: viewMode === 'iframe' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
                                     color: viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'
                                 }}
                             >
                                 Pandas
                             </Button>
                             <Button
-                                colorScheme={viewMode === 'table' ? 'blue' : 'gray'}
                                 variant={viewMode === 'table' ? 'solid' : 'outline'}
                                 onClick={() => handleModeChange('table')}
+                                bg={viewMode === 'table' ? 'var(--color-primary)' : undefined}
                                 color={viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                borderColor={viewMode === 'table' ? undefined : 'var(--color-border)'}
+                                borderColor={viewMode === 'table' ? 'var(--color-primary)' : 'var(--color-border)'}
                                 _hover={{
-                                    bg: viewMode === 'table' ? undefined : 'var(--color-bg-hover)',
+                                    bg: viewMode === 'table' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
                                     color: viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'
                                 }}
                             >
@@ -1263,7 +1268,6 @@ export const PivotView = () => {
                         <Button
                             size="sm"
                             onClick={resetPivot}
-                            colorScheme="gray"
                             variant="outline"
                             color="var(--color-text)"
                             borderColor="var(--color-border)"
@@ -1273,12 +1277,12 @@ export const PivotView = () => {
                         </Button>
                         <Button
                             size="sm"
-                            colorScheme={isRelativePivot ? "green" : "gray"}
                             variant={isRelativePivot ? "solid" : "outline"}
                             onClick={() => handleRelativePivotChange(!isRelativePivot)}
-                            color={!isRelativePivot ? "var(--color-text)" : undefined}
-                            borderColor={!isRelativePivot ? "var(--color-border)" : undefined}
-                            _hover={{ bg: !isRelativePivot ? "var(--color-bg-hover)" : undefined }}
+                            bg={isRelativePivot ? "var(--color-btn-success)" : undefined}
+                            color={isRelativePivot ? "var(--color-text-on-dark)" : "var(--color-text)"}
+                            borderColor={isRelativePivot ? "var(--color-btn-success)" : "var(--color-border)"}
+                            _hover={{ bg: isRelativePivot ? "var(--color-btn-success-hover)" : "var(--color-bg-hover)" }}
                         >
                             {!isRelativePivot ? "Relative View" : "Normal View"}
                         </Button>
@@ -1287,10 +1291,10 @@ export const PivotView = () => {
                             size="sm"
                             onClick={generatePivot}
                             loading={isGenerating}
-                            colorScheme="blue"
                             variant="solid"
+                            bg="var(--color-primary)"
                             color="var(--color-primary-text)"
-                            _hover={{ color: 'var(--color-primary-text)' }}
+                            _hover={{ bg: 'var(--color-primary-hover)', color: 'var(--color-primary-text)' }}
                         >
                             Execute Query
                         </Button>
@@ -1377,7 +1381,9 @@ export const PivotView = () => {
                                     onChange={(e) => setSelectedField({ ...selectedField!, value: e.target.value })}
                                 />
                                 <Button
-                                    colorScheme="blue"
+                                    bg="var(--color-primary)"
+                                    color="var(--color-primary-text)"
+                                    _hover={{ bg: 'var(--color-primary-hover)' }}
                                     onClick={() => {
                                         if (selectedField?.operator && selectedField?.value) {
                                             handleFilterApply(selectedField.operator, selectedField.value);
@@ -1412,10 +1418,10 @@ export const PivotView = () => {
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
-                                    <Button colorScheme="blue" onClick={handleSaveQuery} width="100%">
+                                    <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleSaveQuery} width="100%">
                                         Save
                                     </Button>
-                                    <Button onClick={onSaveModalClose} width="100%">
+                                    <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onSaveModalClose} width="100%">
                                         Cancel
                                     </Button>
                                 </HStack>
@@ -1459,7 +1465,7 @@ export const PivotView = () => {
                                                             Created: {new Date(query.created_time).toLocaleString()}
                                                         </Text>
                                                     </VStack>
-                                                    <Button size="sm" colorScheme="blue">
+                                                    <Button size="sm" bg="var(--color-btn-load-bg)" color="var(--color-btn-load-text)" _hover={{ bg: 'var(--color-btn-load-hover)' }}>
                                                         Load
                                                     </Button>
                                                 </HStack>
@@ -1535,7 +1541,9 @@ export const PivotView = () => {
                                                     </Select.Positioner>
                                                 </Select.Root>
                                                 <Button
-                                                    colorScheme="red"
+                                                    bg="var(--color-btn-danger)"
+                                                    color="var(--color-text-on-dark)"
+                                                    _hover={{ bg: 'var(--color-btn-danger-hover)' }}
                                                     size="sm"
                                                     onClick={() => {
                                                         const newAggregators = [...editableValue.aggregators];
@@ -1549,9 +1557,11 @@ export const PivotView = () => {
                                             </HStack>
                                         ))}
                                         <Button
-                                            colorScheme="green"
                                             variant="outline"
                                             size="sm"
+                                            color="var(--color-btn-success)"
+                                            borderColor="var(--color-btn-success)"
+                                            _hover={{ bg: 'var(--color-btn-success)', color: 'var(--color-text-on-dark)' }}
                                             onClick={() => {
                                                 const newAggregators = [...editableValue.aggregators, 'avg'];
                                                 setEditableValue({ ...editableValue, aggregators: newAggregators });
@@ -1562,10 +1572,10 @@ export const PivotView = () => {
                                     </VStack>
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
-                                    <Button colorScheme="blue" onClick={handleValueSave} width="100%">
+                                    <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleValueSave} width="100%">
                                         Save
                                     </Button>
-                                    <Button onClick={onEditValueClose} width="100%">
+                                    <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onEditValueClose} width="100%">
                                         Cancel
                                     </Button>
                                 </HStack>
@@ -1630,10 +1640,10 @@ export const PivotView = () => {
                                     />
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
-                                    <Button colorScheme="blue" onClick={handleFilterSave} width="100%">
+                                    <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleFilterSave} width="100%">
                                         Save
                                     </Button>
-                                    <Button onClick={onEditFilterClose} width="100%">
+                                    <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onEditFilterClose} width="100%">
                                         Cancel
                                     </Button>
                                 </HStack>
