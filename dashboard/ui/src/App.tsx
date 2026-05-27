@@ -52,7 +52,6 @@ function App() {
                     <Route path="/datafile" element={<DatafileView />} />
                     <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
                     <Route path="/baremetal" element={<BaremetalView />} />
-                    <Route path="/scaling" element={<Scaling />} />
                     <Route path="/db-sync" element={<DatabaseSyncView />} />
                   </>
                 ) : (
@@ -64,6 +63,7 @@ function App() {
                 <Route path="/pivot" element={<PivotView />} />
                 <Route path="/explorer" element={<ExplorerView />} />
                 <Route path="/grouped" element={<GroupedView />} />
+                <Route path="/scaling" element={<Scaling />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
                 <Route path="/push" element={<PushResultsView />} />

@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     {
         label: 'Plot',
         routes: [
-            { label: 'Scaling', path: '/scaling', env: 'dev' },
+            { label: 'Scaling', path: '/scaling' },
             { label: 'Grouped View', path: '/grouped' },
         ]
     },
