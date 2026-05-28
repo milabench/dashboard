@@ -238,9 +238,20 @@ def view_server(config):
 
     push_routes(app, DATABASE_URI)
 
+    @app.route('/api/ping')
+    def api_ping():
+        return "pong"
+
     @app.route('/api/status')
     def api_status():
         return jsonify({"status": "ok", "version": _get_version()})
+
+    @app.route('/api/routes')
+    def api_routes():
+        rules = []
+        for rule in app.url_map.iter_rules():
+            rules.append({"endpoint": rule.endpoint, "methods": list(rule.methods), "rule": rule.rule})
+        return jsonify(sorted(rules, key=lambda r: r["rule"]))
 
     if dev_mode:
         sync_routes(app, DATABASE_URI)
