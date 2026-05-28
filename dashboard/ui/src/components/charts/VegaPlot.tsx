@@ -70,19 +70,20 @@ async function buildConfig(
 const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverrides }) => {
     const { embed, isLoaded, error: loadError } = useVega();
     const { colorMode } = useColorMode();
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState(800);
-    const [containerHeight, setContainerHeight] = useState(600);
+    const sizeRef = useRef<HTMLDivElement>(null);
+    const plotRef = useRef<HTMLDivElement>(null);
+    const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
 
     useEffect(() => {
-        const el = containerRef.current;
+        const el = sizeRef.current;
         if (!el) return;
 
         const measure = () => {
             const w = el.clientWidth;
             const h = el.clientHeight;
-            if (w > 0) setContainerWidth(prev => prev === w ? prev : w);
-            if (h > 0) setContainerHeight(prev => prev === h ? prev : h);
+            if (w > 0 && h > 0) {
+                setDims(prev => (prev && prev.w === w && prev.h === h) ? prev : { w, h });
+            }
         };
 
         measure();
@@ -101,17 +102,18 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     }, []);
 
     const resolvedSpec = useMemo(() => {
+        if (!dims) return null;
         if (typeof spec === 'function') {
-            return spec(containerWidth, containerHeight);
+            return spec(dims.w, dims.h);
         }
         return spec;
-    }, [spec, containerWidth, containerHeight]);
+    }, [spec, dims]);
 
     useEffect(() => {
-        if (!isLoaded || !embed || !containerRef.current || !resolvedSpec) return;
+        if (!isLoaded || !embed || !plotRef.current || !resolvedSpec) return;
 
         const render = async () => {
-            const el = containerRef.current as HTMLElement;
+            const el = plotRef.current as HTMLElement;
             const config = await buildConfig(el, colorMode, configOverrides);
 
             try {
@@ -146,9 +148,9 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     }
 
     return (
-        <Box position="relative" width="100%" height={height}>
+        <Box ref={sizeRef} position="relative" width="100%" height={height}>
             <Box
-                ref={containerRef}
+                ref={plotRef}
                 position="absolute"
                 inset="0"
                 overflow="hidden"
