@@ -59,8 +59,9 @@ export const PivotView = () => {
         return relative === 'true';
     });
     const [viewMode, setViewMode] = useState<'iframe' | 'table'>(() => {
+        if (!import.meta.env.DEV) return 'table';
         const mode = searchParams.get('mode');
-        return mode === 'iframe' ? 'iframe' : 'table'; // Default to SQL (table)
+        return mode === 'iframe' ? 'iframe' : 'table';
     });
     const [fields, setFields] = useState<PivotField[]>([
         { field: 'Exec:name', type: 'row' },
@@ -1237,34 +1238,36 @@ export const PivotView = () => {
 
                 <GridItem colStart={2} rowSpan={1} className="pivot-options">
                     <HStack gap={4} align="stretch" flex="1">
-                        <ButtonGroup size="sm" attached variant="outline">
-                            <Button
-                                variant={viewMode === 'iframe' ? 'solid' : 'outline'}
-                                onClick={() => handleModeChange('iframe')}
-                                bg={viewMode === 'iframe' ? 'var(--color-primary)' : undefined}
-                                color={viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                borderColor={viewMode === 'iframe' ? 'var(--color-primary)' : 'var(--color-border)'}
-                                _hover={{
-                                    bg: viewMode === 'iframe' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
-                                    color: viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'
-                                }}
-                            >
-                                Pandas
-                            </Button>
-                            <Button
-                                variant={viewMode === 'table' ? 'solid' : 'outline'}
-                                onClick={() => handleModeChange('table')}
-                                bg={viewMode === 'table' ? 'var(--color-primary)' : undefined}
-                                color={viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                borderColor={viewMode === 'table' ? 'var(--color-primary)' : 'var(--color-border)'}
-                                _hover={{
-                                    bg: viewMode === 'table' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
-                                    color: viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'
-                                }}
-                            >
-                                SQL
-                            </Button>
-                        </ButtonGroup>
+                        {import.meta.env.DEV && (
+                            <ButtonGroup size="sm" attached variant="outline">
+                                <Button
+                                    variant={viewMode === 'iframe' ? 'solid' : 'outline'}
+                                    onClick={() => handleModeChange('iframe')}
+                                    bg={viewMode === 'iframe' ? 'var(--color-primary)' : undefined}
+                                    color={viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'}
+                                    borderColor={viewMode === 'iframe' ? 'var(--color-primary)' : 'var(--color-border)'}
+                                    _hover={{
+                                        bg: viewMode === 'iframe' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
+                                        color: viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'
+                                    }}
+                                >
+                                    Pandas
+                                </Button>
+                                <Button
+                                    variant={viewMode === 'table' ? 'solid' : 'outline'}
+                                    onClick={() => handleModeChange('table')}
+                                    bg={viewMode === 'table' ? 'var(--color-primary)' : undefined}
+                                    color={viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'}
+                                    borderColor={viewMode === 'table' ? 'var(--color-primary)' : 'var(--color-border)'}
+                                    _hover={{
+                                        bg: viewMode === 'table' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
+                                        color: viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'
+                                    }}
+                                >
+                                    SQL
+                                </Button>
+                            </ButtonGroup>
+                        )}
                         <Button
                             size="sm"
                             onClick={resetPivot}

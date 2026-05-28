@@ -265,15 +265,17 @@ export const ExecutionReport = () => {
                                 >
                                     SQL Report
                                 </Button>
-                                <Button
-                                    variant="solid"
-                                    bg="var(--color-primary)"
-                                    color="var(--color-primary-text)"
-                                    _hover={{ bg: 'var(--color-primary-hover)' }}
-                                    onClick={generatePythonReport}
-                                >
-                                    Pandas Report
-                                </Button>
+                                {import.meta.env.DEV && (
+                                    <Button
+                                        variant="solid"
+                                        bg="var(--color-primary)"
+                                        color="var(--color-primary-text)"
+                                        _hover={{ bg: 'var(--color-primary-hover)' }}
+                                        onClick={generatePythonReport}
+                                    >
+                                        Pandas Report
+                                    </Button>
+                                )}
                             </HStack>
                         </HStack>
 
@@ -405,7 +407,14 @@ export const ExecutionReport = () => {
                                     >
                                         Copy Link
                                     </Button>
-                                    <Button size="sm" onClick={closeSidePanel}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={closeSidePanel}
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _hover={{ bg: "var(--color-bg-hover)" }}
+                                    >
                                         Close
                                     </Button>
                                 </HStack>
@@ -428,7 +437,14 @@ export const ExecutionReport = () => {
                                     >
                                         Copy Link
                                     </Button>
-                                    <Button size="sm" onClick={closeSidePanel}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={closeSidePanel}
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _hover={{ bg: "var(--color-bg-hover)" }}
+                                    >
                                         Close
                                     </Button>
                                 </HStack>
@@ -451,7 +467,14 @@ export const ExecutionReport = () => {
                                     >
                                         Copy Link
                                     </Button>
-                                    <Button size="sm" onClick={closeSidePanel}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={closeSidePanel}
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                        _hover={{ bg: "var(--color-bg-hover)" }}
+                                    >
                                         Close
                                     </Button>
                                 </HStack>
