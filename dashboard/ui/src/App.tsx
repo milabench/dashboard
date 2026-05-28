@@ -27,6 +27,8 @@ import { PushResultsView } from './components/views/PushResultsView';
 import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { Toaster } from "./components/ui/toaster"
 import { VegaProvider } from './contexts/VegaContext'
+import { HealthProvider } from './contexts/HealthContext'
+import { MaintenanceBanner } from './components/layout/MaintenanceBanner'
 
 // Create the theme system for Chakra UI v3
 const system = createSystem(defaultConfig);
@@ -37,9 +39,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ChakraProvider value={system}>
         <ColorModeProvider>
+          <HealthProvider>
           <VegaProvider>
           <Toaster />
           <Router>
+            <MaintenanceBanner />
             <Layout>
               <Routes>
                 {import.meta.env.DEV ? (
@@ -71,6 +75,7 @@ function App() {
             </Layout>
           </Router>
           </VegaProvider>
+          </HealthProvider>
         </ColorModeProvider>
       </ChakraProvider>
     </QueryClientProvider>

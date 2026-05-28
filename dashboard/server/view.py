@@ -31,6 +31,34 @@ from .metal import baremetal_server
 from .sync import sync_routes
 
 
+def _get_version():
+    """Return git commit SHAs for dashboard and milabench."""
+    dashboard_sha = os.environ.get("DASHBOARD_COMMIT")
+    milabench_sha = os.environ.get("MILABENCH_COMMIT")
+
+    if dashboard_sha or milabench_sha:
+        return {
+            "dashboard": dashboard_sha or "unknown",
+            "milabench": milabench_sha or "unknown",
+        }
+
+    import subprocess
+    result = {}
+    for name, path in [("dashboard", os.path.join(os.getcwd())), ("milabench", None)]:
+        try:
+            if name == "milabench":
+                import milabench
+                path = os.path.dirname(os.path.dirname(milabench.__file__))
+            sha = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=path, stderr=subprocess.DEVNULL
+            ).decode().strip()
+            result[name] = sha
+        except Exception:
+            result[name] = "unknown"
+    return result
+
+
 class MultiIndexFormater:
     """Format a dataframe using the last element on a multi index"""
     def __init__(self, df, default_float="{:.2f}".format):
@@ -209,6 +237,10 @@ def view_server(config):
         return wrapper
 
     push_routes(app, DATABASE_URI)
+
+    @app.route('/api/health')
+    def health():
+        return jsonify({"status": "ok", "version": _get_version()})
 
     if dev_mode:
         sync_routes(app, DATABASE_URI)
