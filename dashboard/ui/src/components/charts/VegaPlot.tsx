@@ -75,22 +75,27 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     const [containerHeight, setContainerHeight] = useState(600);
 
     useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
         const measure = () => {
-            const el = containerRef.current;
-            if (el) {
-                if (el.clientWidth > 0) setContainerWidth(el.clientWidth);
-                if (el.clientHeight > 0) setContainerHeight(el.clientHeight);
-            }
+            const w = el.clientWidth;
+            const h = el.clientHeight;
+            if (w > 0) setContainerWidth(prev => prev === w ? prev : w);
+            if (h > 0) setContainerHeight(prev => prev === h ? prev : h);
         };
 
         measure();
-        const timer = setTimeout(measure, 100);
 
-        const observer = new ResizeObserver(() => measure());
-        if (containerRef.current) observer.observe(containerRef.current);
+        let raf: number | null = null;
+        const observer = new ResizeObserver(() => {
+            if (raf) cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(measure);
+        });
+        observer.observe(el);
 
         return () => {
-            clearTimeout(timer);
+            if (raf) cancelAnimationFrame(raf);
             observer.disconnect();
         };
     }, []);
@@ -141,12 +146,14 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     }
 
     return (
-        <Box
-            ref={containerRef}
-            width="100%"
-            minHeight={height}
-            overflow="hidden"
-        />
+        <Box position="relative" width="100%" height={height}>
+            <Box
+                ref={containerRef}
+                position="absolute"
+                inset="0"
+                overflow="hidden"
+            />
+        </Box>
     );
 };
 
