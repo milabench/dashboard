@@ -11,7 +11,7 @@ import {
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { LuCopy } from 'react-icons/lu';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 interface FastReportViewProps {
     executionId: string | number;
@@ -117,7 +117,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
             setIsLoading(true);
             setError(null);
 
-            const response = await axios.get(`/api/report/fast`, {
+            const response = await api.get(`/report/fast`, {
                 params: {
                     exec_ids: executionId,
                     drop_min_max: dropMinMaxValue.toString()

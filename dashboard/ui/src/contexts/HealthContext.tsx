@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import { getHealth } from '../services/api';
 
 interface VersionInfo {
     dashboard: string;
@@ -21,7 +21,6 @@ const HealthContext = createContext<HealthContextValue>({
 export const useHealth = () => useContext(HealthContext);
 
 const POLL_INTERVAL_MS = 30_000;
-const HEALTH_TIMEOUT_MS = 5_000;
 
 export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isBackendOnline, setIsBackendOnline] = useState(true);
@@ -31,10 +30,10 @@ export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const checkHealth = useCallback(async () => {
         try {
-            const res = await axios.get('/api/health', { timeout: HEALTH_TIMEOUT_MS });
+            const data = await getHealth();
             setIsBackendOnline(true);
-            if (res.data?.version) {
-                setVersion(res.data.version);
+            if (data?.version) {
+                setVersion(data.version);
             }
         } catch {
             setIsBackendOnline(false);

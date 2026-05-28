@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
@@ -22,7 +21,7 @@ import {
     useListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { getAllSavedQueries, saveQuery } from '../../services/api';
+import { api, getAllSavedQueries, saveQuery } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
 import { PivotIframeView } from './PivotIframeView';
 
@@ -125,7 +124,7 @@ export const PivotView = () => {
     const { data: availableFields } = useQuery({
         queryKey: ['pivotFields'],
         queryFn: async () => {
-            const response = await axios.get('/api/keys');
+            const response = await api.get('/keys');
             return response.data;
         },
     });

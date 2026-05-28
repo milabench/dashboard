@@ -15,7 +15,7 @@ export interface ExploreFilters {
     value: any;
 }
 
-const api = axios.create({
+export const api = axios.create({
     baseURL: '/api',
     timeout: 10000,
 });
@@ -34,9 +34,14 @@ const handleError = (error: unknown): never => {
     } as ApiError;
 };
 
+export const getHealth = async (): Promise<{ status: string; version?: { dashboard: string; milabench: string } }> => {
+    const response = await api.get('/health', { timeout: 5000 });
+    return response.data;
+};
+
 export const getMetalHosts = async (): Promise<MetalHost[]> => {
     try {
-        const response = await axios.get('/api/metal/list');
+        const response = await api.get('/metal/list');
         const data: Record<string, MetalHost> = response.data || {};
         return Object.entries(data).map(([name, info]) => ({
             ...info,
@@ -55,9 +60,9 @@ export const registerMetalHost = async (request: {
     try {
         const { address, port, name } = request;
         const path = name
-            ? `/api/metal/register/${address}/${port}/${encodeURIComponent(name)}`
-            : `/api/metal/register/${address}/${port}`;
-        const response = await axios.post(path);
+            ? `/metal/register/${address}/${port}/${encodeURIComponent(name)}`
+            : `/metal/register/${address}/${port}`;
+        const response = await api.post(path);
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -66,7 +71,7 @@ export const registerMetalHost = async (request: {
 
 export const getMetalJobs = async (hostName: string): Promise<SlurmJob[]> => {
     try {
-        const response = await axios.get(`/api/metal/${encodeURIComponent(hostName)}/jobs/list`);
+        const response = await api.get(`/metal/${encodeURIComponent(hostName)}/jobs/list`);
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -80,7 +85,7 @@ export const submitMetalJob = async (hostName: string, request: {
     env?: Record<string, string>;
 }): Promise<MetalJobSubmitResponse> => {
     try {
-        const response = await axios.post(`/api/metal/${encodeURIComponent(hostName)}/jobs/submit`, request);
+        const response = await api.post(`/metal/${encodeURIComponent(hostName)}/jobs/submit`, request);
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -555,7 +560,7 @@ export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ 
 // Push-related API functions
 export const requestPushKey = async (name: string): Promise<{ status: string; name?: string; key?: string; message: string }> => {
     try {
-        const response = await axios.post('/api/push/key/request', { name });
+        const response = await api.post('/push/key/request', { name });
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {
@@ -567,7 +572,7 @@ export const requestPushKey = async (name: string): Promise<{ status: string; na
 
 export const listPushKeys = async (): Promise<{ name: string }[]> => {
     try {
-        const response = await axios.get('/api/push/key/list');
+        const response = await api.get('/push/key/list');
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -581,7 +586,7 @@ export const pushZipFile = async (file: File, pushKey?: string, metadata?: Recor
         if (pushKey) formData.append('key', pushKey);
         if (metadata && Object.keys(metadata).length > 0) formData.append('metadata', JSON.stringify(metadata));
 
-        const response = await axios.post('/api/push/zip', formData, {
+        const response = await api.post('/push/zip', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -664,7 +669,7 @@ export interface DatafileMetricsPreview {
 
 export const getDatafileBenchmarks = async (): Promise<string[]> => {
     try {
-        const response = await axios.get('/api/datafile/list/benchmark', {
+        const response = await api.get('/datafile/list/benchmark', {
             withCredentials: true,
         });
         return response.data;
@@ -675,7 +680,7 @@ export const getDatafileBenchmarks = async (): Promise<string[]> => {
 
 export const getDatafileConfig = async (bench: string): Promise<any> => {
     try {
-        const response = await axios.get(`/api/datafile/config/${bench}`, {
+        const response = await api.get(`/datafile/config/${bench}`, {
             withCredentials: true,
         });
         return response.data;
@@ -686,7 +691,7 @@ export const getDatafileConfig = async (bench: string): Promise<any> => {
 
 export const getDatafileMeta = async (bench: string): Promise<any> => {
     try {
-        const response = await axios.get(`/api/datafile/meta/${bench}`, {
+        const response = await api.get(`/datafile/meta/${bench}`, {
             withCredentials: true,
         });
         return response.data;
@@ -697,7 +702,7 @@ export const getDatafileMeta = async (bench: string): Promise<any> => {
 
 export const getDatafileStdout = async (bench: string): Promise<DatafileLogEntry[]> => {
     try {
-        const response = await axios.get(`/api/datafile/stdout/${bench}`, {
+        const response = await api.get(`/datafile/stdout/${bench}`, {
             withCredentials: true,
         });
         return response.data;
@@ -708,7 +713,7 @@ export const getDatafileStdout = async (bench: string): Promise<DatafileLogEntry
 
 export const getDatafileStderr = async (bench: string): Promise<DatafileLogEntry[]> => {
     try {
-        const response = await axios.get(`/api/datafile/stderr/${bench}`, {
+        const response = await api.get(`/datafile/stderr/${bench}`, {
             withCredentials: true,
         });
         return response.data;
@@ -719,7 +724,7 @@ export const getDatafileStderr = async (bench: string): Promise<DatafileLogEntry
 
 export const getDatafileMetricsPreview = async (bench: string): Promise<DatafileMetricsPreview> => {
     try {
-        const response = await axios.get(`/api/datafile/metrics/preview/${bench}`, {
+        const response = await api.get(`/datafile/metrics/preview/${bench}`, {
             withCredentials: true,
         });
         return response.data;
@@ -734,7 +739,7 @@ export interface DatafileFields {
 
 export const getDatafileFields = async (): Promise<DatafileFields> => {
     try {
-        const response = await axios.get('/api/datafile/select/fields', {
+        const response = await api.get('/datafile/select/fields', {
             withCredentials: true,
         });
         return response.data;
@@ -749,7 +754,7 @@ export interface SelectedFields {
 
 export const previewDatafileSelection = async (selectedFields: SelectedFields): Promise<any[]> => {
     try {
-        const response = await axios.post('/api/datafile/select/benchmark', selectedFields, {
+        const response = await api.post('/datafile/select/benchmark', selectedFields, {
             withCredentials: true,
         });
         return response.data;
@@ -760,7 +765,7 @@ export const previewDatafileSelection = async (selectedFields: SelectedFields): 
 
 export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields): Promise<any[]> => {
     try {
-        const response = await axios.post('/api/datafile/select/metrics', selectedFields, {
+        const response = await api.post('/datafile/select/metrics', selectedFields, {
             withCredentials: true,
         });
         return response.data;
@@ -780,7 +785,7 @@ export const getSyncRemoteInfo = async (): Promise<{ default_url: string }> => {
 };
 
 export const downloadLocalBackup = async (): Promise<Blob> => {
-    const response = await axios.get('/api/sync/local-backup', {
+    const response = await api.get('/sync/local-backup', {
         responseType: 'blob',
         timeout: 600000,
     });
@@ -795,7 +800,7 @@ export const backupRemoteDatabase = async (connInfo: {
     password: string;
     sslmode?: string;
 }): Promise<Blob> => {
-    const response = await axios.post('/api/sync/backup', connInfo, {
+    const response = await api.post('/sync/backup', connInfo, {
         responseType: 'blob',
         timeout: 600000,
     });
@@ -811,7 +816,7 @@ export const pushToRemote = async (connInfo: {
     sslmode?: string;
 }): Promise<{ status: string; message: string }> => {
     try {
-        const response = await axios.post('/api/sync/push-to-remote', connInfo, {
+        const response = await api.post('/sync/push-to-remote', connInfo, {
             timeout: 600000,
         });
         return response.data;
@@ -827,7 +832,7 @@ export const restoreBackup = async (file: File): Promise<{ status: string; messa
     const formData = new FormData();
     formData.append('file', file);
     try {
-        const response = await axios.post('/api/sync/restore', formData, {
+        const response = await api.post('/sync/restore', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
             timeout: 600000,
         });

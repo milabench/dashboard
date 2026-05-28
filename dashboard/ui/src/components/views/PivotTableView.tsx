@@ -12,7 +12,7 @@ import {
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { LuCopy, LuDownload } from 'react-icons/lu';
-import axios from 'axios';
+import { api } from '../../services/api';
 
 interface PivotField {
     field: string;
@@ -72,7 +72,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 params.append('filters', btoa(JSON.stringify(filters)));
             }
 
-            const response = await axios.get(`/api/pivot?${params.toString()}`);
+            const response = await api.get(`/pivot?${params.toString()}`);
 
             if (Array.isArray(response.data)) {
                 setPivotData(response.data);

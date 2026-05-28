@@ -7,7 +7,7 @@ import {
     Text,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot from '../charts/VegaPlot';
 
@@ -54,7 +54,7 @@ const Scaling = () => {
     const { data: scalingData } = useQuery({
         queryKey: ['scalingData'],
         queryFn: async () => {
-            const response = await axios.get('/api/scaling');
+            const response = await api.get('/scaling');
             return response.data;
         },
     });

@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Box, Select, Field, HStack, Input, VStack, Button, Text, Heading, Dialog, Switch, useDisclosure, useListCollection } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import axios from 'axios';
 import { LuPlus, LuTrash2, LuCopy, LuDownload } from 'react-icons/lu';
-import { saveQuery, getAllSavedQueries } from '../../services/api';
+import { api, saveQuery, getAllSavedQueries } from '../../services/api';
 import { Tooltip } from "../../components/ui/tooltip"
 import VegaPlot from '../charts/VegaPlot';
 
@@ -124,7 +123,7 @@ const GroupedView: React.FC = () => {
     const { data: availableFields } = useQuery({
         queryKey: ['explorerFields'],
         queryFn: async () => {
-            const response = await axios.get('/api/keys');
+            const response = await api.get('/keys');
             return response.data;
         },
     });
@@ -133,7 +132,7 @@ const GroupedView: React.FC = () => {
     const { data: availableProfiles } = useQuery({
         queryKey: ['profiles'],
         queryFn: async () => {
-            const response = await axios.get('/api/profile/list');
+            const response = await api.get('/profile/list');
             return response.data;
         },
     });
@@ -165,7 +164,7 @@ const GroupedView: React.FC = () => {
             if (invertedValue) params.set('inverted', 'true');
             if (weightedValue) params.set('weighted', 'true');
 
-            const response = await axios.get(`/api/grouped/plot?${params.toString()}`);
+            const response = await api.get(`/grouped/plot?${params.toString()}`);
             return response.data;
         },
         enabled: !!execIdsValue,

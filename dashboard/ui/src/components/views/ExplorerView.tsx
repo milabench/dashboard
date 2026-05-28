@@ -22,7 +22,7 @@ import { toaster } from '../ui/toaster';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
 import type { Execution } from '../../services/types';
 import { Loading } from '../common/Loading';
-import axios from 'axios';
+import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
 import { LuSearch, LuPlus, LuTrash2, LuRefreshCw } from 'react-icons/lu';
 
@@ -126,7 +126,7 @@ export const ExplorerView = () => {
     useQuery({
         queryKey: ['explorerFields'],
         queryFn: async () => {
-            const response = await axios.get('/api/keys');
+            const response = await api.get('/keys');
             setAvailableFields(response.data);
             return response.data;
         },
@@ -146,7 +146,7 @@ export const ExplorerView = () => {
             if (filters.length > 0) {
                 params.append('filters', btoa(JSON.stringify(filters)));
             }
-            const response = await axios.get(`/api/exec/explore?${params.toString()}`);
+            const response = await api.get(`/exec/explore?${params.toString()}`);
             return response.data;
         },
         enabled: filters.length > 0,
@@ -156,7 +156,7 @@ export const ExplorerView = () => {
     const { data: gpuList } = useQuery({
         queryKey: ['gpuList'],
         queryFn: async () => {
-            const response = await axios.get('/api/gpu/list');
+            const response = await api.get('/gpu/list');
             return response.data;
         },
     });
@@ -164,7 +164,7 @@ export const ExplorerView = () => {
     const { data: pytorchList } = useQuery({
         queryKey: ['pytorchList'],
         queryFn: async () => {
-            const response = await axios.get('/api/pytorch/list');
+            const response = await api.get('/pytorch/list');
             return response.data;
         },
     });
@@ -172,7 +172,7 @@ export const ExplorerView = () => {
     const { data: milabenchList } = useQuery({
         queryKey: ['milabenchList'],
         queryFn: async () => {
-            const response = await axios.get('/api/milabench/list');
+            const response = await api.get('/milabench/list');
             return response.data;
         },
     });

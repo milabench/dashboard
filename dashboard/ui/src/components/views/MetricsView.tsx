@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Heading, Center, Text } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import { api } from '../../services/api';
 import type { Pack } from '../../services/types';
 import VegaPlot from '../charts/VegaPlot';
 
@@ -40,7 +40,7 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
     const { data: metricsData } = useQuery({
         queryKey: ['packMetrics', executionId, packIdentifier],
         queryFn: async () => {
-            const response = await axios.get(`/api/exec/${executionId}/packs/${packIdentifier}/metrics`);
+            const response = await api.get(`/exec/${executionId}/packs/${packIdentifier}/metrics`);
             return response.data;
         },
         enabled: !!packIdentifier,
