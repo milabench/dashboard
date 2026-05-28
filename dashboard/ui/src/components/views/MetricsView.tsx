@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Box, Heading, Center, Text } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
@@ -11,28 +11,6 @@ interface MetricsViewProps {
 }
 
 export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => {
-    const chartContainerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number>(800);
-    const [containerHeight, setContainerHeight] = useState<number>(600);
-
-    useEffect(() => {
-        const measure = () => {
-            const el = chartContainerRef.current;
-            if (el) {
-                if (el.clientWidth > 0) setContainerWidth(el.clientWidth);
-                if (el.clientHeight > 0) setContainerHeight(el.clientHeight);
-            }
-        };
-
-        measure();
-
-        const observer = new ResizeObserver(() => measure());
-        if (chartContainerRef.current)
-            observer.observe(chartContainerRef.current);
-
-        return () => { observer.disconnect(); };
-    }, []);
-
     const packIdentifier = selectedPack
         ? (selectedPack._id === 0 ? selectedPack.name : selectedPack._id)
         : null;
@@ -46,15 +24,15 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
         enabled: !!packIdentifier,
     });
 
-    const vegaSpec = useMemo(() => {
+    const specBuilder = useCallback((w: number, h: number) => {
         if (!metricsData || metricsData.length === 0) return null;
 
         const metricCount = new Set(metricsData.map((d: any) => d.name)).size;
         const cols = Math.min(4, metricCount);
         const rows = Math.ceil(metricCount / cols);
         const cellPadding = 50;
-        const cellWidth = Math.max(150, Math.floor(containerWidth / (cols + 1)) - cellPadding);
-        const cellHeight = Math.max(120, Math.floor(containerHeight / rows) - cellPadding);
+        const cellWidth = Math.max(150, Math.floor(w / (cols + 1)) - cellPadding);
+        const cellHeight = Math.max(120, Math.floor(h / rows) - cellPadding);
 
         return {
             data: { values: metricsData },
@@ -78,7 +56,7 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
             },
             resolve: { scale: { y: 'independent', x: 'independent' } },
         } as Record<string, any>;
-    }, [metricsData, containerWidth, containerHeight]);
+    }, [metricsData]);
 
     return (
         <Box
@@ -91,10 +69,10 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
         >
             <Heading as='h2' size='lg'>Metrics</Heading>
             {selectedPack ? (
-                <Box flex="1" minH={0} ref={chartContainerRef}>
-                    {vegaSpec ? (
+                <Box flex="1" minH={0}>
+                    {metricsData ? (
                         <VegaPlot
-                            spec={vegaSpec}
+                            spec={specBuilder}
                             height="100%"
                             configOverrides={{ legend: { orient: 'right', direction: 'vertical' } }}
                         />

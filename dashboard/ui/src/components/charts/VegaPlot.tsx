@@ -1,22 +1,16 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Box, Text, Spinner } from '@chakra-ui/react';
 import { useVega } from '../../contexts/VegaContext';
 import { useColorMode } from '../ui/color-mode';
 
+export type SpecBuilder = (width: number, height: number) => Record<string, any> | null;
+
 export interface VegaPlotProps {
-    spec: Record<string, any>;
+    spec: Record<string, any> | SpecBuilder;
     height?: string;
     configOverrides?: Record<string, any>;
 }
 
-/**
- * Build a Vega-Embed config that keeps charts visually consistent:
- * transparent background, bottom legend, inherited page font,
- * comfortable axis/legend padding.
- *
- * Pass `configOverrides` for per-chart tweaks — overrides are
- * shallow-merged per top-level key.
- */
 async function buildConfig(
     container: HTMLElement,
     colorMode: string,
@@ -77,16 +71,46 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     const { embed, isLoaded, error: loadError } = useVega();
     const { colorMode } = useColorMode();
     const containerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(800);
+    const [containerHeight, setContainerHeight] = useState(600);
 
     useEffect(() => {
-        if (!isLoaded || !embed || !containerRef.current) return;
+        const measure = () => {
+            const el = containerRef.current;
+            if (el) {
+                if (el.clientWidth > 0) setContainerWidth(el.clientWidth);
+                if (el.clientHeight > 0) setContainerHeight(el.clientHeight);
+            }
+        };
+
+        measure();
+        const timer = setTimeout(measure, 100);
+
+        const observer = new ResizeObserver(() => measure());
+        if (containerRef.current) observer.observe(containerRef.current);
+
+        return () => {
+            clearTimeout(timer);
+            observer.disconnect();
+        };
+    }, []);
+
+    const resolvedSpec = useMemo(() => {
+        if (typeof spec === 'function') {
+            return spec(containerWidth, containerHeight);
+        }
+        return spec;
+    }, [spec, containerWidth, containerHeight]);
+
+    useEffect(() => {
+        if (!isLoaded || !embed || !containerRef.current || !resolvedSpec) return;
 
         const render = async () => {
             const el = containerRef.current as HTMLElement;
             const config = await buildConfig(el, colorMode, configOverrides);
 
             try {
-                await embed(el, spec, {
+                await embed(el, resolvedSpec, {
                     actions: false,
                     renderer: 'svg',
                     config,
@@ -97,7 +121,7 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
         };
 
         render();
-    }, [isLoaded, embed, spec, colorMode, configOverrides]);
+    }, [isLoaded, embed, resolvedSpec, colorMode, configOverrides]);
 
     if (loadError) {
         return (

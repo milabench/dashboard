@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -23,25 +23,6 @@ const GroupedView: React.FC = () => {
     usePageTitle('Grouped View');
 
     const [searchParams, setSearchParams] = useSearchParams();
-    const chartContainerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number>(800);
-
-    useEffect(() => {
-        const measure = () => {
-            const el = chartContainerRef.current;
-            if (el && el.clientWidth > 0) setContainerWidth(el.clientWidth);
-        };
-
-        measure();
-
-        const observer = new ResizeObserver(() => measure());
-        if (chartContainerRef.current) 
-            observer.observe(chartContainerRef.current);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
 
     const [extraFields, setExtraFields] = useState<ExtraField[]>([]);
     const [selectedField, setSelectedField] = useState<string>('');
@@ -1178,10 +1159,10 @@ const GroupedView: React.FC = () => {
                     </Tooltip>
                 </HStack>
 
-                <Box flex="1" minH="400px" ref={chartContainerRef}>
+                <Box flex="1" minH="400px">
                     {relativeData && relativeData.length > 0  ? (
                         <VegaPlot
-                            spec={(() => {
+                            spec={((w: number, _h: number) => {
                                 const metric = metricValue || 'rate';
                                 const color = colorValue || 'pytorch';
                                 const n1 = n1Value || 'Group 1';
@@ -1207,7 +1188,7 @@ const GroupedView: React.FC = () => {
                                     ? new Set(relativeData.map((d: any) => d[n1])).size
                                     : 1;
                                 const chartPadding = 80;
-                                const cellWidth = Math.max(150, Math.floor((containerWidth - chartPadding) / columnCount) - 40);
+                                const cellWidth = Math.max(150, Math.floor((w - chartPadding) / columnCount) - 40);
 
                                 return {
                                     data: { values: relativeData },
@@ -1216,7 +1197,7 @@ const GroupedView: React.FC = () => {
                                     encoding,
                                     width: cellWidth,
                                 };
-                            })()}
+                            })}
                             height="100%"
                         />
                     ) : (

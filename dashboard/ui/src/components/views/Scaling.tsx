@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     Box,
     HStack,
@@ -27,30 +27,6 @@ const Scaling = () => {
         setSearchParams({ ...searchParams, y: event.target.value });
     };
 
-    const chartContainerRef = useRef<HTMLDivElement>(null);
-    const [containerWidth, setContainerWidth] = useState<number>(800);
-    const [containerHeight, setContainerHeight] = useState<number>(600);
-
-    useEffect(() => {
-        const measure = () => {
-            const el = chartContainerRef.current;
-            if (el) {
-                if (el.clientWidth > 0) setContainerWidth(el.clientWidth);
-                if (el.clientHeight > 0) setContainerHeight(el.clientHeight);
-            }
-        };
-
-        measure();
-
-        const observer = new ResizeObserver(() => measure());
-        if (chartContainerRef.current) 
-            observer.observe(chartContainerRef.current);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
-
     const { data: scalingData } = useQuery({
         queryKey: ['scalingData'],
         queryFn: async () => {
@@ -59,15 +35,15 @@ const Scaling = () => {
         },
     });
 
-    const vegaSpec = useMemo(() => {
+    const specBuilder = useCallback((w: number, h: number) => {
         if (!scalingData || scalingData.length === 0) return null;
 
         const benchCount = new Set(scalingData.map((d: any) => d.bench)).size;
         const cols = Math.min(4, benchCount);
         const rows = Math.ceil(benchCount / cols);
         const cellPadding = 50;
-        const cellWidth = Math.max(120, Math.floor((containerWidth) / (cols + 1)) - cellPadding);
-        const cellHeight = Math.max(cellWidth, Math.floor(containerHeight / rows) - cellPadding);
+        const cellWidth = Math.max(120, Math.floor(w / (cols + 1)) - cellPadding);
+        const cellHeight = Math.max(cellWidth, Math.floor(h / rows) - cellPadding);
 
         return {
             data: { values: scalingData },
@@ -94,7 +70,7 @@ const Scaling = () => {
             },
             resolve: { scale: { y: 'independent', x: 'independent', size: 'independent' } },
         } as Record<string, any>;
-    }, [scalingData, xAxis, yAxis, containerWidth, containerHeight]);
+    }, [scalingData, xAxis, yAxis]);
 
     return (
         <Box p={4} h="100%" display="flex" flexDirection="column" overflowX="hidden" overflowY="auto" className='scaling-container' bg="var(--color-bg-page)">
@@ -142,10 +118,10 @@ const Scaling = () => {
                 </Field.Root>
             </HStack>
 
-            <Box flex="1" minH={0} ref={chartContainerRef}>
-                {vegaSpec ? (
+            <Box flex="1" minH={0}>
+                {scalingData ? (
                     <VegaPlot
-                        spec={vegaSpec}
+                        spec={specBuilder}
                         height="100%"
                         configOverrides={{ legend: { orient: 'right', direction: 'vertical' } }}
                     />
