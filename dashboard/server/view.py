@@ -238,8 +238,8 @@ def view_server(config):
 
     push_routes(app, DATABASE_URI)
 
-    @app.route('/api/health')
-    def health():
+    @app.route('/api/status')
+    def api_status():
         return jsonify({"status": "ok", "version": _get_version()})
 
     if dev_mode:

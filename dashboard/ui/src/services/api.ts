@@ -35,7 +35,7 @@ const handleError = (error: unknown): never => {
 };
 
 export const getHealth = async (): Promise<{ status: string; version?: { dashboard: string; milabench: string } }> => {
-    const response = await api.get('/health', { timeout: 5000 });
+    const response = await api.get('/status', { timeout: 5000 });
     return response.data;
 };
 
