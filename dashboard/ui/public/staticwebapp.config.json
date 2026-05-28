@@ -6,11 +6,13 @@
   "routes": [
     {
       "route": "/api/*",
-      "allowedRoles": ["anonymous"]
+      "allowedRoles": ["anonymous"],
+      "backendId": "backend"
     },
     {
       "route": "/html/*",
-      "allowedRoles": ["anonymous"]
+      "allowedRoles": ["anonymous"],
+      "backendId": "backend"
     }
   ],
   "responseOverrides": {
