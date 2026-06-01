@@ -75,7 +75,7 @@ export const Executions = () => {
         // },
         {
             header: 'Timestamp',
-            accessor: (exec: Execution) => formatDate(exec.meta?.timestamp || new Date().toISOString()),
+            accessor: (exec: Execution) => formatDate(exec.meta?.timestamp || exec.created_time),
             width: '180px',
         },
     ];

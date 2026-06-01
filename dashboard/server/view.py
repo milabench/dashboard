@@ -174,6 +174,13 @@ def _ensure_scaling_dir():
     if os.environ.get("MILABENCH_SCALING_DIR"):
         return
 
+    # Check dashboard.data (deployed via workflow)
+    data_path = str(importlib_resources.files("dashboard.data") / "scaling")
+    if os.path.isdir(data_path):
+        os.environ["MILABENCH_SCALING_DIR"] = data_path
+        return
+
+    # Fallback: milabench source tree layout
     here = os.path.dirname(os.path.abspath(__file__))
     candidate = os.path.normpath(os.path.join(here, "..", "..", "milabench", "config", "scaling"))
     if os.path.isdir(candidate):

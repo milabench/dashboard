@@ -48,7 +48,8 @@ if __name__ == "__main__":
         package_data={
             "dashboard": [
                 "static/**/*",
-                "data/*.json",
+                "data/*",
+                "data/scaling/*",
             ],
         },
     )

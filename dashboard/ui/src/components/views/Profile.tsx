@@ -180,7 +180,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const profileCollection = useListCollection({ initialItems: profileItems });
+    const profileCollection = useListCollection({ items: profileItems });
 
     const scoreProfileItems = useMemo(() =>
         profiles
@@ -188,7 +188,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const scoreProfileCollection = useListCollection({ initialItems: scoreProfileItems });
+    const scoreProfileCollection = useListCollection({ items: scoreProfileItems });
 
     const sourceProfileItems = useMemo(() =>
         profiles
@@ -196,7 +196,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const sourceProfileCollection = useListCollection({ initialItems: sourceProfileItems });
+    const sourceProfileCollection = useListCollection({ items: sourceProfileItems });
 
     return (
         <Box p={4} bg="var(--color-bg-page)">
