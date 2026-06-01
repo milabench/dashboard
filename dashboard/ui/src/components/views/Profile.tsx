@@ -17,7 +17,7 @@ import {
     Table,
     Switch,
     Field,
-    useListCollection,
+    createListCollection,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import type { Weight } from '../../services/types';
@@ -180,7 +180,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const profileCollection = useListCollection({ items: profileItems });
+    const profileCollection = useMemo(() => createListCollection({ items: profileItems }), [profileItems]);
 
     const scoreProfileItems = useMemo(() =>
         profiles
@@ -188,7 +188,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const scoreProfileCollection = useListCollection({ items: scoreProfileItems });
+    const scoreProfileCollection = useMemo(() => createListCollection({ items: scoreProfileItems }), [scoreProfileItems]);
 
     const sourceProfileItems = useMemo(() =>
         profiles
@@ -196,7 +196,7 @@ export const Profile: React.FC = () => {
             .map((profile: string) => ({ label: profile, value: profile })),
         [profiles]
     );
-    const sourceProfileCollection = useListCollection({ items: sourceProfileItems });
+    const sourceProfileCollection = useMemo(() => createListCollection({ items: sourceProfileItems }), [sourceProfileItems]);
 
     return (
         <Box p={4} bg="var(--color-bg-page)">
@@ -210,7 +210,7 @@ export const Profile: React.FC = () => {
                             <Field.Root>
                                 <Field.Label color="var(--color-text)">Score Profile</Field.Label>
                                 <Select.Root
-                                    collection={scoreProfileCollection.collection}
+                                    collection={scoreProfileCollection}
                                     value={scoreProfile ? [scoreProfile] : []}
                                     onValueChange={handleScoreProfileChange}
                                 >
@@ -255,7 +255,7 @@ export const Profile: React.FC = () => {
                             <Field.Root>
                                 <Field.Label color="var(--color-text)">Source Profile</Field.Label>
                                 <Select.Root
-                                    collection={sourceProfileCollection.collection}
+                                    collection={sourceProfileCollection}
                                     value={sourceProfile ? [sourceProfile] : []}
                                     onValueChange={(details) => setSourceProfile(details.value[0] || '')}
                                 >
@@ -313,7 +313,7 @@ export const Profile: React.FC = () => {
                             <Field.Root>
                                 <Field.Label color="var(--color-text)">Profile</Field.Label>
                                 <Select.Root
-                                    collection={profileCollection.collection}
+                                    collection={profileCollection}
                                     value={selectedProfile ? [selectedProfile] : []}
                                     onValueChange={handleProfileChange}
                                 >
