@@ -15,6 +15,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: 'Dashboard', path: '/', env: 'dev' },
     { label: 'Latest Executions', path: '/executions' },
+    { label: 'Supported GPUs', path: '/gpus' },
     {
         label: 'Slurm',
         env: "dev",

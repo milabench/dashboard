@@ -174,17 +174,23 @@ def _ensure_scaling_dir():
     if os.environ.get("MILABENCH_SCALING_DIR"):
         return
 
-    # Check dashboard.data (deployed via workflow)
-    data_path = str(importlib_resources.files("dashboard.data") / "scaling")
-    if os.path.isdir(data_path):
-        os.environ["MILABENCH_SCALING_DIR"] = data_path
-        return
+    try:
+        data_path = str(importlib_resources.files("dashboard.data") / "scaling")
+        if os.path.isdir(data_path):
+            os.environ["MILABENCH_SCALING_DIR"] = data_path
+            print(f"[scaling] Using package data: {data_path}")
+            return
+    except Exception as err:
+        print(f"[scaling] importlib_resources lookup failed: {err}")
 
-    # Fallback: milabench source tree layout
     here = os.path.dirname(os.path.abspath(__file__))
     candidate = os.path.normpath(os.path.join(here, "..", "..", "milabench", "config", "scaling"))
     if os.path.isdir(candidate):
         os.environ["MILABENCH_SCALING_DIR"] = candidate
+        print(f"[scaling] Using source tree fallback: {candidate}")
+        return
+
+    print(f"[scaling] WARNING: could not locate scaling config directory")
 
 
 def view_server(config):
@@ -390,6 +396,128 @@ def view_server(config):
         stmt = select(func.distinct(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT)))
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
+
+    @app.route('/api/gpu/summary')
+    def api_gpu_summary():
+        """Per-GPU summary: latest run date and pass/total benchmark stats.
+
+        For each distinct GPU product, find the most recent execution,
+        then count how many benchmarks passed (status metric == 0) vs total.
+        """
+        gpu_col = cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT).label("gpu")
+
+        latest_per_gpu = (
+            select(
+                gpu_col,
+                func.max(Exec._id).label("exec_id"),
+                func.max(Exec.created_time).label("latest_date"),
+                Exec.name.label("run_name"),
+            )
+            .where(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT).isnot(None))
+            .where(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT) != 'null')
+            .group_by(gpu_col, Exec.name)
+            .order_by(func.max(Exec.created_time).desc())
+        ).subquery()
+
+        # Keep only the single most recent row per GPU
+        ranked = (
+            select(
+                latest_per_gpu.c.gpu,
+                latest_per_gpu.c.exec_id,
+                latest_per_gpu.c.latest_date,
+                latest_per_gpu.c.run_name,
+                func.row_number().over(
+                    partition_by=latest_per_gpu.c.gpu,
+                    order_by=latest_per_gpu.c.latest_date.desc()
+                ).label("rn")
+            )
+        ).subquery()
+
+        most_recent = (
+            select(
+                ranked.c.gpu,
+                ranked.c.exec_id,
+                ranked.c.latest_date,
+                ranked.c.run_name,
+            ).where(ranked.c.rn == 1)
+        ).subquery()
+
+        # Per-benchmark pass/fail: a benchmark passes when ALL its
+        # processes (pack rows) have status == 0.
+        bench_status = (
+            select(
+                Metric.exec_id,
+                Pack.name.label("bench"),
+                func.max(Metric.value).label("worst_status"),
+            )
+            .join(Pack, Pack._id == Metric.pack_id)
+            .where(Metric.name == "status")
+            .group_by(Metric.exec_id, Pack.name)
+        ).subquery()
+
+        pytorch_col = cast(Exec.meta["pytorch"]["torch"], TEXT).label("pytorch")
+        arch_col = cast(Exec.meta["accelerators"]["arch"], TEXT).label("arch")
+        cuda_ver = cast(Exec.meta["pytorch"]["build_settings"]["CUDA_VERSION"], TEXT)
+        hip_ver = cast(Exec.meta["pytorch"]["build_settings"]["HIP_VERSION"], TEXT)
+        accel_col = func.coalesce(cuda_ver, hip_ver).label("accel_version")
+        mb_tag_col = cast(Exec.meta["milabench"]["tag"], TEXT).label("mb_tag")
+        mb_commit_col = cast(Exec.meta["milabench"]["commit"], TEXT).label("mb_commit")
+        contributor_col = cast(Exec.meta["contributor"], TEXT).label("contributor")
+
+        results_query = (
+            select(
+                most_recent.c.gpu,
+                most_recent.c.exec_id,
+                most_recent.c.latest_date,
+                most_recent.c.run_name,
+                pytorch_col,
+                arch_col,
+                accel_col,
+                mb_tag_col,
+                mb_commit_col,
+                contributor_col,
+                func.count(bench_status.c.bench).label("total"),
+                func.sum(
+                    sqlalchemy.case((bench_status.c.worst_status == 0, 1), else_=0)
+                ).label("passed"),
+            )
+            .join(Exec, Exec._id == most_recent.c.exec_id)
+            .outerjoin(bench_status, bench_status.c.exec_id == most_recent.c.exec_id)
+            .group_by(
+                most_recent.c.gpu,
+                most_recent.c.exec_id,
+                most_recent.c.latest_date,
+                most_recent.c.run_name,
+                pytorch_col,
+                arch_col,
+                accel_col,
+                mb_tag_col,
+                mb_commit_col,
+                contributor_col,
+            )
+            .order_by(most_recent.c.gpu)
+        )
+
+        with sqlexec() as sess:
+            rows = sess.execute(results_query).all()
+            return jsonify([
+                {
+                    "gpu": row.gpu,
+                    "exec_id": row.exec_id,
+                    "latest_date": row.latest_date.isoformat() if row.latest_date else None,
+                    "run_name": row.run_name,
+                    "pytorch": row.pytorch,
+                    "arch": row.arch,
+                    "accel_version": row.accel_version,
+                    "milabench_tag": row.mb_tag,
+                    "milabench_commit": row.mb_commit,
+                    "contributor": row.contributor,
+                    "total": row.total,
+                    "passed": row.passed,
+                    "pass_rate": round(row.passed / row.total, 4) if row.total else 0,
+                }
+                for row in rows
+            ])
 
     @app.route('/api/metrics/list/<int:exec_id>')
     @app.route('/api/metrics/list')
@@ -712,19 +840,25 @@ def view_server(config):
     @app.route('/api/scaling')
     def api_scaling():
         """Fetch scaling data from the scaling configuration files"""
-        from milabench.analysis.scaling import read_config, folder_path
+        import milabench.analysis.scaling as scaling
+
+        scaling_dir = os.environ.get("MILABENCH_SCALING_DIR", scaling.folder_path)
+
+        if not os.path.isdir(scaling_dir):
+            return jsonify({"error": f"Scaling config directory not found: {scaling_dir}"}), 404
 
         gpus = request.args.getlist("gpus")
 
         if len(gpus) == 0:
-            gpus = list(os.listdir(folder_path))
-            gpus.remove("default.yaml")
-
-            gpus = [gpu.split(".")[0] for gpu in gpus]
+            gpus = [
+                f.split(".")[0]
+                for f in os.listdir(scaling_dir)
+                if f.endswith(".yaml") and f != "default.yaml"
+            ]
 
         output = []
         for gpu in gpus:
-            read_config(f"{gpu}.yaml", output)
+            scaling.read_config(f"{gpu}.yaml", output)
 
         return output
 

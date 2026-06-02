@@ -25,6 +25,7 @@ import { VegaPlotBuilderView } from './components/views/VegaPlotBuilderView';
 import { BaremetalView } from './components/views/BaremetalView';
 import { PushResultsView } from './components/views/PushResultsView';
 import { DatabaseSyncView } from './components/views/DatabaseSyncView';
+import { SupportedGpusView } from './components/views/SupportedGpusView';
 import { Toaster } from "./components/ui/toaster"
 import { VegaProvider } from './contexts/VegaContext'
 import { HealthProvider } from './contexts/HealthContext'
@@ -71,6 +72,7 @@ function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
                 <Route path="/push" element={<PushResultsView />} />
+                <Route path="/gpus" element={<SupportedGpusView />} />
               </Routes>
             </Layout>
           </Router>

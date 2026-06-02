@@ -146,6 +146,31 @@ export const getGpuList = async (): Promise<string[]> => {
     }
 };
 
+export interface GpuSummary {
+    gpu: string;
+    exec_id: number;
+    latest_date: string;
+    run_name: string;
+    pytorch: string | null;
+    arch: string | null;
+    accel_version: string | null;
+    milabench_tag: string | null;
+    milabench_commit: string | null;
+    contributor: string | null;
+    total: number;
+    passed: number;
+    pass_rate: number;
+}
+
+export const getGpuSummary = async (): Promise<GpuSummary[]> => {
+    try {
+        const response = await api.get('/gpu/summary');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export const getMetricsList = async (): Promise<string[]> => {
     try {
         const response = await api.get('/metrics/list');
