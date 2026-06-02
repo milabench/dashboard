@@ -13,7 +13,6 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 
 function PassBar({ passed, total }: { passed: number; total: number }) {
     const pct = total > 0 ? (passed / total) * 100 : 0;
-    const failed = total - passed;
 
     let color: string;
     if (pct === 100) color = 'green';
