@@ -169,36 +169,12 @@ def _run_migrations(database_url):
         print(f"[migrations] Warning: auto-migration failed: {err}")
 
 
-def _ensure_scaling_dir():
-    """Auto-detect MILABENCH_SCALING_DIR from the deployment layout if not already set."""
-    if os.environ.get("MILABENCH_SCALING_DIR"):
-        return
-
-    try:
-        data_path = str(importlib_resources.files("dashboard.data") / "scaling")
-        if os.path.isdir(data_path):
-            os.environ["MILABENCH_SCALING_DIR"] = data_path
-            print(f"[scaling] Using package data: {data_path}")
-            return
-    except Exception as err:
-        print(f"[scaling] importlib_resources lookup failed: {err}")
-
-    here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.normpath(os.path.join(here, "..", "..", "milabench", "config", "scaling"))
-    if os.path.isdir(candidate):
-        os.environ["MILABENCH_SCALING_DIR"] = candidate
-        print(f"[scaling] Using source tree fallback: {candidate}")
-        return
-
-    print(f"[scaling] WARNING: could not locate scaling config directory")
 
 
 def view_server(config):
     """Display milabench results"""
 
     DATABASE_URI = database_uri()
-
-    _ensure_scaling_dir()
 
     app = Flask(__name__)
     app.config.update(config)
@@ -840,9 +816,9 @@ def view_server(config):
     @app.route('/api/scaling')
     def api_scaling():
         """Fetch scaling data from the scaling configuration files"""
-        import milabench.analysis.scaling as scaling
+        from milabench.analysis.scaling import read_config
 
-        scaling_dir = os.environ.get("MILABENCH_SCALING_DIR", scaling.folder_path)
+        scaling_dir = str(importlib_resources.files("dashboard.data") / "scaling")
 
         if not os.path.isdir(scaling_dir):
             return jsonify({"error": f"Scaling config directory not found: {scaling_dir}"}), 404
@@ -858,9 +834,9 @@ def view_server(config):
 
         output = []
         for gpu in gpus:
-            scaling.read_config(f"{gpu}.yaml", output)
+            read_config(f"{gpu}.yaml", output, folder=scaling_dir)
 
-        return output
+        return jsonify(output)
 
     @app.route('/html/scaling/x=<string:x>/y=<string:y>')
     def scaling_plot(x, y):
