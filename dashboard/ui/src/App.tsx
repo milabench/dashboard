@@ -49,7 +49,8 @@ function App() {
               <Routes>
                 {import.meta.env.DEV ? (
                   <>
-                    <Route path="/" element={<DashboardView />} />
+                    <Route path="/" element={<SupportedGpusView />} />
+                    <Route path="/jobs" element={<DashboardView />} />
                     <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
                     <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
                     <Route path="/pipelines" element={<PipelinesView />} />
@@ -60,7 +61,7 @@ function App() {
                     <Route path="/db-sync" element={<DatabaseSyncView />} />
                   </>
                 ) : (
-                  <Route path="/" element={<Executions />} />
+                  <Route path="/" element={<SupportedGpusView />} />
                 )}
 
                 <Route path="/executions" element={<Executions />} />

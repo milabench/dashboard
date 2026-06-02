@@ -13,14 +13,13 @@ interface NavItem {
 
 
 const navItems: NavItem[] = [
-    { label: 'Dashboard', path: '/', env: 'dev' },
+    { label: 'Dashboard', path: '/dashboard', env: 'dev' },
     { label: 'Latest Executions', path: '/executions' },
-    { label: 'Supported GPUs', path: '/gpus' },
     {
         label: 'Slurm',
         env: "dev",
         routes: [
-            { label: 'Jobs', path: '/' },
+            { label: 'Jobs', path: '/jobs' },
             { label: 'Pipelines', path: '/pipelines' },
             { label: 'Dashboard', path: '/realtime' },
         ]
@@ -145,7 +144,7 @@ export const MainSidebar: React.FC = () => {
         >
             <Text fontSize="2xl" fontWeight="bold" mb={8} display="flex" alignItems="center" gap={2}>
                 <ColorModeButton />
-                Milabench
+                <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>Milabench</Link>
                 <Badge colorScheme="blue" fontSize="sm">
                     {currentProfile}
                 </Badge>

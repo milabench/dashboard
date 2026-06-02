@@ -77,10 +77,10 @@ export const SupportedGpusView: React.FC = () => {
     return (
         <Box p={6}>
             <Text fontSize="2xl" fontWeight="bold" mb={2}>
-                Supported GPUs
+                Latest GPU runs
             </Text>
             <Text color="fg.muted" mb={6}>
-                GPUs milabench has been tested on, with the latest run results.
+                GPUs milabench has been ran on, with the latest run results.
             </Text>
 
             {rows.length === 0 ? (
