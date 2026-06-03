@@ -24,32 +24,49 @@ export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => 
         enabled: !!packIdentifier,
     });
 
+    const HIDDEN_METRICS = new Set([
+        '__iter__', 'iter_create', 'iter_start',
+        'return_code', 'status', 'walltime',
+    ]);
+    const HIDDEN_PREFIXES = ['process.'];
+
     const specBuilder = useCallback((w: number, h: number) => {
         if (!metricsData || metricsData.length === 0) return null;
 
-        const metricCount = new Set(metricsData.map((d: any) => d.name)).size;
-        const cols = Math.min(4, metricCount);
+        const filtered = metricsData.filter((d: any) =>
+            !HIDDEN_METRICS.has(d.name) &&
+            !HIDDEN_PREFIXES.some((p) => d.name.startsWith(p))
+        );
+        if (filtered.length === 0) return null;
+
+        const metricCount = new Set(filtered.map((d: any) => d.name)).size;
+        const cols = Math.min(2, metricCount);
         const rows = Math.ceil(metricCount / cols);
         const cellPadding = 50;
-        const cellWidth = Math.max(150, Math.floor(w / (cols + 1)) - cellPadding);
-        const cellHeight = Math.max(120, Math.floor(h / rows) - cellPadding);
+        const cellWidth = Math.max(500, Math.floor((w - 150) / (cols)) - cellPadding);
+        const cellHeight = Math.max(500/2, Math.floor(h / rows) - cellPadding);
 
         return {
-            data: { values: metricsData },
+            data: { values: filtered },
             facet: { field: 'name', type: 'nominal', title: 'Metric' },
             columns: cols,
             spec: {
                 width: cellWidth,
                 height: cellHeight,
+                transform: [
+                    { joinaggregate: [{ op: 'min', field: 'order', as: 'min_order' }], groupby: ['name'] },
+                    { calculate: 'datum.order - datum.min_order', as: 'elapsed' },
+                ],
                 mark: 'line',
                 encoding: {
-                    x: { field: 'order', type: 'quantitative', scale: { zero: false }, title: 'Time' },
+                    x: { field: 'elapsed', type: 'quantitative', scale: { zero: true }, title: 'Elapsed (s)' },
                     y: { field: 'value', type: 'quantitative', scale: { zero: false } },
                     color: { field: 'gpu_id', type: 'ordinal' },
                     tooltip: [
                         { field: 'name', type: 'nominal', title: 'Metric' },
                         { field: 'gpu_id', type: 'ordinal', title: 'GPU' },
                         { field: 'value', type: 'quantitative', title: 'Value' },
+                        { field: 'elapsed', type: 'quantitative', title: 'Elapsed (s)', format: '.1f' },
                         { field: 'unit', type: 'nominal', title: 'Unit' },
                     ],
                 },

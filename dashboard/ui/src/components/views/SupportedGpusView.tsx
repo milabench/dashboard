@@ -26,7 +26,7 @@ function PassBar({ passed, total }: { passed: number; total: number }) {
             </Box>
             <HStack gap={1} flexShrink={0}>
                 <Text fontSize="xs" fontWeight="semibold" color={`${color}.600`}>
-                    {passed}/{total}
+                    {Number.isInteger(passed) ? passed : passed.toFixed(2)}/{total}
                 </Text>
                 <Text fontSize="xs" color="fg.muted">
                     ({pct.toFixed(0)}%)
@@ -48,7 +48,7 @@ function stripQuotes(s: string | null): string {
 }
 
 export const SupportedGpusView: React.FC = () => {
-    usePageTitle('Supported GPUs');
+    usePageTitle('Milabench');
 
     const { data, isLoading, error } = useQuery<GpuSummary[]>({
         queryKey: ['gpuSummary'],
@@ -89,6 +89,8 @@ export const SupportedGpusView: React.FC = () => {
                     <Table.Header>
                         <Table.Row>
                             <Table.ColumnHeader>GPU</Table.ColumnHeader>
+                            <Table.ColumnHeader>GPUs</Table.ColumnHeader>
+                            <Table.ColumnHeader>CPU</Table.ColumnHeader>
                             <Table.ColumnHeader>Arch</Table.ColumnHeader>
                             <Table.ColumnHeader>PyTorch</Table.ColumnHeader>
                             <Table.ColumnHeader>CUDA / ROCm</Table.ColumnHeader>
@@ -101,9 +103,20 @@ export const SupportedGpusView: React.FC = () => {
                     </Table.Header>
                     <Table.Body>
                         {rows.map((row) => (
-                            <Table.Row key={row.gpu}>
+                            <Table.Row key={`${row.gpu}-${row.cpu_arch}-${row.gpu_count}-${row.gpu_memory}`}>
                                 <Table.Cell>
                                     <Text fontWeight="semibold">{stripQuotes(row.gpu)}</Text>
+                                </Table.Cell>
+                                <Table.Cell>
+                                    <Text fontWeight="semibold">
+                                        {row.gpu_count}x
+                                        {row.gpu_memory ? ` (${Math.round(row.gpu_memory / 1024)} GB)` : ''}
+                                    </Text>
+                                </Table.Cell>
+                                <Table.Cell>
+                                    <Badge colorPalette={row.cpu_arch === 'aarch64' ? 'orange' : 'blue'} variant="subtle">
+                                        {row.cpu_arch}
+                                    </Badge>
                                 </Table.Cell>
                                 <Table.Cell>
                                     <Badge colorPalette={stripQuotes(row.arch) === 'cuda' ? 'green' : 'purple'} variant="subtle">

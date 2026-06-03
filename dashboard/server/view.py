@@ -336,9 +336,24 @@ def view_server(config):
 
         return jsonify(results)
 
+    HIDDEN_METRICS = [
+        "__iter__",
+        "iter_create",
+        "iter_start",
+        "return_code",
+        "status",
+        "walltime",
+    ]
+
+    def _exclude_hidden(stmt):
+        stmt = stmt.where(Metric.name.notin_(HIDDEN_METRICS))
+        stmt = stmt.where(~Metric.name.like("process.%"))
+        return stmt
+
     @app.route('/api/exec/<int:exec_id>/packs/<int:pack_id>/metrics')
     def api_pack_metrics(exec_id, pack_id):
         stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Metric.pack_id == pack_id)
+        stmt = _exclude_hidden(stmt)
 
         results = []
         with sqlexec() as sess:
@@ -352,6 +367,7 @@ def view_server(config):
     @app.route('/api/exec/<int:exec_id>/packs/<string:pack_name>/metrics')
     def api_pack_summary_metrics(exec_id, pack_name):
         stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Pack.name.startswith(pack_name)).join(Pack, Metric.pack_id == Pack._id)
+        stmt = _exclude_hidden(stmt)
 
         results = []
         with sqlexec() as sess:
@@ -373,127 +389,8 @@ def view_server(config):
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/gpu/summary')
-    def api_gpu_summary():
-        """Per-GPU summary: latest run date and pass/total benchmark stats.
-
-        For each distinct GPU product, find the most recent execution,
-        then count how many benchmarks passed (status metric == 0) vs total.
-        """
-        gpu_col = cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT).label("gpu")
-
-        latest_per_gpu = (
-            select(
-                gpu_col,
-                func.max(Exec._id).label("exec_id"),
-                func.max(Exec.created_time).label("latest_date"),
-                Exec.name.label("run_name"),
-            )
-            .where(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT).isnot(None))
-            .where(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT) != 'null')
-            .group_by(gpu_col, Exec.name)
-            .order_by(func.max(Exec.created_time).desc())
-        ).subquery()
-
-        # Keep only the single most recent row per GPU
-        ranked = (
-            select(
-                latest_per_gpu.c.gpu,
-                latest_per_gpu.c.exec_id,
-                latest_per_gpu.c.latest_date,
-                latest_per_gpu.c.run_name,
-                func.row_number().over(
-                    partition_by=latest_per_gpu.c.gpu,
-                    order_by=latest_per_gpu.c.latest_date.desc()
-                ).label("rn")
-            )
-        ).subquery()
-
-        most_recent = (
-            select(
-                ranked.c.gpu,
-                ranked.c.exec_id,
-                ranked.c.latest_date,
-                ranked.c.run_name,
-            ).where(ranked.c.rn == 1)
-        ).subquery()
-
-        # Per-benchmark pass/fail: a benchmark passes when ALL its
-        # processes (pack rows) have status == 0.
-        bench_status = (
-            select(
-                Metric.exec_id,
-                Pack.name.label("bench"),
-                func.max(Metric.value).label("worst_status"),
-            )
-            .join(Pack, Pack._id == Metric.pack_id)
-            .where(Metric.name == "status")
-            .group_by(Metric.exec_id, Pack.name)
-        ).subquery()
-
-        pytorch_col = cast(Exec.meta["pytorch"]["torch"], TEXT).label("pytorch")
-        arch_col = cast(Exec.meta["accelerators"]["arch"], TEXT).label("arch")
-        cuda_ver = cast(Exec.meta["pytorch"]["build_settings"]["CUDA_VERSION"], TEXT)
-        hip_ver = cast(Exec.meta["pytorch"]["build_settings"]["HIP_VERSION"], TEXT)
-        accel_col = func.coalesce(cuda_ver, hip_ver).label("accel_version")
-        mb_tag_col = cast(Exec.meta["milabench"]["tag"], TEXT).label("mb_tag")
-        mb_commit_col = cast(Exec.meta["milabench"]["commit"], TEXT).label("mb_commit")
-        contributor_col = cast(Exec.meta["contributor"], TEXT).label("contributor")
-
-        results_query = (
-            select(
-                most_recent.c.gpu,
-                most_recent.c.exec_id,
-                most_recent.c.latest_date,
-                most_recent.c.run_name,
-                pytorch_col,
-                arch_col,
-                accel_col,
-                mb_tag_col,
-                mb_commit_col,
-                contributor_col,
-                func.count(bench_status.c.bench).label("total"),
-                func.sum(
-                    sqlalchemy.case((bench_status.c.worst_status == 0, 1), else_=0)
-                ).label("passed"),
-            )
-            .join(Exec, Exec._id == most_recent.c.exec_id)
-            .outerjoin(bench_status, bench_status.c.exec_id == most_recent.c.exec_id)
-            .group_by(
-                most_recent.c.gpu,
-                most_recent.c.exec_id,
-                most_recent.c.latest_date,
-                most_recent.c.run_name,
-                pytorch_col,
-                arch_col,
-                accel_col,
-                mb_tag_col,
-                mb_commit_col,
-                contributor_col,
-            )
-            .order_by(most_recent.c.gpu)
-        )
-
-        with sqlexec() as sess:
-            rows = sess.execute(results_query).all()
-            return jsonify([
-                {
-                    "gpu": row.gpu,
-                    "exec_id": row.exec_id,
-                    "latest_date": row.latest_date.isoformat() if row.latest_date else None,
-                    "run_name": row.run_name,
-                    "pytorch": row.pytorch,
-                    "arch": row.arch,
-                    "accel_version": row.accel_version,
-                    "milabench_tag": row.mb_tag,
-                    "milabench_commit": row.mb_commit,
-                    "contributor": row.contributor,
-                    "total": row.total,
-                    "passed": row.passed,
-                    "pass_rate": round(row.passed / row.total, 4) if row.total else 0,
-                }
-                for row in rows
-            ])
+    from .gpu_summary import gpu_summary_routes
+    gpu_summary_routes(app, sqlexec, scheduler, dev_only)
 
     @app.route('/api/metrics/list/<int:exec_id>')
     @app.route('/api/metrics/list')
@@ -773,12 +670,18 @@ def view_server(config):
         import altair as alt
         from .utils import plot
 
-        chart = alt.Chart(f"/api/exec/{exec_id}/packs/{pack_id}/metrics").mark_line().encode(
-            x=alt.X("order", type="quantitative", scale=alt.Scale(zero=False), title="Time"),
-            y=alt.Y("value", type="quantitative", scale=alt.Scale(zero=False)),
-            color=alt.Color("gpu_id", type="ordinal"),
+        chart = alt.Chart(f"/api/exec/{exec_id}/packs/{pack_id}/metrics").transform_joinaggregate(
+            min_order="min(order)",
+            groupby=["name"],
+        ).transform_calculate(
+            elapsed="datum.order - datum.min_order",
+        ).mark_line().encode(
+            x=alt.X("elapsed:Q", scale=alt.Scale(zero=True), title="Elapsed (s)"),
+            y=alt.Y("value:Q", scale=alt.Scale(zero=False)),
+            color=alt.Color("gpu_id:O"),
             tooltip=[
                 alt.Tooltip("unit:N", title="Unit"),
+                alt.Tooltip("elapsed:Q", title="Elapsed (s)", format=".1f"),
             ]
         ).facet(
             facet=alt.Facet("name:N", title="Metric"),

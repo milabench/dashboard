@@ -11,17 +11,33 @@ DEFAULT_REMOTE_URL = "https://www.milabench.com"
 
 
 def _parse_local_db(db_uri):
-    """Extract connection params from the local SQLAlchemy URI."""
-    from urllib.parse import urlparse
+    """Extract connection params from the database URI.
 
-    uri = str(db_uri)
-    parsed = urlparse(uri)
+    Handles both sqlalchemy.URL objects and plain URI strings.
+    """
+    from sqlalchemy import URL
+
+    if isinstance(db_uri, URL):
+        return {
+            "host": db_uri.host or "localhost",
+            "port": str(db_uri.port or 5432),
+            "dbname": db_uri.database or "",
+            "user": db_uri.username or "",
+            "password": db_uri.password or "",
+            "sslmode": db_uri.query.get("sslmode", ""),
+        }
+
+    from urllib.parse import urlparse, parse_qs
+
+    parsed = urlparse(str(db_uri))
+    query = parse_qs(parsed.query)
     return {
         "host": parsed.hostname or "localhost",
         "port": str(parsed.port or 5432),
         "dbname": parsed.path.lstrip("/"),
         "user": parsed.username or "",
         "password": parsed.password or "",
+        "sslmode": query.get("sslmode", [""])[0],
     }
 
 
@@ -50,8 +66,12 @@ def _pg_dump(host, port, user, password, dbname, sslmode=""):
     return result.stdout, result.stderr.decode("utf-8", errors="replace"), result.returncode
 
 
-def _pg_restore(dump_path, host, port, user, password, dbname, sslmode="", clean=True):
-    """Run pg_restore and return (stderr_str, returncode)."""
+def _pg_restore(dump_path, host, port, user, password, dbname, sslmode="", clean=True, grant_to=None):
+    """Run pg_restore and return (stderr_str, returncode).
+
+    If grant_to is provided, grants SELECT on all tables to that role
+    after restore (to fix permissions lost by --clean).
+    """
     env = os.environ.copy()
     env["PGPASSWORD"] = password
     if sslmode:
@@ -71,7 +91,18 @@ def _pg_restore(dump_path, host, port, user, password, dbname, sslmode="", clean
     cmd.append(dump_path)
 
     result = subprocess.run(cmd, capture_output=True, env=env, timeout=600)
-    return result.stderr.decode("utf-8", errors="replace"), result.returncode
+    stderr = result.stderr.decode("utf-8", errors="replace")
+
+    if grant_to and result.returncode in (0, 1):
+        grant_sql = f"GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{grant_to}\";"
+        grant_result = subprocess.run(
+            ["psql", "-h", host, "-p", str(port), "-U", user, "-d", dbname, "-c", grant_sql],
+            capture_output=True, env=env, timeout=30,
+        )
+        if grant_result.returncode != 0:
+            stderr += f"\nGrant failed: {grant_result.stderr.decode('utf-8', errors='replace')}"
+
+    return stderr, result.returncode
 
 
 def sync_routes(app, db_uri):
@@ -137,7 +168,7 @@ def sync_routes(app, db_uri):
 
     @app.route('/api/sync/push-to-remote', methods=['POST'])
     def push_to_remote():
-        """Dump the local database and restore it into the remote deployed database."""
+        """Dump the source database and restore it into the remote deployed database."""
         data = request.json or {}
         remote_host = data.get("host")
         remote_port = data.get("port", "5432")
@@ -149,13 +180,13 @@ def sync_routes(app, db_uri):
         if not all([remote_host, remote_dbname, remote_user, remote_password]):
             return jsonify({"status": "ERR", "message": "Remote host, dbname, user, and password are required"}), 400
 
-        local = _parse_local_db(db_uri)
+        source = _parse_local_db(db_uri)
 
         try:
-            # Step 1: pg_dump from local
-            stdout, stderr, rc = _pg_dump(**local)
+            # Step 1: pg_dump from the database the app is connected to
+            stdout, stderr, rc = _pg_dump(**source)
             if rc != 0:
-                return jsonify({"status": "ERR", "message": f"Local pg_dump failed: {stderr}"}), 500
+                return jsonify({"status": "ERR", "message": f"Source pg_dump failed: {stderr}"}), 500
 
             # Step 2: pg_restore into remote
             with tempfile.NamedTemporaryFile(suffix=".dump", delete=True) as tmp:
@@ -177,7 +208,7 @@ def sync_routes(app, db_uri):
                 if rc != 0:
                     return jsonify({"status": "WARN", "message": stderr})
 
-                return jsonify({"status": "OK", "message": "Local database pushed to remote successfully"})
+                return jsonify({"status": "OK", "message": "Database pushed to remote successfully"})
 
         except subprocess.TimeoutExpired:
             return jsonify({"status": "ERR", "message": "Operation timed out"}), 504
