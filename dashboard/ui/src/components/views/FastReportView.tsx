@@ -40,6 +40,10 @@ const renderCellValue = (value: any, col: string): string => {
         return '-';
     }
 
+    if (col === "fail") {
+        return value.toFixed(0);
+    }
+
     if (col === "n") {
         return value.toFixed(0);
     }

@@ -247,26 +247,39 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
 
     weight_total = select(func.sum(Weight.weight * Weight.enabled.cast(Integer))).where(Weight.profile == profile).scalar_subquery()
 
+    # All (bench, exec_id) pairs that actually ran
+    pack_benches = (
+        select(
+            Pack.name.label("bench"),
+            Pack.exec_id,
+            func.sum(
+                sqlalchemy.case(
+                    (Pack.status.notin_(["done", "early_stop"]), 1),
+                    else_=0,
+                )
+            ).label("fail"),
+        )
+        .where(Pack.exec_id.in_(exec_ids))
+        .group_by(Pack.name, Pack.exec_id)
+    ).subquery()
+
     # Final query to consolidate all the data into the report table we know
     perf_per_group = (
         select(
-            sub.c.exec_id,
+            pack_benches.c.exec_id,
 
-            Weight.pack.label("bench"),
+            pack_benches.c.bench.label("bench"),
 
             *more,
-            # fail,
 
-            # n,
-            func.avg(sub.c.n).cast(Float).label("n"),
+            func.coalesce(func.max(pack_benches.c.fail), 0).cast(Integer).label("fail"),
 
-            # ngpu
-            func.avg(sub.c.ngpu).cast(Float).label("ngpu"),
-            # perf
+            func.coalesce(func.avg(sub.c.n), 0).cast(Float).label("n"),
 
-            func.avg(sub.c.perf).label("perf"),
+            func.coalesce(func.avg(sub.c.ngpu), 0).cast(Float).label("ngpu"),
 
-            # sem% - handle division by zero
+            func.coalesce(func.avg(sub.c.perf), 0).label("perf"),
+
             func.avg(
                 sqlalchemy.case(
                     (sub.c.perf > 0, sub.c.std / sub.c.perf), 
@@ -274,36 +287,37 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
                 )
             ).label("sem"),
 
-            # std%
-            func.avg(sub.c.std).label("std"),
+            func.coalesce(func.avg(sub.c.std), 0).label("std"),
 
-            # peak_memory
+            func.coalesce(func.avg(sub.c.score), 0).label("score"),
 
-            # score
-            func.avg(sub.c.score).label("score"),
+            func.coalesce(func.avg(Weight.weight), 0).cast(Float).label("weight"),
 
-            # weight
-            func.avg(Weight.weight).cast(Float).label("weight"),
+            func.coalesce(func.avg(Weight.enabled.cast(Integer)), 0).cast(Float).label("enabled"),
 
-            # enabled
-            func.avg(Weight.enabled.cast(Integer)).cast(Float).label("enabled"),
+            func.coalesce(func.avg(sub.c.log_score), 0).label("log_score"),
 
-            # No included usually
-            func.avg(sub.c.log_score).label("log_score"),
-
-            func.avg(Weight.priority).cast(Float).label("order"),
+            func.coalesce(func.avg(Weight.priority), 999).cast(Float).label("order"),
 
             weight_total.label("weight_total"),
-
-            # func.avg(sub.c.count).label("count"),
         )
-        .outerjoin(Weight, Weight.pack == sub.c.bench)
-        .join(Exec, Exec._id == sub.c.exec_id)
-        .where(
-            Weight.profile == profile,
-            Weight.pack == sub.c.bench
+        .select_from(pack_benches)
+        .outerjoin(
+            sub,
+            sqlalchemy.and_(
+                sub.c.bench == pack_benches.c.bench,
+                sub.c.exec_id == pack_benches.c.exec_id,
+            )
         )
-        .group_by(Weight.pack, sub.c.exec_id, *more)
+        .outerjoin(
+            Weight,
+            sqlalchemy.and_(
+                Weight.pack == pack_benches.c.bench,
+                Weight.profile == profile,
+            )
+        )
+        .join(Exec, Exec._id == pack_benches.c.exec_id)
+        .group_by(pack_benches.c.bench, pack_benches.c.exec_id, *more)
         .order_by("order")
     )
 
