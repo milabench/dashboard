@@ -7,3 +7,4 @@ flask-socketio
 apscheduler
 gunicorn
 milabench @ git+https://github.com/milabench/milabench.git@main
+argklass
