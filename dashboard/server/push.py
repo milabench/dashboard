@@ -18,6 +18,11 @@ def _sse(event, data):
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+def _sse_heartbeat():
+    """Keep-alive comment to prevent proxy timeouts."""
+    return ": heartbeat\n\n"
+
+
 MAX_ZIP_SIZE = int(os.getenv("MAX_ZIP_SIZE", 500 * 1024 * 1024))  # 500 MB
 MAX_ENTRY_SIZE = int(os.getenv("MAX_ENTRY_SIZE", 100 * 1024 * 1024))  # 100 MB per entry
 MAX_ENTRIES = int(os.getenv("MAX_ZIP_ENTRIES", 50_000))
@@ -167,13 +172,27 @@ def push_routes(app, database_uri):
         meta_tags = {**user_meta, "contributor": contributor}
 
         def generate():
+            import time
             import zipfile
             from collections import defaultdict
             from milabench.testing import interleave
             from milabench.utils import multilogger
             from milabench.config import set_run_count
 
+            last_heartbeat = time.monotonic()
+            heartbeat_interval = 15
+
+            def maybe_heartbeat():
+                nonlocal last_heartbeat
+                now = time.monotonic()
+                if now - last_heartbeat >= heartbeat_interval:
+                    last_heartbeat = now
+                    return _sse_heartbeat()
+                return None
+
             try:
+                yield _sse_heartbeat()
+
                 with zipfile.ZipFile(dest, "r") as archive:
                     entries = archive.infolist()
                     if len(entries) > MAX_ENTRIES:
@@ -213,6 +232,9 @@ def push_routes(app, database_uri):
                                         for entry in gen:
                                             log(entry)
                                             count += 1
+                                            hb = maybe_heartbeat()
+                                            if hb:
+                                                yield hb
                                         yield _sse("bench_done", {"name": bench_name, "events": count})
                                     except Exception as err:
                                         yield _sse("bench_error", {"name": bench_name, "error": str(err)})
