@@ -2,25 +2,21 @@
 
 Provides a registry of all materialized views used by the dashboard,
 plus helpers to create, refresh, and drop them — usable from both
-the server startup path and a standalone CLI.
+the server startup path and the CLI.
 """
 
-import argparse
-import sys
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
-
-from .utils import database_uri
+from sqlalchemy import text
 
 
 VIEWS = {}
 
 
-def register_view(name, sql, indexes=None):
+def register_view(name, sql, indexes=None, expected_columns=None):
     """Register a materialized view definition."""
     VIEWS[name] = {
         "sql": sql,
         "indexes": indexes or [],
+        "expected_columns": set(expected_columns) if expected_columns else None,
     }
 
 
@@ -32,74 +28,31 @@ def _view_exists(sess, name):
     return result.scalar() is not None
 
 
-def create_views(sess, names=None, force=False):
-    """Create materialized views. If force=True, drop and recreate."""
-    targets = names or list(VIEWS.keys())
-    for name in targets:
-        defn = VIEWS.get(name)
-        if defn is None:
-            print(f"[matview] Unknown view: {name}")
-            continue
-
-        exists = _view_exists(sess, name)
-
-        if exists and not force:
-            print(f"[matview] {name} already exists (use --force to recreate)")
-            continue
-
-        if exists:
-            sess.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {name}"))
-            print(f"[matview] Dropped {name}")
-
-        sess.execute(text(defn["sql"]))
-        for idx_sql in defn["indexes"]:
-            sess.execute(text(idx_sql))
-
-        sess.commit()
-        print(f"[matview] Created {name}")
+def _view_columns(sess, name):
+    """Return the set of column names for a materialized view."""
+    result = sess.execute(
+        text(
+            "SELECT attname FROM pg_attribute "
+            "WHERE attrelid = :name::regclass AND attnum > 0 AND NOT attisdropped"
+        ),
+        {"name": name},
+    )
+    return {row[0] for row in result}
 
 
-def refresh_views(sess, names=None):
-    """Refresh materialized views concurrently."""
-    targets = names or list(VIEWS.keys())
-    for name in targets:
-        if name not in VIEWS:
-            print(f"[matview] Unknown view: {name}")
-            continue
-
-        if not _view_exists(sess, name):
-            print(f"[matview] {name} does not exist, skipping refresh")
-            continue
-
-        sess.execute(text(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {name}"))
-        sess.commit()
-        print(f"[matview] Refreshed {name}")
+def _view_schema_ok(sess, name, defn):
+    """Check if the existing view has the expected columns."""
+    expected = defn.get("expected_columns")
+    if expected is None:
+        return True
+    actual = _view_columns(sess, name)
+    missing = expected - actual
+    if missing:
+        print(f"[matview] {name} is missing columns: {missing}")
+        return False
+    return True
 
 
-def drop_views(sess, names=None):
-    """Drop materialized views."""
-    targets = names or list(VIEWS.keys())
-    for name in targets:
-        sess.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {name}"))
-        sess.commit()
-        print(f"[matview] Dropped {name}")
-
-
-def status_views(sess, names=None):
-    """Print status of materialized views."""
-    targets = names or list(VIEWS.keys())
-    for name in targets:
-        exists = _view_exists(sess, name)
-        if exists:
-            row_count = sess.execute(
-                text(f"SELECT count(*) FROM {name}")
-            ).scalar()
-            print(f"  {name}: {row_count} rows")
-        else:
-            print(f"  {name}: NOT CREATED")
-
-
-# -- View definitions --------------------------------------------------------
 
 GPU_SUMMARY_VIEW = "gpu_summary_mv"
 
@@ -179,45 +132,11 @@ register_view(
     indexes=[
         f"CREATE UNIQUE INDEX IF NOT EXISTS {GPU_SUMMARY_VIEW}_exec_id ON {GPU_SUMMARY_VIEW} (exec_id)",
     ],
+    expected_columns=[
+        "gpu", "cpu_arch", "gpu_count", "gpu_memory",
+        "exec_id", "latest_date", "run_name",
+        "pytorch", "arch", "accel_version",
+        "milabench_tag", "milabench_commit", "contributor",
+        "total", "passed",
+    ],
 )
-
-
-# -- CLI ---------------------------------------------------------------------
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Manage dashboard materialized views",
-    )
-    parser.add_argument(
-        "action",
-        choices=["create", "refresh", "drop", "status", "recreate"],
-        help="Action to perform",
-    )
-    parser.add_argument(
-        "--views",
-        nargs="*",
-        default=None,
-        help=f"Views to target (default: all). Available: {', '.join(VIEWS.keys())}",
-    )
-
-    args = parser.parse_args()
-
-    uri = database_uri()
-    engine = create_engine(uri)
-
-    with Session(engine) as sess:
-        match args.action:
-            case "create":
-                create_views(sess, args.views)
-            case "refresh":
-                refresh_views(sess, args.views)
-            case "drop":
-                drop_views(sess, args.views)
-            case "recreate":
-                create_views(sess, args.views, force=True)
-            case "status":
-                status_views(sess, args.views)
-
-
-if __name__ == "__main__":
-    main()

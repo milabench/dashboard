@@ -1,0 +1,14 @@
+[project]
+name = "dashboard"
+version = "0.0.1"
+description = "Python seed project for productivity"
+readme = "README.md"
+license = "BSD-3-Clause"
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+"dashboard" = "dashboard.cli:main_force"

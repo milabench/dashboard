@@ -3,6 +3,7 @@ sqlalchemy
 pandas
 flask
 flask_caching
+flask-socketio
 apscheduler
 gunicorn
 milabench @ git+https://github.com/milabench/milabench.git@main

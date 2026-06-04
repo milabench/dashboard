@@ -33,7 +33,7 @@ if __name__ == "__main__":
         packages=find_packages(exclude=["tests", "tests.*", "examples"]),
         entry_points={
             "console_scripts": [
-                "dashboard-matview=dashboard.server.materialized_views:main",
+                "dashboard=dashboard.cli:main_force",
             ],
         },
         setup_requires=["setuptools"],
