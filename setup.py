@@ -31,6 +31,11 @@ if __name__ == "__main__":
             "Operating System :: OS Independent",
         ],
         packages=find_packages(exclude=["tests", "tests.*", "examples"]),
+        entry_points={
+            "console_scripts": [
+                "dashboard-matview=dashboard.server.materialized_views:main",
+            ],
+        },
         setup_requires=["setuptools"],
         install_requires=[
             "importlib_resources",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, VStack, Text, Badge } from '@chakra-ui/react';
+import { Box, HStack, VStack, Text, Badge, Spacer } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { ColorModeButton } from "../ui/color-mode"
@@ -141,17 +141,35 @@ export const MainSidebar: React.FC = () => {
             top={0}
             borderRight="1px"
             borderColor="var(--color-sidebar-border)"
+            display="flex"
+            flexDirection="column"
         >
-            <Text fontSize="2xl" fontWeight="bold" mb={8} display="flex" alignItems="center" gap={2}>
-                <ColorModeButton />
-                <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>Milabench</Link>
+            <Box mb={6} textAlign="center">
+                <Link to="/" style={{ textDecoration: 'none' }}>
+                    <img
+                        src="/name.svg"
+                        alt="Milabench"
+                        style={{ height: '82px', filter: "invert(1)", margin: '0 auto' }}
+                    />
+                </Link>
+            </Box>
+            <VStack gap={2} align="stretch" flex={1} overflowY="auto">
+                {visibleNavItems.map((item) => renderNavItem(item))}
+            </VStack>
+            <HStack
+                gap={2}
+                pt={4}
+                borderTop="1px solid"
+                borderColor="var(--color-sidebar-border)"
+                justify="space-between"
+                align="center"
+            >
                 <Badge colorScheme="blue" fontSize="sm">
                     {currentProfile}
                 </Badge>
-            </Text>
-            <VStack gap={2} align="stretch">
-                {visibleNavItems.map((item) => renderNavItem(item))}
-            </VStack>
+                <Spacer />
+                <ColorModeButton />
+            </HStack>
         </Box>
     );
 };

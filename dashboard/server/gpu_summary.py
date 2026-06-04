@@ -10,81 +10,10 @@ from flask import jsonify
 from sqlalchemy import select, func, cast, text, TEXT, Float
 
 from milabench.metrics.sqlalchemy import Exec, Pack
-
-
-VIEW_NAME = "gpu_summary_mv"
-
-VIEW_SQL = f"""
-    CREATE MATERIALIZED VIEW IF NOT EXISTS {VIEW_NAME} AS
-    WITH exec_base AS (
-        SELECT
-            _id,
-            name,
-            created_time,
-            meta,
-            meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product' AS gpu,
-            coalesce(meta -> 'os' ->> 'machine', 'unknown') AS cpu_arch,
-            (SELECT count(*) FROM json_object_keys(meta -> 'accelerators' -> 'gpus')) AS gpu_count,
-            (meta -> 'accelerators' -> 'gpus' -> '0' -> 'memory' ->> 'total')::float AS gpu_memory
-        FROM execs
-        WHERE (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') IS NOT NULL
-          AND (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') != 'null'
-    ),
-    latest_per_gpu AS (
-        SELECT
-            gpu, cpu_arch, gpu_count, gpu_memory,
-            max(_id) AS exec_id,
-            max(created_time) AS latest_date,
-            name AS run_name
-        FROM exec_base
-        GROUP BY gpu, cpu_arch, gpu_count, gpu_memory, name
-    ),
-    ranked AS (
-        SELECT *,
-            row_number() OVER (
-                PARTITION BY gpu, cpu_arch, gpu_count, gpu_memory
-                ORDER BY latest_date DESC
-            ) AS rn
-        FROM latest_per_gpu
-    ),
-    most_recent AS (
-        SELECT gpu, cpu_arch, gpu_count, gpu_memory, exec_id, latest_date, run_name
-        FROM ranked WHERE rn = 1
-    ),
-    bench_status AS (
-        SELECT exec_id, name AS bench,
-               avg(CASE WHEN status IN ('done', 'early_stop') THEN 1.0 ELSE 0.0 END) AS pass_rate
-        FROM packs
-        WHERE exec_id IN (SELECT exec_id FROM most_recent)
-        GROUP BY exec_id, name
-    )
-    SELECT
-        mr.gpu,
-        mr.cpu_arch,
-        mr.gpu_count,
-        mr.gpu_memory,
-        mr.exec_id,
-        mr.latest_date,
-        mr.run_name,
-        e.meta -> 'pytorch' ->> 'torch' AS pytorch,
-        e.meta -> 'accelerators' ->> 'arch' AS arch,
-        coalesce(
-            e.meta -> 'pytorch' -> 'build_settings' ->> 'CUDA_VERSION',
-            e.meta -> 'pytorch' -> 'build_settings' ->> 'HIP_VERSION'
-        ) AS accel_version,
-        e.meta -> 'milabench' ->> 'tag' AS milabench_tag,
-        e.meta -> 'milabench' ->> 'commit' AS milabench_commit,
-        e.meta ->> 'contributor' AS contributor,
-        count(bs.bench) AS total,
-        coalesce(round(sum(bs.pass_rate)::numeric, 2), 0) AS passed
-    FROM most_recent mr
-    JOIN execs e ON e._id = mr.exec_id
-    LEFT JOIN bench_status bs ON bs.exec_id = mr.exec_id
-    GROUP BY mr.gpu, mr.cpu_arch, mr.gpu_count, mr.gpu_memory,
-             mr.exec_id, mr.latest_date, mr.run_name,
-             pytorch, arch, accel_version, milabench_tag, milabench_commit, contributor
-    ORDER BY mr.gpu, mr.cpu_arch
-"""
+from .materialized_views import (
+    GPU_SUMMARY_VIEW as VIEW_NAME,
+    _view_exists, create_views, refresh_views,
+)
 
 
 def _rows_to_json(rows):
@@ -118,7 +47,7 @@ def _live_query(sqlexec):
     gpu_count_col = select(func.count()).select_from(
         func.json_object_keys(Exec.meta["accelerators"]["gpus"])
     ).correlate(Exec).scalar_subquery().label("gpu_count")
-    gpu_memory_col = cast(Exec.meta["accelerators"]["gpus"]["0"]["memory"]["total"], Float).label("gpu_memory")
+    gpu_memory_col = cast(cast(Exec.meta["accelerators"]["gpus"]["0"]["memory"]["total"], TEXT), Float).label("gpu_memory")
 
     exec_base = (
         select(
@@ -262,24 +191,19 @@ def gpu_summary_routes(app, sqlexec, scheduler, dev_only):
         nonlocal _has_view
         try:
             with sqlexec() as sess:
-                sess.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {VIEW_NAME}"))
-                sess.execute(text(VIEW_SQL))
-                sess.execute(text(
-                    f"CREATE UNIQUE INDEX IF NOT EXISTS {VIEW_NAME}_exec_id "
-                    f"ON {VIEW_NAME} (exec_id)"
-                ))
-                sess.commit()
-            _has_view = True
-            print("[gpu_summary] Materialized view ready")
+                if _view_exists(sess, VIEW_NAME):
+                    _has_view = True
+                    print("[gpu_summary] Materialized view found")
+                    return
+                create_views(sess, [VIEW_NAME])
+                _has_view = True
         except Exception as err:
-            print(f"[gpu_summary] Could not create materialized view: {err}")
+            print(f"[gpu_summary] Could not ensure materialized view: {err}")
 
     def _refresh():
         try:
             with sqlexec() as sess:
-                sess.execute(text(f"REFRESH MATERIALIZED VIEW CONCURRENTLY {VIEW_NAME}"))
-                sess.commit()
-            print("[gpu_summary] Materialized view refreshed")
+                refresh_views(sess, [VIEW_NAME])
         except Exception as err:
             print(f"[gpu_summary] Refresh failed: {err}")
 
