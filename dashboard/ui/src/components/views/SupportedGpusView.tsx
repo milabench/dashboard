@@ -20,8 +20,8 @@ function PassBar({ passed, total }: { passed: number; total: number }) {
     else color = 'red';
 
     return (
-        <HStack gap={2} minW="160px" pr={4}>
-            <Box flex={1} h="8px" bg="red.100" borderRadius="full" overflow="hidden">
+        <HStack gap={2} w="220px" pr={4}>
+            <Box w="100px" flexShrink={0} h="8px" bg="red.100" borderRadius="full" overflow="hidden">
                 <Box h="100%" w={`${pct}%`} bg={`${color}.500`} borderRadius="full" transition="width 0.3s" />
             </Box>
             <HStack gap={1} flexShrink={0}>

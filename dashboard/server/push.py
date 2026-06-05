@@ -13,6 +13,21 @@ from milabench.metrics.sqlalchemy import SQLAlchemy, PushKey
 from .utils import database_uri
 
 
+def _invalidate_report_cache(db_uri, exec_id):
+    """Delete cached report rows for the given exec_id after a push."""
+    if exec_id is None:
+        return
+    try:
+        from .report_cache import invalidate_exec, _table_exists
+        with SQLAlchemy(db_uri) as backend:
+            with Session(backend.client) as sess:
+                if _table_exists(sess):
+                    invalidate_exec(sess, exec_id)
+                    print(f"[report_cache] Invalidated cache for exec_id={exec_id}")
+    except Exception as err:
+        print(f"[report_cache] Invalidation failed for exec_id={exec_id}: {err}")
+
+
 def _sse(event, data):
     """Format a Server-Sent Event."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
@@ -123,6 +138,9 @@ def push_routes(app, database_uri):
                 meta_tags = {**user_meta, "contributor": contributor}
                 with SQLAlchemy(database_uri, meta_tags=meta_tags) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
+                    exec_id = backend._run_id
+
+                _invalidate_report_cache(database_uri, exec_id)
 
                 os.remove(dest)
                 return jsonify({
@@ -215,6 +233,7 @@ def push_routes(app, database_uri):
 
                     yield _sse("info", {"message": f"Found {len(data)} run(s)", "contributor": contributor})
 
+                    pushed_exec_ids = []
                     with SQLAlchemy(database_uri, meta_tags=meta_tags) as backend:
                         with multilogger(backend, stop_on_exception=True) as log:
                             for runname, rundata in data.items():
@@ -238,6 +257,12 @@ def push_routes(app, database_uri):
                                         yield _sse("bench_done", {"name": bench_name, "events": count})
                                     except Exception as err:
                                         yield _sse("bench_error", {"name": bench_name, "error": str(err)})
+
+                                if backend._run_id is not None:
+                                    pushed_exec_ids.append(backend._run_id)
+
+                    for eid in pushed_exec_ids:
+                        _invalidate_report_cache(database_uri, eid)
 
                 yield _sse("done", {"status": "OK", "message": f"{file.filename} pushed by {contributor}"})
 

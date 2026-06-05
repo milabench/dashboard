@@ -392,6 +392,17 @@ def view_server(config):
     from .gpu_summary import gpu_summary_routes
     gpu_summary_routes(app, sqlexec, scheduler, dev_only)
 
+    def _evict_report_cache():
+        try:
+            from .report_cache import evict_old_entries, _table_exists
+            with sqlexec() as sess:
+                if _table_exists(sess):
+                    evict_old_entries(sess)
+        except Exception as err:
+            print(f"[report_cache] Eviction failed: {err}")
+
+    scheduler.add_job(_evict_report_cache, 'interval', minutes=30, id='evict_report_cache')
+
     @app.route('/api/metrics/list/<int:exec_id>')
     @app.route('/api/metrics/list')
     def api_ls_metrics(exec_id=None):
@@ -698,21 +709,36 @@ def view_server(config):
     @app.route('/api/report/fast')
     def api_report_fast():
         from .plot import sql_direct_report
-        # http://localhost:5000/api/report/fast?exec_ids=48&drop_min_max=true&more=Exec:meta.accelerators.gpus.0.product
+        from .report_cache import get_cached_report, store_report, _table_exists
 
-        profile = request.cookies.get('scoreProfile')
+        profile = request.cookies.get('scoreProfile') or 'default'
         exec_ids = request.args.get('exec_ids', '').split(',')
         drop_min_max = request.args.get('drop_min_max', 'true').lower() == 'true'
 
-        more = filter(lambda x: x != '', request.args.get('more', '').split(','))
-        more = [make_selection_key(key) for key in more]
+        more_raw = filter(lambda x: x != '', request.args.get('more', '').split(','))
+        more = [make_selection_key(key) for key in more_raw]
+
+        can_cache = len(exec_ids) == 1 and not more and drop_min_max
+
+        if can_cache:
+            with sqlexec() as sess:
+                if _table_exists(sess):
+                    cached = get_cached_report(sess, exec_ids[0], profile)
+                    if cached is not None:
+                        return jsonify(cached)
 
         with sqlexec() as sess:
             stmt = sql_direct_report(exec_ids, profile=profile, drop_min_max=drop_min_max, more=more)
-
             cursor = sess.execute(stmt)
-
             results = cursor_to_json(cursor)
+
+        if can_cache and results:
+            try:
+                with sqlexec() as sess:
+                    if _table_exists(sess):
+                        store_report(sess, exec_ids[0], profile, results)
+            except Exception as err:
+                print(f"[report_cache] Could not store cache: {err}")
 
         return jsonify(results)
 
