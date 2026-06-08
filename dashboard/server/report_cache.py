@@ -14,7 +14,7 @@ Invalidation happens:
 import os
 from datetime import datetime
 
-from sqlalchemy import delete, select, func, text
+from sqlalchemy import delete, select, update, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from milabench.metrics.sqlalchemy import ReportCache
@@ -34,13 +34,27 @@ def _table_exists(sess):
 
 
 def get_cached_report(sess, exec_id, profile):
-    """Return cached report rows for (exec_id, profile), or None if not cached."""
+    """Return cached report rows for (exec_id, profile), or None if not cached.
+
+    Updates last_accessed so the eviction job keeps frequently-used entries.
+    """
     stmt = (
         select(ReportCache)
         .where(ReportCache.exec_id == int(exec_id), ReportCache.profile == profile)
     )
     rows = sess.execute(stmt).scalars().all()
-    return [r.as_dict() for r in rows] if rows else None
+    if not rows:
+        return None
+
+    now = datetime.utcnow()
+    sess.execute(
+        update(ReportCache)
+        .where(ReportCache.exec_id == int(exec_id), ReportCache.profile == profile)
+        .values(last_accessed=now)
+    )
+    sess.commit()
+
+    return [r.as_dict() for r in rows]
 
 
 def store_report(sess, exec_id, profile, rows):
@@ -64,6 +78,7 @@ def store_report(sess, exec_id, profile, rows):
             order=row.get("order"),
             weight_total=row.get("weight_total"),
             created_at=now,
+            last_accessed=now,
         ).on_conflict_do_nothing(constraint="uq_report_cache_row")
         sess.execute(stmt)
     sess.commit()
@@ -78,13 +93,17 @@ def invalidate_exec(sess, exec_id):
 
 
 def evict_old_entries(sess, keep=None):
-    """Keep only the ``keep`` most-recent exec_ids in the cache."""
+    """Keep only the ``keep`` most-recently-accessed exec_ids in the cache.
+
+    Uses last_accessed (with created_at as fallback for rows that predate the
+    column) so frequently-queried reports are never evicted.
+    """
     keep = keep or REPORT_CACHE_MAX_EXECS
 
     recent_ids = (
         select(ReportCache.exec_id)
         .group_by(ReportCache.exec_id)
-        .order_by(func.max(ReportCache.created_at).desc())
+        .order_by(func.max(func.coalesce(ReportCache.last_accessed, ReportCache.created_at)).desc())
         .limit(keep)
     ).subquery()
 

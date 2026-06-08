@@ -14,7 +14,8 @@ SLURM_TEMPLATES = os.path.join(REPOSITORY, 'scripts', 'slurm')
 PIPELINE_DEF = os.path.join(REPOSITORY, 'scripts', 'pipeline')
 
 JOBRUNNER_WORKDIR = "scratch/jobrunner"
-JOBRUNNER_LOCAL_CACHE =  os.path.abspath(os.path.join(ROOT, 'data'))
+JOBRUNNER_LOCAL_CACHE = os.path.abspath(os.path.join(ROOT, 'data'))
+SECRETS_FILE = os.path.join(JOBRUNNER_LOCAL_CACHE, '.secrets')
 
 
 OR = "?"

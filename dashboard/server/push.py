@@ -60,6 +60,8 @@ def push_routes(app, database_uri):
                 row = sess.execute(
                     select(PushKey).where(PushKey.key == key)
                 ).scalar_one_or_none()
+                if not row:
+                    print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
                 return row.name if row else None
 
     @app.route('/api/push/key/request', methods=['POST'])

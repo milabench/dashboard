@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
         env: "dev",
         routes: [
             { label: 'Jobs', path: '/jobs' },
+            { label: 'Submit Job', path: '/jobs/submit' },
             { label: 'Pipelines', path: '/pipelines' },
             { label: 'Dashboard', path: '/realtime' },
         ]

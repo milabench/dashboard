@@ -340,6 +340,8 @@ def view_server(config):
         "__iter__",
         "iter_create",
         "iter_start",
+        "iter_end",
+        "total_elapsed",
         "return_code",
         "status",
         "walltime",

@@ -284,6 +284,7 @@ export interface SlurmJobAccounting {
 
 export interface PersitedJobInfo {
     name: string;
+    cluster?: string;
     creation_time: string;
     last_modified: string;
     last_accessed: string;
@@ -321,6 +322,7 @@ export interface SlurmTemplate {
 
 export interface SlurmProfile {
     name: string;
+    cluster?: string;
     description: string;
     sbatch_args: string[];
     parsed_args: {

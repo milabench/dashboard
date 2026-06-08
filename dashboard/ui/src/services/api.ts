@@ -23,8 +23,9 @@ export const api = axios.create({
 const handleError = (error: unknown): never => {
     if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
+        const data = axiosError.response?.data as any;
         throw {
-            message: (axiosError.response?.data as any)?.message || axiosError.message,
+            message: data?.error || data?.message || axiosError.message,
             status: axiosError.response?.status || 500,
         } as ApiError;
     }
@@ -511,11 +512,26 @@ export const getSlurmProfiles = async (): Promise<SlurmProfile[]> => {
     }
 };
 
+export interface SlurmCluster {
+    name: string;
+    ssh: string;
+}
+
+export const getSlurmClusters = async (): Promise<SlurmCluster[]> => {
+    try {
+        const response = await api.get('/slurm/clusters');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 
 
 export const saveSlurmProfile = async (request: {
     name: string;
     description?: string;
+    cluster?: string;
     sbatch_args: string[];
 }): Promise<{ success: boolean; message?: string; error?: string }> => {
     try {
@@ -529,6 +545,7 @@ export const saveSlurmProfile = async (request: {
 export const submitSlurmJob = async (request: {
     script: string;
     job_name?: string;
+    cluster?: string;
     sbatch_args?: string[];
     script_args?: Record<string, string>;
     // Individual parameters for backward compatibility
@@ -582,6 +599,25 @@ export const saveSlurmJob = async (jrJobId: string, message: string): Promise<{ 
         return response.data;
     } catch (error) {
         return handleError(error);
+    }
+};
+
+// Secrets-related API functions
+export const testSlurmSecret = async (name: string): Promise<{ name: string; masked: string } | null> => {
+    try {
+        const response = await api.get(`/slurm/secrets/test/${name}`);
+        return response.data;
+    } catch {
+        return null;
+    }
+};
+
+export const listSlurmSecrets = async (): Promise<string[]> => {
+    try {
+        const response = await api.get('/slurm/secrets/list');
+        return response.data;
+    } catch {
+        return [];
     }
 };
 

@@ -205,6 +205,11 @@ def weighted_perf_per_bench_query(exec_ids, profile="default", drop_min_max=True
     # This gives the raw score per bench before weighting
     sub = perf_per_bench.subquery()
 
+    # Build a superset of all bench names from both perf data and weights
+    perf_benches = select(sub.c.bench.label("bench")).distinct()
+    weight_benches = select(Weight.pack.label("bench")).where(Weight.profile == profile).distinct()
+    all_benches = perf_benches.union(weight_benches).subquery()
+
     if len(exec_ids) == 1:
         exec_id = func.coalesce(sub.c.exec_id, exec_ids[0])
     else:
@@ -213,20 +218,18 @@ def weighted_perf_per_bench_query(exec_ids, profile="default", drop_min_max=True
     weighted_perf_per_bench = (
         select(
             exec_id.label("exec_id"),
-            Weight.pack.label("bench"),  # Use Weight.pack instead of sub.c.bench to ensure all weights are included
+            all_benches.c.bench.label("bench"),
             func.avg(func.coalesce(sub.c.ngpu, 0)).label("ngpu"),
             func.avg(func.coalesce(sub.c.n, 0)).label("n"),
             func.avg(func.coalesce(sub.c.avg, 0)).label("perf"),
             func.avg(func.coalesce(sub.c.score, 0)).label("score"),
             func.avg(func.coalesce(sub.c.std, 0)).label("std"),
-            # func.avg(func.coalesce(sub.c.count, 0)).label("count"),
-            func.avg(func.ln(func.coalesce(sub.c.score, 0) + 1) * Weight.weight * Weight.enabled.cast(Integer)).label("log_score")
+            func.avg(func.ln(func.coalesce(sub.c.score, 0) + 1) * func.coalesce(Weight.weight, 0) * func.coalesce(Weight.enabled.cast(Integer), 0)).label("log_score")
         )
-        .outerjoin(sub, Weight.pack == sub.c.bench) 
-        # .outerjoin(Weight, Weight.pack == sub.c.bench)  # Use LEFT JOIN (outerjoin) instead of INNER JOIN
-        .where(
-            Weight.profile == profile,
-        ).group_by(Weight.pack, sub.c.exec_id)
+        .select_from(all_benches)
+        .outerjoin(sub, sub.c.bench == all_benches.c.bench)
+        .outerjoin(Weight, sqlalchemy.and_(Weight.pack == all_benches.c.bench, Weight.profile == profile))
+        .group_by(all_benches.c.bench, sub.c.exec_id)
     )
 
     return weighted_perf_per_bench
@@ -252,6 +255,7 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
         select(
             Pack.name.label("bench"),
             Pack.exec_id,
+            func.count().label("total"),
             func.sum(
                 sqlalchemy.case(
                     (Pack.status.notin_(["done", "early_stop"]), 1),
@@ -272,7 +276,9 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
 
             *more,
 
-            func.coalesce(func.max(pack_benches.c.fail), 0).cast(Integer).label("fail"),
+            func.coalesce(func.avg(pack_benches.c.total), 0).cast(Integer).label("total"),
+
+            func.coalesce(func.avg(pack_benches.c.fail), 0).cast(Integer).label("fail"),
 
             func.coalesce(func.avg(sub.c.n), 0).cast(Float).label("n"),
 

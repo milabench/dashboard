@@ -16,6 +16,7 @@ import Scaling from './components/views/Scaling';
 import GroupedView from './components/views/GroupedView';
 import SavedQueriesView from './components/views/SavedQueriesView';
 import { DashboardView } from './components/views/Dashboard';
+import { JobSubmitView } from './components/views/JobSubmitView';
 import { JobDetailsView } from './components/views/JobDetails';
 import { JobLogsView } from './components/views/JobLogs';
 import { PipelinesView } from './components/views/PipelinesView';
@@ -51,6 +52,7 @@ function App() {
                   <>
                     <Route path="/" element={<SupportedGpusView />} />
                     <Route path="/jobs" element={<DashboardView />} />
+                    <Route path="/jobs/submit" element={<JobSubmitView />} />
                     <Route path="/jobrunner/:slurmJobId/:jrJobId" element={<JobDetailsView />} />
                     <Route path="/joblogs/:slurmJobId/:jrJobId" element={<JobLogsView />} />
                     <Route path="/pipelines" element={<PipelinesView />} />

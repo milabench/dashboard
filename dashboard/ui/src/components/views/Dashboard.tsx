@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     Box,
     Heading,
@@ -9,7 +9,6 @@ import {
     Button,
     Badge,
     Table,
-    Dialog,
     Card,
     Spinner,
     Alert,
@@ -28,14 +27,11 @@ import {
     LuClock,
 } from 'react-icons/lu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { JobSubmissionForm } from './JobSubmit';
 import {
     getSlurmJobs,
     getSlurmPersistedJobs,
     cancelSlurmJob,
     rerunSlurmJob,
-    getSlurmTemplates,
-    getSlurmProfiles,
     getSlurmClusterStatus,
 } from '../../services/api';
 import type { SlurmJob, PersitedJobInfo } from '../../services/types';
@@ -91,9 +87,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
     usePageTitle('Dashboard');
 
     const queryClient = useQueryClient();
-    const [isOpen, setIsOpen] = useState(false);
-    const onOpen = () => setIsOpen(true);
-    const onClose = () => setIsOpen(false);
+    const navigate = useNavigate();
 
     const freshnessGreen = getComputedStyle(document.documentElement).getPropertyValue('--color-freshness-good').trim() || '#48bb78';
     const freshnessBrown = getComputedStyle(document.documentElement).getPropertyValue('--color-freshness-stale').trim() || '#7b341e';
@@ -120,21 +114,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
         queryFn: getSlurmPersistedJobs,
         refetchOnWindowFocus: false,
         staleTime: 30000, // Consider data fresh for 30 seconds
-    });
-
-    // Cached template names - kept fresh for 10 minutes
-    const { data: templateNames } = useQuery<string[]>({
-        queryKey: ['slurm-templates'],
-        queryFn: getSlurmTemplates,
-        refetchOnWindowFocus: false,
-        staleTime: 600000, // Consider data fresh for 10 minutes
-    });
-
-    const { data: profiles } = useQuery({
-        queryKey: ['slurm-profiles'],
-        queryFn: getSlurmProfiles,
-        refetchOnWindowFocus: false,
-        staleTime: 300000, // Consider data fresh for 5 minutes
     });
 
     const { data: clusterStatus, isLoading: clusterStatusLoading } = useQuery({
@@ -277,7 +256,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
 
                         <HStack gap={2}>
                             <Button
-                                onClick={onOpen}
+                                onClick={() => navigate('/jobs/submit')}
                                 size="sm"
                                 fontWeight="medium"
                                 bg="var(--color-primary)"
@@ -376,7 +355,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
-                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">State Reason</Table.ColumnHeader>
+                                                    <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Cluster</Table.ColumnHeader>
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
                                                     <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
@@ -412,18 +391,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             </HStack>
                                                         </Table.Cell>
                                                         <Table.Cell>
-                                                            {job.state_reason ? (
-                                                                <Tooltip
-                                                                    positioning={{ placement: 'top', offset: { mainAxis: 8 } }}
-                                                                    content={job.state_description || 'No description available'}
-                                                                >
-                                                                    <Text cursor="help" maxW="150px" truncate>
-                                                                        {job.state_reason}
-                                                                    </Text>
-                                                                </Tooltip>
-                                                            ) : (
-                                                                <Text color="var(--color-text-muted)">N/A</Text>
-                                                            )}
+                                                            <Text color="var(--color-text)" fontSize="sm">mila</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
                                                             <Text color="var(--color-text)">{job.partition || 'N/A'}</Text>
@@ -577,6 +545,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">JR Job ID</Table.ColumnHeader>
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Name</Table.ColumnHeader>
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Status</Table.ColumnHeader>
+                                                <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Cluster</Table.ColumnHeader>
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Partition</Table.ColumnHeader>
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">User</Table.ColumnHeader>
                                                 <Table.ColumnHeader fontWeight="semibold" color="var(--color-text)" py={2} px={4} fontSize="sm">Time</Table.ColumnHeader>
@@ -683,6 +652,9 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                                             </HStack>
                                                         </Table.Cell>
                                                         <Table.Cell>
+                                                            <Text color="var(--color-text)" fontSize="sm">{persistedJobInfo.cluster || 'mila'}</Text>
+                                                        </Table.Cell>
+                                                        <Table.Cell>
                                                             <Text color="var(--color-text)">{partition}</Text>
                                                         </Table.Cell>
                                                         <Table.Cell>
@@ -753,26 +725,6 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                 </Card.Root>
 
 
-                {/* Job Submission Modal */}
-                <Dialog.Root open={isOpen} onOpenChange={(details) => setIsOpen(details.open)}>
-                    <Dialog.Backdrop />
-                    <Dialog.Positioner>
-                        <Dialog.Content maxW="80vw" w="80vw" style={{ margin: "5px" }}>
-                            <Dialog.Header>
-                                <Dialog.Title>Submit New Job</Dialog.Title>
-                                <Dialog.CloseTrigger />
-                            </Dialog.Header>
-                            <Dialog.Body>
-                                <JobSubmissionForm
-                                    templates={templateNames}
-                                    profiles={profiles || []}
-                                    activeJobs={activeJobs}
-                                    onClose={onClose}
-                                />
-                            </Dialog.Body>
-                        </Dialog.Content>
-                    </Dialog.Positioner>
-                </Dialog.Root>
             </VStack>
         </Box>
     );

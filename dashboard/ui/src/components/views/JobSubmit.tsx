@@ -13,7 +13,10 @@ import {
     NativeSelect,
     Heading,
     Card,
+    Spinner,
+    Icon,
 } from '@chakra-ui/react';
+import { LuCheck, LuX, LuLock } from 'react-icons/lu';
 import { toaster } from '../ui/toaster';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import AutocompleteInput from '../shared/AutocompleteInput';
@@ -22,7 +25,8 @@ import {
     submitSlurmJob,
     getSlurmTemplateContent,
     saveSlurmProfile,
-    saveSlurmTemplate
+    saveSlurmTemplate,
+    testSlurmSecret
 } from '../../services/api';
 import type { SlurmProfile, SlurmJob } from '../../services/types';
 
@@ -57,6 +61,14 @@ const parseExportVariables = (script: string, only_constant: boolean = true): Re
     return variables;
 };
 
+// Pattern to detect secret references in variable values
+const SECRET_PATTERN = /\{\{\s*secrets\.(\w+)\s*\}\}/;
+
+const extractSecretName = (value: string): string | null => {
+    const match = SECRET_PATTERN.exec(value);
+    return match ? match[1] : null;
+};
+
 // Utility function to update script with new export variable values
 const updateScriptWithExportVars = (script: string, scriptArgs: Record<string, string>): string => {
     let updatedScript = script;
@@ -83,9 +95,15 @@ export interface JobSubmissionInitialData {
     sbatch_args?: string[];
 }
 
+interface ClusterOption {
+    name: string;
+    ssh: string;
+}
+
 interface JobSubmissionFormProps {
     templates?: string[];
     profiles: SlurmProfile[];
+    clusters?: ClusterOption[];
     activeJobs?: SlurmJob[];
     onClose?: () => void;
     initialData?: JobSubmissionInitialData;
@@ -94,6 +112,7 @@ interface JobSubmissionFormProps {
 export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     templates = [],
     profiles = [],
+    clusters = [],
     activeJobs = [],
     onClose,
     initialData
@@ -104,12 +123,14 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
     const [selectedProfile, setSelectedProfile] = useState<string>('');
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+    const [selectedCluster, setSelectedCluster] = useState<string>('mila');
 
     // Controlled state for NumberInput components
     const [nodes, setNodes] = useState<string>('');
     const [ntasks, setNtasks] = useState<string>('');
     const [cpusPerTask, setCpusPerTask] = useState<string>('');
     const [ntasksPerNode, setNtasksPerNode] = useState<string>('');
+    const [exclusive, setExclusive] = useState<boolean>(false);
 
     // Mutations
     const submitJobMutation = useMutation({
@@ -135,12 +156,15 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         },
     });
 
+    const pendingEditorContent = useRef<string | null>(null);
+
     const loadTemplateMutation = useMutation({
         mutationFn: getSlurmTemplateContent,
         onSuccess: (content) => {
-            // Update the Monaco editor directly
             if (editorRef.current) {
                 editorRef.current.setValue(content);
+            } else {
+                pendingEditorContent.current = content;
             }
         },
         onError: (error: any) => {
@@ -200,7 +224,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         setSelectedProfile(profileName);
         const selectedProfileData = profiles?.find(p => p.name === profileName);
         if (selectedProfileData) {
-            // Clear all fields first, then set values from profile
+            if (selectedProfileData.cluster) {
+                setSelectedCluster(selectedProfileData.cluster);
+            }
             if (jobNameRef.current) {
                 jobNameRef.current.value = selectedProfileData.parsed_args.job_name || '';
             }
@@ -220,9 +246,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             if (gpusPerTaskRef.current) {
                 gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task || '';
             }
-            if (exclusiveRef.current) {
-                exclusiveRef.current.checked = selectedProfileData.parsed_args.exclusive || false;
-            }
+            setExclusive(selectedProfileData.parsed_args.exclusive || false);
             if (exportVarsRef.current) {
                 exportVarsRef.current.value = selectedProfileData.parsed_args.export || '';
             }
@@ -238,6 +262,25 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             loadTemplateMutation.mutate(templateName);
         }
     };
+
+    // Apply defaults on mount
+    const defaultProfileApplied = useRef(false);
+    const defaultTemplateApplied = useRef(false);
+    useEffect(() => {
+        if (initialData) return;
+
+        const defaultProfile = '1x8xA100l';
+        const defaultTemplate = 'shared_run.sh';
+
+        if (!defaultProfileApplied.current && profiles?.some(p => p.name === defaultProfile) && !selectedProfile) {
+            handleProfileSelect(defaultProfile);
+            defaultProfileApplied.current = true;
+        }
+        if (!defaultTemplateApplied.current && templates?.includes(defaultTemplate) && !selectedTemplate) {
+            handleTemplateSelect(defaultTemplate);
+            defaultTemplateApplied.current = true;
+        }
+    }, [profiles, templates]);
 
     const handleSaveProfile = () => {
         const profileName = selectedProfile.trim();
@@ -261,7 +304,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const timeLimit = timeLimitRef.current?.value;
         const gpusPerTask = gpusPerTaskRef.current?.value;
         const ntasksPerNodeValue = ntasksPerNode;
-        const exclusive = exclusiveRef.current?.checked;
         const exportVars = exportVarsRef.current?.value;
         const nodelist = nodelistRef.current?.value;
 
@@ -283,6 +325,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         saveProfileMutation.mutate({
             name: profileName,
             description: '',
+            cluster: selectedCluster,
             sbatch_args: filteredArgs
         });
     };
@@ -327,7 +370,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const timeLimit = timeLimitRef.current?.value;
         const gpusPerTask = gpusPerTaskRef.current?.value;
         const ntasksPerNodeValue = ntasksPerNode;
-        const exclusive = exclusiveRef.current?.checked;
         const exportVars = exportVarsRef.current?.value;
         const nodelist = nodelistRef.current?.value;
         const dependencyEvent = dependencyEventRef.current?.value;
@@ -366,6 +408,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         submitJobMutation.mutate({
             script: editorRef.current?.getValue() || '',
             job_name: jobNameRef.current?.value || 'milabench_job',
+            cluster: selectedCluster,
             sbatch_args: sbatch_args,
             script_args: currentScriptArgs
         });
@@ -379,7 +422,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const timeLimitRef = useRef<HTMLInputElement>(null);
     const gpusPerTaskRef = useRef<HTMLInputElement>(null);
 
-    const exclusiveRef = useRef<HTMLInputElement>(null);
+
     const exportVarsRef = useRef<HTMLInputElement>(null);
     const nodelistRef = useRef<HTMLInputElement>(null);
     const dependencyEventRef = useRef<HTMLSelectElement>(null);
@@ -426,8 +469,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             const gpusVal = parseSbatchArg(initialData.sbatch_args, '--gpus-per-task=');
             if (gpusVal && gpusPerTaskRef.current) gpusPerTaskRef.current.value = gpusVal;
 
-            const exclusiveArg = initialData.sbatch_args.includes('--exclusive');
-            if (exclusiveArg && exclusiveRef.current) exclusiveRef.current.checked = true;
+            if (initialData.sbatch_args.includes('--exclusive')) setExclusive(true);
 
             const exportVal = parseSbatchArg(initialData.sbatch_args, '--export=');
             if (exportVal && exportVarsRef.current) exportVarsRef.current.value = exportVal;
@@ -446,6 +488,45 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
     // Minimal state only for displaying script args section (not for values)
     const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>({});
+
+    // Secret resolution status: maps secret name -> 'ok' | 'missing' | 'loading'
+    const [secretStatus, setSecretStatus] = useState<Record<string, 'ok' | 'missing' | 'loading'>>({});
+
+    useEffect(() => {
+        const secretNames: string[] = [];
+        for (const value of Object.values(scriptArgsDisplay)) {
+            const name = extractSecretName(value);
+            if (name && !secretNames.includes(name)) {
+                secretNames.push(name);
+            }
+        }
+
+        if (secretNames.length === 0) {
+            setSecretStatus({});
+            return;
+        }
+
+        setSecretStatus(prev => {
+            const next: Record<string, 'ok' | 'missing' | 'loading'> = {};
+            for (const name of secretNames) {
+                next[name] = prev[name] === 'ok' || prev[name] === 'missing' ? prev[name] : 'loading';
+            }
+            return next;
+        });
+
+        let cancelled = false;
+        const check = async () => {
+            for (const name of secretNames) {
+                if (cancelled) return;
+                const result = await testSlurmSecret(name);
+                if (cancelled) return;
+                setSecretStatus(prev => ({ ...prev, [name]: result ? 'ok' : 'missing' }));
+            }
+        };
+        check();
+
+        return () => { cancelled = true; };
+    }, [scriptArgsDisplay]);
 
     // No more state for editor content - completely uncontrolled!
     // We'll read script args from DOM and editor content from Monaco editor directly
@@ -518,9 +599,23 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     return (
         <Box width="100%" height="100%" p={6} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} height="100%">
-                <Heading size="lg" fontWeight="bold" color="var(--color-text)" mb={2}>
-                    {initialData ? 'Edit & Resubmit Job' : 'Submit New Job'}
-                </Heading>
+                <HStack justify="space-between" align="center" mb={2}>
+                    <Heading size="lg" fontWeight="bold" color="var(--color-text)">
+                        {initialData ? 'Edit & Resubmit Job' : 'Submit New Job'}
+                    </Heading>
+                    <Button
+                        colorScheme="blue"
+                        onClick={handleSubmitJob}
+                        loading={submitJobMutation.isPending}
+                        fontWeight="medium"
+                        size="md"
+                        bg="var(--color-primary)"
+                        color="var(--color-primary-text)"
+                        _hover={{ bg: 'var(--color-primary-hover)' }}
+                    >
+                        {initialData ? 'Resubmit Job' : 'Submit Job'}
+                    </Button>
+                </HStack>
 
                 <Grid templateColumns="repeat(2, 1fr)" gap={6} width="100%" flex="1" overflow="hidden">
                     {/* Left Column - Slurm Options */}
@@ -538,52 +633,61 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <Heading size="sm" fontWeight="semibold" color="var(--color-text)">
                                     Slurm Profile
                                 </Heading>
-                                <Field.Root>
-                                    <HStack gap={3} align="center">
-                                        <Field.Label minW="100px" mb={0} color="var(--color-text)">Profile</Field.Label>
-                                        <VStack align="stretch" flex={1} gap={2}>
-                                            <HStack gap={2}>
-                                                <Box flex={1} minW={0}>
-                                                    <AutocompleteInput
-                                                        value={selectedProfile}
-                                                        onChange={setSelectedProfile}
-                                                        onSelect={handleProfileSelect}
-                                                        suggestions={profiles.map(p => p.name)}
-                                                        placeholder="Select a profile or enter custom name"
-                                                        size="md"
-                                                        width="100%"
-                                                        renderSuggestion={(suggestion) => {
-                                                            const profile = profiles.find(p => p.name === suggestion);
-                                                            return (
-                                                                <VStack align="start" gap={0}>
-                                                                    <Text fontWeight="medium" color="var(--color-text)">{suggestion}</Text>
-                                                                    {profile?.description && (
-                                                                        <Text fontSize="xs" color="var(--color-text-muted)">
-                                                                            {profile.description}
-                                                                        </Text>
-                                                                    )}
-                                                                </VStack>
-                                                            );
-                                                        }}
-                                                    />
-                                                </Box>
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={handleSaveProfile}
-                                                    loading={saveProfileMutation.isPending}
-                                                    size="md"
-                                                    fontWeight="medium"
-                                                    flexShrink={0}
-                                                >
-                                                    Save Profile
-                                                </Button>
-                                            </HStack>
-                                        </VStack>
+                                <HStack gap={4} align="center">
+                                    <HStack gap={2} align="center" flex={3} minW={0}>
+                                        <Text fontSize="sm" fontWeight="medium" color="var(--color-text)" whiteSpace="nowrap">Cluster:</Text>
+                                        <NativeSelect.Root size="md" flex={1}>
+                                            <NativeSelect.Field
+                                                value={selectedCluster}
+                                                onChange={(e) => setSelectedCluster(e.target.value)}
+                                            >
+                                                {clusters.map((c) => (
+                                                    <option key={c.name} value={c.name}>{c.name}</option>
+                                                ))}
+                                                {clusters.length === 0 && (
+                                                    <option value="mila">mila</option>
+                                                )}
+                                            </NativeSelect.Field>
+                                        </NativeSelect.Root>
                                     </HStack>
-                                    <Text fontSize="sm" color="var(--color-text-muted)" mt={1}>
-                                        Select an existing profile or enter a new name to create a new profile
-                                    </Text>
-                                </Field.Root>
+                                    <HStack gap={2} align="center" flex={6} minW={0}>
+                                        <Text fontSize="sm" fontWeight="medium" color="var(--color-text)" whiteSpace="nowrap">Profile:</Text>
+                                        <Box flex={1} minW="200px">
+                                            <AutocompleteInput
+                                                value={selectedProfile}
+                                                onChange={setSelectedProfile}
+                                                onSelect={handleProfileSelect}
+                                                suggestions={profiles.map(p => p.name)}
+                                                placeholder="Select a profile or enter custom name"
+                                                size="md"
+                                                width="100%"
+                                                renderSuggestion={(suggestion) => {
+                                                    const profile = profiles.find(p => p.name === suggestion);
+                                                    return (
+                                                        <VStack align="start" gap={0}>
+                                                            <Text fontWeight="medium" color="var(--color-text)">{suggestion}</Text>
+                                                            {profile?.description && (
+                                                                <Text fontSize="xs" color="var(--color-text-muted)">
+                                                                    {profile.description}
+                                                                </Text>
+                                                            )}
+                                                        </VStack>
+                                                    );
+                                                }}
+                                            />
+                                        </Box>
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleSaveProfile}
+                                            loading={saveProfileMutation.isPending}
+                                            size="md"
+                                            fontWeight="medium"
+                                            flexShrink={0}
+                                        >
+                                            Save Profile
+                                        </Button>
+                                    </HStack>
+                                </HStack>
                             </VStack>
                         </Card.Root>
 
@@ -758,9 +862,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 <Field.Root>
                                     <HStack gap={3} align="center">
                                         <Field.Label minW="120px" mb={0} color="var(--color-text)">Exclusive</Field.Label>
-                                        <Checkbox.Root>
+                                        <Checkbox.Root checked={exclusive} onCheckedChange={(e) => setExclusive(!!e.checked)}>
                                             <Checkbox.HiddenInput />
-                                            <Checkbox.Control ref={exclusiveRef} defaultChecked={false} />
+                                            <Checkbox.Control />
                                             <Checkbox.Label color="var(--color-text)">Request exclusive access to nodes</Checkbox.Label>
                                         </Checkbox.Root>
                                     </HStack>
@@ -832,19 +936,41 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                 {scriptArgsDisplay && Object.keys(scriptArgsDisplay).length > 0 ? (
                                     <Box pl={3} borderLeft="2px solid" borderColor="var(--color-border)" id="script-args-container" key={JSON.stringify(scriptArgsDisplay)}>
                                         <VStack align="stretch" gap={2}>
-                                            {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => (
-                                                <HStack key={varName} gap={2}>
-                                                    <Text minW="150px" fontSize="sm" fontWeight="medium" color="var(--color-text)">
-                                                        {varName}
-                                                    </Text>
-                                                    <Input
-                                                        data-arg-name={varName}
-                                                        defaultValue={varValue}
-                                                        size="sm"
-                                                        flex={1}
-                                                    />
-                                                </HStack>
-                                            ))}
+                                            {Object.entries(scriptArgsDisplay).map(([varName, varValue]) => {
+                                                const secretName = extractSecretName(varValue);
+                                                const isSecret = secretName !== null;
+                                                const status = secretName ? secretStatus[secretName] : undefined;
+
+                                                return (
+                                                    <HStack key={varName} gap={2}>
+                                                        <Text minW="150px" fontSize="sm" fontWeight="medium" color="var(--color-text)">
+                                                            {isSecret && <Icon as={LuLock} boxSize={3} mr={1} color="var(--color-text-muted)" />}
+                                                            {varName}
+                                                        </Text>
+                                                        <Input
+                                                            data-arg-name={varName}
+                                                            defaultValue={varValue}
+                                                            size="sm"
+                                                            flex={1}
+                                                            readOnly={isSecret}
+                                                            opacity={isSecret ? 0.7 : 1}
+                                                        />
+                                                        {isSecret && (
+                                                            status === 'loading' ? (
+                                                                <Spinner size="sm" />
+                                                            ) : status === 'ok' ? (
+                                                                <Box as="span" title={`Secret "${secretName}" found`}>
+                                                                    <Icon as={LuCheck} boxSize={4} color="green.500" />
+                                                                </Box>
+                                                            ) : status === 'missing' ? (
+                                                                <Box as="span" title={`Secret "${secretName}" not found`}>
+                                                                    <Icon as={LuX} boxSize={4} color="red.500" />
+                                                                </Box>
+                                                            ) : null
+                                                        )}
+                                                    </HStack>
+                                                );
+                                            })}
                                         </VStack>
                                     </Box>
                                 ) : (
@@ -855,9 +981,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                     </Box>
                                 )}
 
-                                <Text fontSize="xs" color="var(--color-text-muted)">
-                                    Export variables are extracted automatically. Use "Apply to Script" to update the script with your changes.
-                                </Text>
                             </VStack>
                         </Card.Root>
                     </VStack>
@@ -954,6 +1077,10 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                                 if (initialData?.script) {
                                                     editor.setValue(initialData.script);
                                                     refreshScriptArgs();
+                                                } else if (pendingEditorContent.current) {
+                                                    editor.setValue(pendingEditorContent.current);
+                                                    pendingEditorContent.current = null;
+                                                    refreshScriptArgs();
                                                 }
                                             }}
                                         />
@@ -964,36 +1091,6 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                     </VStack>
                 </Grid>
 
-                {/* Submit and Cancel buttons */}
-                <HStack
-                    gap={3}
-                    justify="flex-end"
-                    pt={4}
-                    borderTopWidth="1px"
-                    borderTopColor="var(--color-border)"
-                >
-                    <Button
-                        variant="ghost"
-                        onClick={onClose}
-                        fontWeight="medium"
-                        color="var(--color-text)"
-                        _hover={{ bg: 'var(--color-bg-hover)' }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        colorScheme="blue"
-                        onClick={handleSubmitJob}
-                        loading={submitJobMutation.isPending}
-                        fontWeight="medium"
-                        size="md"
-                        bg="var(--color-primary)"
-                        color="var(--color-primary-text)"
-                        _hover={{ bg: 'var(--color-primary-hover)' }}
-                    >
-                        {initialData ? 'Resubmit Job' : 'Submit Job'}
-                    </Button>
-                </HStack>
             </VStack>
         </Box>
     );

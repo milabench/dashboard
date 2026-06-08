@@ -23,6 +23,7 @@ from flask import request, jsonify, send_file
 
 from .constant import *
 from .pipeline import Pipeline, JobNode, Sequential, Parallel
+from .secrets import create_default_store, resolve_secrets, mask_value
 
 
 #
@@ -69,6 +70,10 @@ mila = ClusterContext(
     config={}
 )
 
+
+_registered_clusters: dict[str, ClusterContext] = {
+    "mila": mila,
+}
 
 _cluster: ContextVar[ClusterContext] = ContextVar("cluster", default=mila)
 
@@ -191,17 +196,19 @@ RSYNC_TIMEOUT = 2
 RSYNC_ERROR = 1
 
 def clean_remote():
+    """Remove job directories older than 7 days from the remote folder."""
     try:
-        cmd = f"find {_remote_folder()} -type d -mtime +7 -exec rm -rf {{}} +"
-        remote_command(_ssh_host(), cmd, timeout=30)
-    except:
-        pass
+        folder = _remote_folder()
+        cmd = f"'find {folder} -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {{}} +'"
+        remote_command(_ssh_host(), cmd, timeout=60)
+    except Exception:
+        traceback.print_exc()
 
 
 def remove_job_from_remote(jr_job_id):
     assert jr_job_id != ""
 
-    cmd = f"rm -rf {_remote_folder()}/{jr_job_id}"
+    cmd = f"'rm -rf {_remote_folder()}/{jr_job_id}'"
     remote_command(_ssh_host(), cmd, timeout=30)
 
 
@@ -395,7 +402,7 @@ def book_keeping():
     try:
         if rsync_jobrunner_folder(force=True) == 0:
             #
-            results = remote_command(_ssh_host(), f"ls -1 {_remote_folder()}", timeout=30)
+            results = remote_command(_ssh_host(), f"'ls -1 {_remote_folder()}'", timeout=30)
             all_jobs = results["stdout"].split('\n')
 
             active_jobs = get_active_jobs()
@@ -416,6 +423,7 @@ def book_keeping():
                 remove_job_from_remote(job)
     except Exception:
         traceback.print_exc()
+        clean_remote()
 
 
 
@@ -634,12 +642,15 @@ def slurm_integration(app, cache):
     book_keeping()
     app.scheduler.add_job(book_keeping, 'interval', seconds=3600)
 
+    from pathlib import Path
+    app.secret_store = create_default_store(Path(JOBRUNNER_LOCAL_CACHE))
+
     @app.route('/api/slurm/jobs/persited/old')
     def api_slurm_persisted_old():
         """Get a list of job output still available"""
         try:
             # Get running and pending jobs using JSON format
-            result = remote_command(_ssh_host(), f"ls {_remote_folder()}")
+            result = remote_command(_ssh_host(), f"'ls {_remote_folder()}'")
 
             if not result['success']:
                 return jsonify({'error': f'Failed to get jobs: {result["stderr"]}'}), 500
@@ -648,7 +659,7 @@ def slurm_integration(app, cache):
 
             # Sort by creation time (oldest first) to preserve server send order
             def get_remote_creation_time(job_id):
-                stat_result = remote_command(_ssh_host(), f"stat -c %Y {_remote_folder()}/{job_id} 2>/dev/null || echo '0'")
+                stat_result = remote_command(_ssh_host(), f"'stat -c %Y {_remote_folder()}/{job_id} 2>/dev/null || echo 0'")
                 if stat_result['success']:
                     try:
                         return float(stat_result['stdout'].strip())
@@ -712,6 +723,16 @@ def slurm_integration(app, cache):
                 return {}
 
             def load_acc(dir_path, jr_job_id, job_id):
+                # Fallback: read job_id from job_id.txt if not in info.json
+                if job_id is None:
+                    job_id_file = os.path.join(dir_path, "meta", "job_id.txt")
+                    if os.path.exists(job_id_file):
+                        try:
+                            with open(job_id_file, "r") as f:
+                                job_id = f.read().strip()
+                        except Exception:
+                            pass
+
                 key = dir_path
                 def queue_update():
                     if job_id is not None:
@@ -764,8 +785,19 @@ def slurm_integration(app, cache):
                 if os.path.isdir(item_path) and item[0] != '.':
                     stat= os.stat(item_path)
                     info = load_info(item_path, stat.st_mtime)
+
+                    cluster = 'mila'
+                    cluster_file = os.path.join(item_path, "meta", "cluster.txt")
+                    if os.path.exists(cluster_file):
+                        try:
+                            with open(cluster_file, "r") as f:
+                                cluster = f.read().strip()
+                        except Exception:
+                            pass
+
                     job_dirs.append({
                         "name": item,
+                        "cluster": cluster,
                         "creation_time": stat.st_ctime,
                         "last_modified": stat.st_mtime,
                         "last_accessed": stat.st_atime,
@@ -916,6 +948,16 @@ def slurm_integration(app, cache):
         if not result['success']:
             return jsonify({'error': f'Failed to copy script: {result["stderr"]}'}), 500
 
+        # Resolve secrets in the copied script before sending to cluster
+        try:
+            with open(new_local_script, "r") as fp:
+                script_text = fp.read()
+            resolved_text = resolve_secrets(script_text, app.secret_store)
+            with open(new_local_script, "w") as fp:
+                fp.write(resolved_text)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+
         result = local_command('cat', old_cmd_path)
         if not result['success']:
             return jsonify({'error': f'Failed to retrieve previous job command: {result["stderr"]}'}), 500
@@ -1035,6 +1077,12 @@ def slurm_integration(app, cache):
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
 
+            cluster_name = data.get('cluster', 'mila')
+            cluster_ctx = _registered_clusters.get(cluster_name)
+            if not cluster_ctx:
+                return jsonify({'error': f'Unknown cluster: {cluster_name}'}), 400
+
+            token = _cluster.set(cluster_ctx)
 
             jr_job_id = generate_unique_job_name(data)
 
@@ -1102,9 +1150,15 @@ def slurm_integration(app, cache):
                 f"--error={remote_dir.replace('~/', '')}/log.stderr"
             ])
 
+            # Resolve secret templates before sending to cluster
+            try:
+                resolved_script = resolve_secrets(script_content, app.secret_store)
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
+
             # Create temporary file to hold the sbatch script
             with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(script_content)
+                f.write(resolved_script)
                 script_path = f.name
                 f.flush()
 
@@ -1138,6 +1192,15 @@ def slurm_integration(app, cache):
                 # Extract job ID from output
                 job_id_match = re.search(r'Submitted batch job (\d+)', result['stdout'])
                 job_id = job_id_match.group(1) if job_id_match else None
+
+                # Save job metadata locally
+                meta_dir = safe_job_path(jr_job_id, "meta")
+                os.makedirs(meta_dir, exist_ok=True)
+                if job_id:
+                    with open(os.path.join(meta_dir, "job_id.txt"), "w") as f:
+                        f.write(job_id)
+                with open(os.path.join(meta_dir, "cluster.txt"), "w") as f:
+                    f.write(cluster_name)
 
                 return jsonify({
                     'success': True,
@@ -1227,8 +1290,18 @@ def slurm_integration(app, cache):
         except Exception as e:
             return ({'error': str(e)}), 500
 
+    def job_info_cache_status(filename: str):
+        """Return True if the cached info.json is still valid (terminal state)."""
+        try:
+            with open(filename, "r") as fp:
+                info = json.load(fp)
+            state = get_info_state(info)
+            return state is not None and is_state_terminal(state)
+        except Exception:
+            return False
+
     @app.route('/api/slurm/jobs/<jr_job_id>/info/<job_id>')
-    @local_cache("info.json", "jr_job_id")
+    @local_cache("info.json", "jr_job_id", check_validation=job_info_cache_status)
     def api_slurm_job_info(jr_job_id, job_id=None):
         """Get logs for a specific job"""
         try:
@@ -1254,6 +1327,16 @@ def slurm_integration(app, cache):
             return jsonify({'error': str(e)}), 500
     
     def get_cached_state(jr_job_id, job_id):
+        # If job_id not provided, try to read from job_id.txt
+        if job_id is None or job_id == 0:
+            job_id_file = safe_job_path(jr_job_id, "meta", "job_id.txt")
+            if os.path.exists(job_id_file):
+                try:
+                    with open(job_id_file, "r") as f:
+                        job_id = int(f.read().strip())
+                except Exception:
+                    pass
+
         with cache_invalidator(jr_job_id, "acc.json", limit=30) as is_old:
             if not is_old:
                 sacct_info = safe_job_path(jr_job_id, "meta", "acc.json")
@@ -1263,7 +1346,9 @@ def slurm_integration(app, cache):
                     try:
                         with open(sacct_info, "r") as fp:
                             sacct = json.load(fp)
-                            return get_acc_state(sacct)
+                            state = get_acc_state(sacct)
+                            if state and is_state_terminal(state):
+                                return state
                     except:
                         pass
 
@@ -1271,10 +1356,13 @@ def slurm_integration(app, cache):
                     try:
                         with open(squeue_info, "r") as fp:
                             squeue = json.load(fp)
-                            return get_info_state(squeue)
+                            state = get_info_state(squeue)
+                            if state and is_state_terminal(state):
+                                return state
                     except:
                         pass
 
+        # Cached state is non-terminal or missing -- query sacct for the real state
         sacct = fetch_latest_job_acc_cached(jr_job_id, job_id)
         return get_acc_state(sacct)
 
@@ -1292,7 +1380,7 @@ def slurm_integration(app, cache):
         }
   
     @app.route('/api/slurm/jobs/<jr_job_id>/info')
-    @local_cache("info.json", "jr_job_id")
+    @local_cache("info.json", "jr_job_id", check_validation=job_info_cache_status)
     def api_slurm_job_info_cached(jr_job_id):
         return api_slurm_job_info(jr_job_id=jr_job_id, job_id=None)
 
@@ -1372,7 +1460,7 @@ def slurm_integration(app, cache):
         try:
             log_path = f"{_remote_folder()}/{jr_job_id}/log.stdout"
 
-            result = remote_command(_ssh_host(), f'tail -n 100 {log_path}')
+            result = remote_command(_ssh_host(), f"'tail -n 100 {log_path}'")
 
             return jsonify(result["stdout"])
 
@@ -1385,7 +1473,7 @@ def slurm_integration(app, cache):
         try:
             log_path = f"{_remote_folder()}/{jr_job_id}/log.stderr"
 
-            result = remote_command(_ssh_host(), f'tail -n 100 {log_path}')
+            result = remote_command(_ssh_host(), f"'tail -n 100 {log_path}'")
 
             return jsonify(result["stdout"])
 
@@ -1454,6 +1542,18 @@ def slurm_integration(app, cache):
         except Exception as e:
             return jsonify({'error': f'Failed to save template: {str(e)}'}), 500
 
+    # Get available clusters
+    @app.route('/api/slurm/clusters')
+    def api_slurm_clusters():
+        """Get available cluster configurations"""
+        clusters = []
+        for name, ctx in _registered_clusters.items():
+            clusters.append({
+                'name': name,
+                'ssh': ctx.ssh,
+            })
+        return jsonify(clusters)
+
     # Get available Slurm config profiles
     @app.route('/api/slurm/profiles')
     def api_slurm_profiles():
@@ -1466,10 +1566,20 @@ def slurm_integration(app, cache):
                 configs = yaml.safe_load(f)
 
             profiles = []
-            for profile_name, sbatch_args in configs.items():
-                # Parse sbatch arguments into a more usable format
+            for profile_name, profile_data in configs.items():
+                # Support both formats:
+                #   old: profile_name: [args...]
+                #   new: profile_name: { cluster: "name", args: [args...] }
+                if isinstance(profile_data, dict):
+                    sbatch_args = profile_data.get('args', [])
+                    cluster = profile_data.get('cluster', 'mila')
+                else:
+                    sbatch_args = profile_data
+                    cluster = 'mila'
+
                 parsed_config = {
                     'name': profile_name,
+                    'cluster': cluster,
                     'sbatch_args': sbatch_args,
                     'parsed_args': _parse_sbatch_args(sbatch_args)
                 }
@@ -1488,20 +1598,26 @@ def slurm_integration(app, cache):
             data = request.json
             profile_name = data.get('name')
             sbatch_args = data.get('sbatch_args', [])
+            cluster = data.get('cluster')
 
             if not profile_name:
                 return jsonify({'error': 'Profile name is required'}), 400
 
             # Filter out dependency-related arguments (safety check)
-            # Dependencies are job-specific and should not be saved in reusable profiles
             filtered_args = [arg for arg in sbatch_args if not arg.startswith('--dependency')]
 
             # Read existing config
             with open(SLURM_PROFILES, 'r') as f:
-                configs = yaml.safe_load(f)
+                configs = yaml.safe_load(f) or {}
 
-            # Add new profile
-            configs[profile_name] = filtered_args
+            # Store as dict with cluster info if cluster is specified
+            if cluster:
+                configs[profile_name] = {
+                    'cluster': cluster,
+                    'args': filtered_args
+                }
+            else:
+                configs[profile_name] = filtered_args
 
             # Write back to file
             with open(SLURM_PROFILES, 'w') as f:
@@ -1516,6 +1632,56 @@ def slurm_integration(app, cache):
             return jsonify({'error': f'Failed to save profile: {str(e)}'}), 500
 
 
+    #
+    # Secrets management routes
+    #
+    @app.route('/api/slurm/secrets/list')
+    def api_slurm_secrets_list():
+        """List available secret names (never values)."""
+        return jsonify(app.secret_store.list_available())
+
+    @app.route('/api/slurm/secrets/test/<string:name>')
+    def api_slurm_secrets_test(name):
+        """Resolve a secret and return a masked preview."""
+        value = app.secret_store.get(name)
+        if not value:
+            return jsonify({'error': f'Secret "{name}" not found'}), 404
+        return jsonify({'name': name, 'masked': mask_value(value)})
+
+    @app.route('/api/slurm/secrets/set', methods=['POST'])
+    def api_slurm_secrets_set():
+        """Add or update a secret in the .secrets file."""
+        data = request.json
+        key = data.get('key', '').strip()
+        value = data.get('value', '')
+
+        if not key:
+            return jsonify({'error': 'key is required'}), 400
+
+        fp = app.secret_store.file_provider()
+        if fp is None:
+            return jsonify({'error': 'File provider not configured'}), 500
+
+        fp.set(key, value)
+        app.secret_store.clear_cache()
+        return jsonify({'success': True, 'message': f'Secret "{key}" saved'})
+
+    @app.route('/api/slurm/secrets/delete/<string:name>', methods=['DELETE'])
+    def api_slurm_secrets_delete(name):
+        """Remove a secret from the .secrets file."""
+        fp = app.secret_store.file_provider()
+        if fp is None:
+            return jsonify({'error': 'File provider not configured'}), 500
+
+        if not fp.delete(name):
+            return jsonify({'error': f'Secret "{name}" not found in file'}), 404
+
+        app.secret_store.clear_cache()
+        return jsonify({'success': True, 'message': f'Secret "{name}" deleted'})
+
+    #
+    # Pipeline routes
+    #
     @app.route('/api/slurm/pipeline/template/list')
     def api_pipeline_list():
         try:
