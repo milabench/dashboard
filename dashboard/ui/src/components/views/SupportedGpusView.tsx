@@ -37,13 +37,13 @@ function PassBar({ passed, total }: { passed: number; total: number }) {
 }
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return '-';
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function stripQuotes(s: string | null): string {
-    if (!s) return '—';
+    if (!s) return '-';
     return s.replace(/^"|"$/g, '');
 }
 

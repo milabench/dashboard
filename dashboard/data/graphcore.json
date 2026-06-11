@@ -1,0 +1,60 @@
+[
+    {
+        "name": "MK1 - GC200 IPU",
+        "vendor": "graphcore",
+        "release": "01/06/2017",
+        "memory": {
+            "type": "OnDie",
+            "size": "0.3 GB",
+            "bus": "",
+            "bandwidth": "45 TB/s",
+
+            "bandwidth_ipu_to_ipu": "8 TB/s",
+            "bandwidth_to_host": "64 GB/s",
+            "bandwidth_ipu_links": "320 GB/s"
+        },
+        "source": {
+            "graphcore": "https://www.graphcore.ai/products/bow-2000"
+        },
+        "power": {
+            "TDP": ""
+        },
+        "chip": "",
+        "die": "",
+        "transitors": "",
+        "performance": {
+            "fp16": "",
+            "fp32": "",
+            "fp64": ""
+        }
+    },
+    {
+        "name": "MK2 - GC200 IPU",
+        "vendor": "graphcore",
+        "release": "01/06/2020",
+        "memory": {
+            "type": "OnDie",
+            "size": "0.9 GB",
+            "bus": "",
+            "bandwidth": "47.5 TB/s",
+
+            "bandwidth_ipu_to_ipu": "8 TB/s",
+            "bandwidth_to_host": "64 GB/s",
+            "bandwidth_ipu_links": "320 GB/s"
+        },
+        "source": {
+            "graphcore": "https://www.graphcore.ai/products/bow-2000"
+        },
+        "power": {
+            "TDP": ""
+        },
+        "chip": "",
+        "die": "823 mm2",
+        "transitors": "59400 M",
+        "performance": {
+            "fp16": "250 TFLOPS",
+            "fp32": "87.5 TFLOPS",
+            "fp64": ""
+        }
+    }
+]

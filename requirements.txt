@@ -7,6 +7,7 @@ flask-socketio
 apscheduler
 gunicorn
 milabench @ git+https://github.com/milabench/milabench.git@main
+iguane @ git+https://github.com/mila-iqia/IGUANE.git@master
 argklass
 psycopg2-binary
 altair

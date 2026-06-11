@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
         routes: [
             { label: 'Scaling', path: '/scaling' },
             { label: 'Grouped View', path: '/grouped' },
+            { label: 'GPU Comparison', path: '/gpu-comparison' },
         ]
     },
     {

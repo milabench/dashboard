@@ -1,8 +1,8 @@
 """GPU summary: materialized view + real-time fallback.
 
 Provides two endpoints:
-  GET  /api/gpu/summary          — fast read from materialized view (falls back to live query)
-  POST /api/gpu/summary/refresh  — force-refresh the materialized view (dev only)
+  GET  /api/gpu/summary          - fast read from materialized view (falls back to live query)
+  POST /api/gpu/summary/refresh  - force-refresh the materialized view (dev only)
 """
 
 import sqlalchemy
@@ -36,7 +36,7 @@ def _rows_to_json(rows):
         }
         for row in rows
     ]
- 
+
 
 def _live_query(sqlexec):
     """Compute the GPU summary in real time (no materialized view)."""
@@ -211,7 +211,7 @@ def gpu_summary_routes(app, sqlexec, scheduler, dev_only):
 
     @app.route('/api/gpu/summary')
     def api_gpu_summary():
-        """Read GPU summary — from materialized view if available, otherwise live."""
+        """Read GPU summary - from materialized view if available, otherwise live."""
         if _has_view:
             with sqlexec() as sess:
                 rows = sess.execute(text(f"SELECT * FROM {VIEW_NAME}")).mappings().all()

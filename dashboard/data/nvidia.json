@@ -1,0 +1,590 @@
+[
+    {
+        "name": "P100 SXM2 16 GB",
+        "vendor": "nvidia",
+        "release": "05/04/2016",
+        "memory": {
+            "type": "HBM2",
+            "size": "16 GB",
+            "bus": "4096 bit",
+            "bandwidth": "732.2 GB/s"
+        },
+        "source": {
+            "nvidia": "https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/tesla-p100/pdf/nvidia-tesla-p100-datasheet.pdf",
+            "tech": "https://www.techpowerup.com/gpu-specs/tesla-p100-sxm2.c3183"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "transitors": "15300 M",
+        "chip": "GP100",
+        "die": "610 mm2",
+        "performance": {
+            "fp16": "21.22 TFLOPS",
+            "fp32": "10.61 TFLOPS",
+            "fp64": "5.304 TFLOPS"
+        }
+    },
+    {
+        "name": "V100 SXM2 16 GB",
+        "vendor": "nvidia",
+        "release": "21/06/2017",
+        "memory": {
+            "type": "HBM2",
+            "size": "16 GB",
+            "bus": "4096 bit",
+            "bandwidth": "897 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/tesla-v100-sxm2-16-gb.c3018"
+        },
+        "power": {
+            "TDP": "250 W"
+        },
+        "die": "815 mm2",
+        "chip": "GV100",
+        "transitors": "21100 M",
+        "performance": {
+            "fp16": "125 TFLOPS",
+            "fp32": "15.7 TFLOPS",
+            "fp64": "7.834 TFLOPS"
+        }
+    },
+    {
+        "name": "V100 SXM3 32 GB",
+        "vendor": "nvidia",
+        "release": "27/05/2018",
+        "memory": {
+            "type": "HBM2",
+            "size": "32 GB",
+            "bus": "4096 bit",
+            "bandwidth": "981.0 GB/s"
+        },
+        "source": {
+            "nvidia": "https://images.nvidia.com/content/technologies/volta/pdf/volta-v100-datasheet-update-us-1165301-r5.pdf",
+            "tech": "https://www.techpowerup.com/gpu-specs/tesla-v100-sxm3-32-gb.c3472"
+        },
+        "power": {
+            "TDP": "250 W"
+        },
+        "die": "815 mm2",
+        "chip": "GV100",
+        "transitors": "21100 M",
+        "performance": {
+            "fp16": "125 TFLOPS",
+            "fp32": "16.35 TFLOPS",
+            "fp64": "8.177 TFLOPS",
+
+            "fp16_techpower": "32.71 TFLOPS",
+            "fp32_techpower": "16.35 TFLOPS",
+            "fp64_techpower": "8.177 TFLOPS",
+
+            "tensor_nvidia": "125 TFLOPS",
+            "fp32_nvidia": "15.7 TFLOPS",
+            "fp64_nvidia": "7.8 TFLOPS"
+        }
+    },
+    {
+        "name": "A100 SXM4 80 GB",
+        "vendor": "nvidia",
+        "release": "16/10/2020",
+        "memory": {
+            "type": "HBM2e",
+            "size": "80 GB",
+            "bus": "5120 bit",
+            "bandwidth": "2,039 GB/s"
+        },
+        "power": {
+            "TDP": "400 W"
+        },
+        "die": "826 mm2",
+        "chip": "GA100",
+        "transitors": "54200 M",
+        "source": {
+            "nvidia": "https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-nvidia-us-2188504-web.pdf",
+            "tech": "https://www.techpowerup.com/gpu-specs/a100-sxm4-80-gb.c3746" 
+        },
+        "performance": {
+            "bf16": "311.84 TFLOPS",
+            "fp16": "156 TFLOPS",
+            "tf32": "155.92 TFLOPs",
+            "fp32": "19.49 TFLOPS",
+            "fp64": "9.746 TFLOPS",
+
+            "bf16_techpower":  "311.84 TFLOPS",
+            "tf32_techpower":  "155.92 TFLOPS",
+
+            "fp16_techpower":  "77.97 TFLOPS",
+            "fp32_techpower":  "19.49 TFLOPS",
+            "fp64_techpower":  "9.746 TFLOPS",
+
+            "fp64_tensor_techpower":  "19.49 TFLOPS",
+
+            "fp16_sparsity_nvidia": "624 TFLOPS",
+            "bf16_sparsity_nvidia": "624 TFLOPS",
+            "tf32_sparsity_nvidia": "312 TFLOPS",
+
+            "fp16_nvidia": "312 TFLOPS",
+            "bf16_nvidia": "312 TFLOPS",
+            "tf32_nvidia": "156 TFLOPS",
+
+            "fp32_nvidia": "19.5 TFLOPS",
+            "fp64_nvidia": "9.7 TFLOPS",
+            "fp64_tensor_nvidia": "19.5 TFLOPS"
+        }
+    },
+    {
+        "name": "H100 SXM5 80 GB",
+        "vendor": "nvidia",
+        "release": "22/03/2022",
+        "memory": {
+            "type": "HBM3",
+            "size": "80 GB",
+            "bus": "5120 bit",
+            "bandwidth": "3350 GB/s"
+        },
+        "power": {
+            "TDP": "700 W"
+        },
+        "source": {
+            "nvidia": "https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet",
+            "tech": "https://www.techpowerup.com/gpu-specs/h100-sxm5-80-gb.c3900"
+        },
+        "chip": "GH100",
+        "die": "814 mm2",
+        "transitors": "80000 M",
+        "performance": {
+            "int8": "1979 TOPS",
+            "bf16": "989 TFLOPS",
+            "fp16": "989 TFLOPS",
+            "tf32": "494.5 TFLOPS",
+            "fp32": "66.91 TFLOPS",
+            "fp64": "33.45 TFLOPS",
+
+            "fp16_techpower":  "267.6 TFLOPS",
+            "fp32_techpower":  "66.91 TFLOPS",
+            "fp64_techpower":  "33.45 TFLOPS",
+
+            "int8_sparsity_nvidia": "3958 TOPS",
+            "fp8_sparsity_nvidia": "3958 TFLOPS",
+            "fp16_sparsity_nvidia": "1979 TFLOPS",
+            "bf16_sparsity_nvidia": "1979 TFLOPS",
+            "tf32_sparsity_nvidia": "989 TFLOPS",
+
+            "int8_nvidia": "1979 TOPS",
+            "fp8_nvidia": "1979 TFLOPS",
+            "fp16_nvidia": "989 TFLOPS",
+            "bf16_nvidia": "989 TFLOPS",
+            "tf32_nvidia": "494.5 TFLOPS",
+
+            "fp32_nvidia": "67 TFLOPS",
+            "fp64_nvidia": "34 TFLOPS",
+            "fp64_tensor_nvidia": "67 TFLOPS",
+
+            "tf32_measured": "81.72 TFLOPS",
+            "fp32_measured": "17.63 TFLOPS"
+        }
+    },
+    {
+        "name": "H100 PCIe 80 GB",
+        "vendor": "nvidia",
+        "release": "22/03/2022",
+        "memory": {
+            "type": "HBM2e",
+            "size": "80 GB",
+            "bus": "5120 bit",
+            "bandwidth": "2039 GB/s"
+        },
+        "power": {
+            "TDP": "350 W"
+        },
+        "source": {
+            "nvidia": "https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet",
+            "tech": "https://www.techpowerup.com/gpu-specs/h100-pcie-80-gb.c3899"
+        },
+        "chip": "GH100",
+        "die": "814 mm2",
+        "transitors": "80000 M",
+        "performance": {
+            "int8": "1513 TOPS",
+            "bf16": "756 TFLOPS",
+            "fp16": "756 TFLOPS",
+            "tf32": "378 TFLOPS",
+            "fp32": "51.22 TFLOPS",
+            "fp64": "25.61 TFLOPS",
+
+            "fp16_techpower": "204.9 TFLOPS",
+            "fp32_techpower": "51.22 TFLOPS",
+            "fp64_techpower": "25.61 TFLOPS",
+
+            "int8_sparsity_nvidia": "3026 TOPS",
+            "fp8_sparsity_nvidia": "3026 TFLOPS",
+            "fp16_sparsity_nvidia": "1513 TFLOPS",
+            "bf16_sparsity_nvidia": "1513 TFLOPS",
+            "tf32_sparsity_nvidia": "756 TFLOPS",
+
+            "int8_nvidia": "1513 TOPS",
+            "fp8_nvidia": "1513 TFLOPS",
+            "fp16_nvidia": "756 TFLOPS",
+            "bf16_nvidia": "756 TFLOPS",
+            "tf32_nvidia": "378 TFLOPS",
+
+            "fp32_nvidia": "51 TFLOPS",
+            "fp64_nvidia": "26 TFLOPS",
+            "fp64_tensor_nvidia": "51 TFLOPS"
+        }
+    },
+    {
+        "name": "RTX8000",
+        "vendor": "nvidia",
+        "release": "13/08/2018",
+        "memory": {
+            "type": "GDDR6",
+            "size": "48",
+            "bus": "384 bit",
+            "bandwidth": "672.0 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/quadro-rtx-8000.c3306"
+        },
+        "power": {
+            "TDP": "260 W"
+        },
+        "chip": "TU102",
+        "die": "754 mm2",
+        "transitors": "18600 M",
+        "performance": {
+            "fp16": "130.5 TFLOPS",
+            "fp32": "16.31 TFLOPS",
+            "fp64": "509.8 GFLOPS",
+
+            "fp16_techpower": "32.62 TFLOPS"
+        }
+    },
+    {
+        "name": "T4",
+        "vendor": "nvidia",
+        "release": "13/09/2018",
+        "memory": {
+            "type": "GDDR6",
+            "size": "16 GB",
+            "bus": "256 bit",
+            "bandwidth": "320 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/tesla-t4.c3316"
+        },
+        "power": {
+            "TDP": "70 W"
+        },
+        "chip": "TU104",
+        "die": "545 mm2",
+        "transitors": "13600 M",
+        "performance": {
+            "fp16": "65.0 TFLOPS",
+            "fp32": "8.141 TFLOPS",
+            "fp64": "254.4 GFLOPS"
+        }
+    },
+    {
+        "name": "A6000",
+        "vendor": "nvidia",
+        "release": "05/10/2020",
+        "memory": {
+            "type": "GDDR6",
+            "size": "48 GB",
+            "bus": "284 bit",
+            "bandwidth": "768 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/rtx-a6000.c3686",
+            "nvidia": "https://www.nvidia.com/en-us/design-visualization/rtx-a6000/"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "GA102",
+        "die": "628 mm2",
+        "transitors": "28300 M",
+        "performance": {
+            "fp16": "154.9 TFLOPS",
+            "fp32": "38.71 TFLOPS",
+            "fp64": "1.210 TFLOPS",
+
+            "fp16_techpower": "38.71 TFLOPS",
+            "fp32_techpower": "38.71 TFLOPS",
+            "fp64_techpower": "1.210 TFLOPS"
+        }
+    },
+    {
+        "name": "A40",
+        "vendor": "nvidia",
+        "release": "05/10/2020",
+        "memory": {
+            "type": "GDDR6",
+            "size": "48 GB",
+            "bus": "384 bit",
+            "bandwidth": "695.8 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/a40-pcie.c3700",
+            "nvidia": "https://images.nvidia.com/content/Solutions/data-center/a40/nvidia-a40-datasheet.pdf"
+
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "GA102",
+        "die": "628 mm2",
+        "transitors": "28300 M",
+        "performance": {
+            "int8": "299 TOPS",
+            "fp16": "149.7 TFLOPS",
+            "fp32": "37.42 TFLOPS",
+            "fp64": "584 GFLOPS",
+            
+            "int4_sparsity_nvidia": "1197.4 TOPS",
+            "int8_sparsity_nvidia": "598.6 TOPS",
+            "fp16_sparsity_nvidia": "299.4 TFLOPS",
+            "bf16_sparsity_nvidia": "299.4 TFLOPS",
+            "tf32_sparsity_nvidia": "149.6 TFLOPS",
+
+            "int4_nvidia": "598.7 TOPS",
+            "int8_nvidia": "299.3 TOPS",
+            "bf16_nvidia": "149.7 TFLOPS",
+            "fp16_nvidia": "149.7 TFLOPS",
+            "fp32_nvidia": "37.42 TFLOPS",
+            "tf32_nvidia": "74.8 TFLOPS",
+
+            "fp16_tech": "37.42 TFLOPS",
+            "fp32_tech": "37.42 TFLOPS",
+            "fp64_tech": "584 GFLOPS",
+
+            "tf32_measured": "51.70 TFLOPS",
+            "fp32_measured": "22.85 TFLOPS"
+        }
+    },
+    {
+        "name": "A30",
+        "vendor": "nvidia",
+        "release": "12/04/2021",
+        "memory": {
+            "type": "HBM2e",
+            "size": "24 GB",
+            "bus": "3072 bit",
+            "bandwidth": "933.1 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/a30-pcie.c3792",
+            "nvidia": "https://www.nvidia.com/content/dam/en-zz/Solutions/data-center/products/a30-gpu/pdf/a30-datasheet.pdf"
+        },
+        "power": {
+            "TDP": "165 W"
+        },
+        "chip": "GA100",
+        "die": "826 mm2",
+        "transitors": "54200 M",
+        "performance": {
+            "int8": "330 TOPS",
+            "fp16": "165 TFLOPS",
+            "fp32": "10.3 TFLOPS",
+            "fp64": "5.2 TFLOPS",
+
+            "int4_sparsity_nvidia": "1321 TOPS",
+            "int8_sparsity_nvidia": "661 TOPS",
+            "fp16_sparsity_nvidia": "330 TFLOPS",
+            "bf16_sparsity_nvidia": "330 TFLOPS",
+            "tf32_sparsity_nvidia": "165 TFLOPS",
+
+            "int4_nvidia": "661 TOPS",
+            "int8_nvidia": "330 TOPS",
+            "bf16_nvidia": "165 TFLOPS",
+            "fp16_nvidia": "165 TFLOPS",
+            "tf32_nvidia": "82 TFLOPS",
+            "fp32_nvidia": "10.3 TFLOPS",
+            "fp64_nvidia": "5.2 TFLOPS",
+
+            "fp16_tech": "10.32 TFLOPS",
+            "fp32_tech": "10.32 TFLOPS",
+            "fp64_tech": "5.161 TFLOPS"
+        }
+    },
+    {
+        "name": "A10",
+        "vendor": "nvidia",
+        "release": "12/04/2021",
+        "memory": {
+            "type": "GDDR6",
+            "size": "24 GB",
+            "bus": "384 bit",
+            "bandwidth": "600 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/a10-pcie.c3793",
+            "nvidia": ""
+        },
+        "power": {
+            "TDP": "150 W"
+        },
+        "chip": "GA102",
+        "die": "628 mm2",
+        "transitors": "28300 M",
+        "performance": {
+            "int8": "250 TOPS",
+            "fp16": "125 TFLOPS",
+            "fp32": "31.2 TFLOPS",
+            "fp64": "976.3 GFLOPS",
+
+            "int4_sparsity_nvidia": "1000 TOPS",
+            "int8_sparsity_nvidia": "500 TOPS",
+            "fp16_sparsity_nvidia": "250 TFLOPS",
+            "bf16_sparsity_nvidia": "250 TFLOPS",
+            "tf32_sparsity_nvidia": "125 TFLOPS",
+
+            "int4_nvidia": "500 TOPS",
+            "int8_nvidia": "250 TOPS",
+            "bf16_nvidia": "125 TFLOPS",
+            "fp16_nvidia": "125 TFLOPS",
+            "tf32_nvidia": "62.5 TFLOPS",
+            "fp32_nvidia": "31.2 TFLOPS",
+
+            "fp16_tech": "31.24 TFLOPS",
+            "fp32_tech": "31.24 TFLOPS",
+            "fp64_tech": "976.3 GFLOPS"
+        }
+    },
+    {
+        "name": "A2",
+        "vendor": "nvidia",
+        "release": "10/11/2021",
+        "memory": {
+            "type": "GDDR6",
+            "size": "16 GB",
+            "bus": "128 bit",
+            "bandwidth": "200.1 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/a2.c3848",
+            "nvidia": "https://www.nvidia.com/content/dam/en-zz/solutions/data-center/a2/pdf/a2-datasheet.pdf"
+        },
+        "power": {
+            "TDP": "60 W"
+        },
+        "chip": "GA107",
+        "die": "200 mm2",
+        "transitors": "8700 M",
+        "performance": {
+            "int8": "36 TOPS",
+            "fp16": "18 TFLOPS",
+            "fp32": "4.5 TFLOPS",
+            "fp64": "70.80 GFLOPS",
+
+            "int4_sparsity_nvidia": "144 TOPS",
+            "int8_sparsity_nvidia": "72 TOPS",
+            "fp16_sparsity_nvidia": "36 TFLOPS",
+            "bf16_sparsity_nvidia": "36 TFLOPS",
+            "tf32_sparsity_nvidia": "18 TFLOPS",
+
+            "int4_nvidia": "72 TOPS",
+            "int8_nvidia": "36 TOPS",
+            "bf16_nvidia": "18 TFLOPS",
+            "fp16_nvidia": "18 TFLOPS",
+            "tf32_nvidia": "9 TFLOPS",
+            "fp32_nvidia": "4.5 TFLOPS",
+
+            "fp16_tech": "4.531 TFLOPS",
+            "fp32_tech": "4.531 TFLOPS",
+            "fp64_tech": "70.80 GFLOPS"
+        }
+    },
+    {
+        "name": "L40",
+        "vendor": "nvidia",
+        "release": "13/10/2022",
+        "memory": {
+            "type": "GDDR6",
+            "size": "48 GB",
+            "bus": "384 bit",
+            "bandwidth": "864 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/l40.c3959",
+            "nvidia": "https://images.nvidia.com/content/Solutions/data-center/vgpu-L40-datasheet.pdf"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "AD102",
+        "die": "609 mm2",
+        "transitors": "76300 M",
+        "performance": {
+            "int8": "362 TOPS",
+            "fp16": "181.05 TFLOPS",
+            "fp32": "90.5 TFLOPS",
+            "fp64": "1414 GFLOPS",
+            
+            "int4_sparsity_nvidia": "1448 TOPS",
+            "int8_sparsity_nvidia": "724 TOPS",
+            "fp8_sparsity_nvidia": "724 TFLOPS",
+            "fp16_sparsity_nvidia": "362.1 TFLOPS",
+            "bf16_sparsity_nvidia": "362.1 TFLOPS",
+            "tf32_sparsity_nvidia": "181 TFLOPS",
+
+            "int4_nvidia": "724 TOPS",
+            "int8_nvidia": "362 TOPS",
+            "fp8_nvidia": "362 TFLOPS",
+            "bf16_nvidia": "181.05 TFLOPS",
+            "fp16_nvidia": "181.05 TFLOPS",
+            "tf32_nvidia": "90.5 TFLOPS",
+            "fp32_nvidia": "90.5 TFLOPS",
+
+            "fp16_tech": "90.52 TFLOPS",
+            "fp32_tech": "90.52 TFLOPS",
+            "fp64_tech": "1414 GFLOPS"
+        }
+    },
+    {
+        "name": "L4",
+        "vendor": "nvidia",
+        "release": "21/03/2023",
+        "memory": {
+            "type": "GDDR6",
+            "size": "24 GB",
+            "bus": "192 bit",
+            "bandwidth": "300 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/l4.c4091",
+            "nvidia": "https://www.nvidia.com/en-us/data-center/l4/"
+        },
+        "power": {
+            "TDP": "72 W"
+        },
+        "chip": "AD104",
+        "die": "294 mm2",
+        "transitors": "35800 M",
+        "performance": {
+            "int8": "242 TOPS",
+            "fp16": "120 TFLOPS",
+            "fp32": "30.3 TFLOPS",
+            "fp64": "489.6 GFLOPS",
+            
+            "int8_sparsity_nvidia": "485 TOPS",
+            "fp8_sparsity_nvidia": "485 TFLOPS",
+            "fp16_sparsity_nvidia": "242 TFLOPS",
+            "bf16_sparsity_nvidia": "242 TFLOPS",
+            "tf32_sparsity_nvidia": "120 TFLOPS",
+
+            "int8_nvidia": "242 TOPS",
+            "fp8_nvidia": "242 TFLOPS",
+            "bf16_nvidia": "120 TFLOPS",
+            "fp16_nvidia": "120 TFLOPS",
+            "tf32_nvidia": "30.3 TFLOPS",
+            "fp32_nvidia": "30.3 TFLOPS",
+
+            "fp16_tech": "31.33 TFLOPS",
+            "fp32_tech": "31.33 TFLOPS",
+            "fp64_tech": "489.6 GFLOPS"
+        }
+    }
+]

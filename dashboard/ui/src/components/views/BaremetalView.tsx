@@ -64,7 +64,7 @@ const formatJobName = (job: SlurmJob) => {
 
 const formatTime = (value?: string | number) => {
     if (!value) {
-        return '—';
+        return '-';
     }
     if (typeof value === 'number') {
         return new Date(value * 1000).toLocaleString();
@@ -268,9 +268,9 @@ export const BaremetalView: React.FC = () => {
                                 {hosts.map((host) => (
                                     <Table.Row key={host.name} _hover={{ bg: "var(--color-bg-hover)" }} borderColor="var(--color-border)">
                                         <Table.Cell>{host.name}</Table.Cell>
-                                        <Table.Cell>{host.url || '—'}</Table.Cell>
-                                        <Table.Cell>{host.ssh || '—'}</Table.Cell>
-                                        <Table.Cell>{host.remote_folder || '—'}</Table.Cell>
+                                        <Table.Cell>{host.url || '-'}</Table.Cell>
+                                        <Table.Cell>{host.ssh || '-'}</Table.Cell>
+                                        <Table.Cell>{host.remote_folder || '-'}</Table.Cell>
                                     </Table.Row>
                                 ))}
                             </Table.Body>

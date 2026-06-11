@@ -137,7 +137,7 @@ def sync_routes(app, db_uri):
         except subprocess.TimeoutExpired:
             return jsonify({"status": "ERR", "message": "pg_dump timed out after 600s"}), 504
         except FileNotFoundError:
-            return jsonify({"status": "ERR", "message": "pg_dump not found — install PostgreSQL client tools"}), 500
+            return jsonify({"status": "ERR", "message": "pg_dump not found - install PostgreSQL client tools"}), 500
         except Exception as err:
             return jsonify({"status": "ERR", "message": str(err)}), 500
 
@@ -162,7 +162,7 @@ def sync_routes(app, db_uri):
             except subprocess.TimeoutExpired:
                 return jsonify({"status": "ERR", "message": "pg_restore timed out after 600s"}), 504
             except FileNotFoundError:
-                return jsonify({"status": "ERR", "message": "pg_restore not found — install PostgreSQL client tools"}), 500
+                return jsonify({"status": "ERR", "message": "pg_restore not found - install PostgreSQL client tools"}), 500
             except Exception as err:
                 return jsonify({"status": "ERR", "message": str(err)}), 500
 
@@ -213,7 +213,7 @@ def sync_routes(app, db_uri):
         except subprocess.TimeoutExpired:
             return jsonify({"status": "ERR", "message": "Operation timed out"}), 504
         except FileNotFoundError:
-            return jsonify({"status": "ERR", "message": "pg_dump/pg_restore not found — install PostgreSQL client tools"}), 500
+            return jsonify({"status": "ERR", "message": "pg_dump/pg_restore not found - install PostgreSQL client tools"}), 500
         except Exception as err:
             return jsonify({"status": "ERR", "message": str(err)}), 500
 

@@ -110,7 +110,7 @@ export const PushResultsView: React.FC = () => {
                 setGeneratedKey(result.key);
                 toaster.create({
                     title: 'Key generated',
-                    description: 'Save your key now — it will not be shown again.',
+                    description: 'Save your key now - it will not be shown again.',
                     type: 'success',
                     duration: 10000,
                 });
@@ -195,7 +195,7 @@ export const PushResultsView: React.FC = () => {
                             <Box bg="var(--color-info-bg)" borderWidth={1} borderColor="var(--color-info-border)" borderRadius="md" p={4}>
                                 <VStack align="stretch" gap={2}>
                                     <Text color="var(--color-info-text)" fontWeight="bold" fontSize="sm">
-                                        Your push key (save it now — it will not be shown again):
+                                        Your push key (save it now - it will not be shown again):
                                     </Text>
                                     <HStack>
                                         <Input

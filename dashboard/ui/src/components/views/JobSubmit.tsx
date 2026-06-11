@@ -474,7 +474,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             const exportVal = parseSbatchArg(initialData.sbatch_args, '--export=');
             if (exportVal && exportVarsRef.current) exportVarsRef.current.value = exportVal;
 
-            // Handle -w (nodelist) — can be "-w value" or "-w=value"
+            // Handle -w (nodelist) - can be "-w value" or "-w=value"
             const nodelistIdx = initialData.sbatch_args.findIndex(a => a === '-w' || a.startsWith('-w '));
             if (nodelistIdx >= 0 && nodelistRef.current) {
                 const arg = initialData.sbatch_args[nodelistIdx];

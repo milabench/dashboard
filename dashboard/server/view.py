@@ -394,6 +394,18 @@ def view_server(config):
     from .gpu_summary import gpu_summary_routes
     gpu_summary_routes(app, sqlexec, scheduler, dev_only)
 
+    from .gpu_specs import gpu_specs_routes
+    gpu_specs_routes(app, sqlexec, dev_only)
+
+    # Ensure the gpus table exists
+    try:
+        from .database.gpu import GPU
+        from milabench.metrics.sqlalchemy import Base as MetricsBase
+        with sqlexec() as sess:
+            MetricsBase.metadata.create_all(sess.bind, tables=[GPU.__table__], checkfirst=True)
+    except Exception as err:
+        print(f"[gpu_specs] Could not create gpus table: {err}")
+
     def _evict_report_cache():
         try:
             from .report_cache import evict_old_entries, _table_exists

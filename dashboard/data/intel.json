@@ -1,0 +1,102 @@
+[
+    {
+        "name": "1100",
+        "vendor": "intel",
+        "release": "10/01/2023",
+        "die": "1280 mm2",
+        "transitors": "100000 M",
+        "memory": {
+            "type": "HBM2e",
+            "size": "48 GB",
+            "bus": "8192 bit",
+            "bandwidth": "1229 GB/s "
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/data-center-gpu-max-1100.c4066"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "Ponte Vecchio",
+        "performance": {
+            "fp16": "44.44 TFLOPS",
+            "fp32": "22.22 TFLOPS",
+            "fp64": "11.11 TFLOPS",
+
+            "fp16_techpower": "22.22 TFLOPS",
+            "fp32_techpower": "22.22 TFLOPS",
+            "fp64_techpower": "22.22 TFLOPS"
+        }
+    },
+    {
+        "name": "1350",
+        "vendor": "intel",
+        "release": "10/01/2023",
+        "die": "1280 mm2",
+        "transitors": "100000 M",
+        "memory": {
+            "type": "HBM2e",
+            "size": "96 GB",
+            "bus": "8192 bit",
+            "bandwidth": "2458 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/data-center-gpu-max-1350.c4067"
+        },
+        "power": {
+            "TDP": "450 W"
+        },
+        "chip": "Ponte Vecchio",
+        "performance": {
+            "fp16": "88.88 TFLOPS",
+            "fp32": "44.44 TFLOPS",
+            "fp64": "22.22 TFLOPS",
+
+            "fp16_techpower": "44.44 TFLOPS",
+            "fp32_techpower": "44.44 TFLOPS",
+            "fp64_techpower": "44.44 TFLOPS"
+        }
+    },
+    {
+        "name": "1550",
+        "vendor": "intel",
+        "release": "10/01/2023",
+        "die": "1280 mm2",
+        "transitors": "100000 M",
+        "memory": {
+            "type": "HBM2e",
+            "size": "128 GB",
+            "bus": "8192 bit",
+            "bandwidth": "3277 GB/s"
+        },
+        "source": {
+            "tech": "https://www.techpowerup.com/gpu-specs/data-center-gpu-max-1550.c4068",
+            "intel": "https://ark.intel.com/content/www/us/en/ark/products/232873/intel-data-center-gpu-max-1550.html",
+            "toms": "https://www.tomshardware.com/news/intel-fires-up-xeon-max-cpus-gpus-to-rival-amd-nvidia"
+        },
+        "power": {
+            "TDP": "600 W"
+        },
+        "chip": "Ponte Vecchio",
+        "performance": {
+            "fp16": "104.86 TFLOPS",
+            "fp32": "52.43 TFLOPS",
+            "fp64": "26.215 TFLOPS",
+
+            "fp16_vector": "104.86 TFLOPS",
+            "fp32_vector": "52.43 TFLOPS",
+            "fp64_vector": "52 TFLOPS",
+
+            "int8_tensor": "1678 TFLOPS",
+            "fp16_tensor": "839 TFLOPS",
+            "bf16_tensor": "839 TFLOPS",
+            "fp32_tensor": "419 TFLOPS",
+
+            "fp16_techpower": "52.43 TFLOPS",
+            "fp32_techpower": "52.43 TFLOPS",
+            "fp64_techpower": "52.43 TFLOPS",
+
+            "fp16_aurora": "63744  GPUs = 2exaFlops+ => 32 Flops en fp64"
+        }
+    }
+]

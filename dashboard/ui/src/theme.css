@@ -201,11 +201,11 @@ html.dark {
   --color-input-bg:     #2d3748;  /* gray.700  */
   --color-input-border: #4a5568;  /* gray.600  */
 
-  /* Buttons – success (green) — bright enough for dark text */
+  /* Buttons – success (green) - bright enough for dark text */
   --color-btn-success:       #68d391;  /* green.300 */
   --color-btn-success-hover: #9ae6b4;  /* green.200 */
 
-  /* Buttons – danger (red) — bright enough for dark text */
+  /* Buttons – danger (red) - bright enough for dark text */
   --color-btn-danger:        #fc8181;  /* red.300   */
   --color-btn-danger-hover:  #feb2b2;  /* red.200   */
   --color-btn-danger-subtle: #63171b;  /* red.900   */

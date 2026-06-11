@@ -15,7 +15,7 @@ Or override everything with a single ``DATABASE_URI`` variable::
 
 Examples::
 
-    # local dev — uses POSTGRES_* env defaults
+    # local dev - uses POSTGRES_* env defaults
     dashboard db views status
     dashboard db views create
     dashboard db views refresh

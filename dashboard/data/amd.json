@@ -1,0 +1,117 @@
+[
+    {
+        "name": "MI25",
+        "vendor": "AMD",
+        "release": "27/06/2017",
+        "source": {
+            "amd": "https://www.amd.com/en/products/professional-graphics/instinct-MI25",
+            "tech": "https://www.techpowerup.com/gpu-specs/radeon-instinct-mi25.c2983"
+        },
+        "memory": {
+            "type": "HBM2",
+            "size": "16 GB",
+            "bus": "2048 bit",
+            "bandwidth": "436.2 GB/s"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "Vega 10",
+        "die": "495 mm2",
+        "transitors": "12500 M",
+        "performance": {
+            "fp16": "24.58 TFLOPS",
+            "fp32": "12.29 TFLOPS",
+            "fp64": "768.0 GFLOPS"
+        }
+    },
+    {
+        "name": "MI50",
+        "vendor": "AMD",
+        "release": "18/10/2018",
+        "source": {
+            "amd": "https://www.amd.com/en/products/professional-graphics/instinct-mi50",
+            "tech": "https://www.techpowerup.com/gpu-specs/radeon-instinct-mi50.c3335"
+        },
+        "memory": {
+            "type": "HBM2",
+            "size": "16 GB",
+            "bus": "4096 bit",
+            "bandwidth": "1,024 GB/s"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "Vega 20",
+        "die": "331 mm2",
+        "transitors": "13230 M",
+        "performance": {
+            "fp16": "26.82 TFLOPS",
+            "fp32": "13.41 TFLOPS",
+            "fp64": "6.705 TFLOPS"
+        }
+    },
+    {
+        "name": "MI100",
+        "vendor": "AMD",
+        "release": "16/10/2020",
+        "source": {
+            "amd": "https://www.amd.com/en/products/server-accelerators/instinct-mi100",
+            "tech": "https://www.techpowerup.com/gpu-specs/radeon-instinct-mi100.c3496"
+        },
+        "memory": {
+            "type": "HBM2",
+            "size": "32 GB",
+            "bus": "4096 bit",
+            "bandwidth": "1,229 GB/s"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "Arcturus",
+        "die": "750 mm2",
+        "transitors": "25600 M",
+        "performance": {
+            "int4": "184.6 TOPS",
+            "int8": "184.6 TOPS",
+
+            "fp16": "184.6 TFLOPS",
+            "fp32": "23.07 TFLOPS",
+            "fp64": "11.54 TFLOPS",
+
+            "fp32_matrix": "46.1 TFLOPS"
+        }
+    },
+    {
+        "name": "MI210",
+        "vendor": "AMD",
+        "release": "01/12/2021",
+        "source": {
+            "amd": "https://www.amd.com/en/products/server-accelerators/amd-instinct-mi210",
+            "tech": "https://www.techpowerup.com/gpu-specs/radeon-instinct-mi210.c3857"
+        },
+        "memory": {
+            "type": "HBM2e",
+            "size": "64 GB",
+            "bus": "4096 bit",
+            "bandwidth": "1,638 GB/s"
+        },
+        "power": {
+            "TDP": "300 W"
+        },
+        "chip": "Aldebaran",
+        "die": "724 mm2",
+        "transitors": "58200 M",
+        "performance": {
+            "int4": "181 TOPS",
+            "int8": "181 TOPS",
+
+            "fp16": "181.0 TFLOPS",
+            "fp32": "22.63 TFLOPS",
+            "fp64": "22.63 TFLOPS",
+
+            "fp32_matrix": "45.3 TFLOPS",
+            "fp64_matrix": "45.3 TFLOPS"
+        }
+    }
+]

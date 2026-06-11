@@ -27,6 +27,7 @@ import { BaremetalView } from './components/views/BaremetalView';
 import { PushResultsView } from './components/views/PushResultsView';
 import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { SupportedGpusView } from './components/views/SupportedGpusView';
+import { GpuComparisonView } from './components/views/GpuEvolutionView';
 import { Toaster } from "./components/ui/toaster"
 import { VegaProvider } from './contexts/VegaContext'
 import { HealthProvider } from './contexts/HealthContext'
@@ -76,6 +77,7 @@ function App() {
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
                 <Route path="/push" element={<PushResultsView />} />
                 <Route path="/gpus" element={<SupportedGpusView />} />
+                <Route path="/gpu-comparison" element={<GpuComparisonView />} />
               </Routes>
             </Layout>
           </Router>

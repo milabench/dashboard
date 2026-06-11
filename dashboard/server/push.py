@@ -43,8 +43,8 @@ MAX_ENTRY_SIZE = int(os.getenv("MAX_ENTRY_SIZE", 100 * 1024 * 1024))  # 100 MB p
 MAX_ENTRIES = int(os.getenv("MAX_ZIP_ENTRIES", 50_000))
 
 
-def push_routes(app, database_uri): 
-    UPLOAD_FOLDER = '/tmp/' 
+def push_routes(app, database_uri):
+    UPLOAD_FOLDER = '/tmp/'
     ALLOWED_EXTENSIONS = {'zip'}
 
     app.config['UPLOAD_FOLDER'] = os.getenv("UPLOAD_FOLDER", UPLOAD_FOLDER)
@@ -91,7 +91,7 @@ def push_routes(app, database_uri):
                     "status": "OK",
                     "name": name,
                     "key": key,
-                    "message": "Save this key — it will not be shown again."
+                    "message": "Save this key - it will not be shown again."
                 })
 
     @app.route('/api/push/key/list')
@@ -290,7 +290,7 @@ def push_routes(app, database_uri):
         run_folder = safe_job_path(jr_job_id, "runs")
         failures = []
         success = []
-        
+
         for run in os.scandir(run_folder):
             try:
                 run_path = os.path.join(run_folder, run)

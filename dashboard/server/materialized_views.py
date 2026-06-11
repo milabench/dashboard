@@ -1,7 +1,7 @@
 """Materialized view definitions and management.
 
 Provides a registry of all materialized views used by the dashboard,
-plus helpers to create, refresh, and drop them — usable from both
+plus helpers to create, refresh, and drop them - usable from both
 the server startup path and the CLI.
 """
 

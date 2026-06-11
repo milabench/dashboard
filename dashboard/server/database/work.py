@@ -79,7 +79,7 @@ class WorkItem(Base):
 class Worker(Base):
     __tablename__ = "worker"
 
-    _id: Column(Integer, primary_key=True, autoincrement=True)
+    _id = Column(Integer, primary_key=True, autoincrement=True)
 
     last_activity = Column(DateTime, default=datetime.utcnow)
 
