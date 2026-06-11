@@ -586,5 +586,8 @@
             "fp32_tech": "31.33 TFLOPS",
             "fp64_tech": "489.6 GFLOPS"
         }
+    },
+    {
+        "name": "B100"
     }
 ]

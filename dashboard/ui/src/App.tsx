@@ -28,6 +28,7 @@ import { PushResultsView } from './components/views/PushResultsView';
 import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { SupportedGpusView } from './components/views/SupportedGpusView';
 import { GpuComparisonView } from './components/views/GpuEvolutionView';
+import { BenchmarkHistoryView } from './components/views/BenchmarkHistoryView';
 import { Toaster } from "./components/ui/toaster"
 import { VegaProvider } from './contexts/VegaContext'
 import { HealthProvider } from './contexts/HealthContext'
@@ -78,6 +79,7 @@ function App() {
                 <Route path="/push" element={<PushResultsView />} />
                 <Route path="/gpus" element={<SupportedGpusView />} />
                 <Route path="/gpu-comparison" element={<GpuComparisonView />} />
+                <Route path="/bench-history" element={<BenchmarkHistoryView />} />
               </Routes>
             </Layout>
           </Router>

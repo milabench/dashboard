@@ -193,6 +193,8 @@ def gpu_specs_routes(app, sqlexec, dev_only):
 
         records = []
         for gpu in rows:
+            int4 = gpu.int4
+            int8 = gpu.int8
             fp4  = gpu.fp4
             fp8  = gpu.fp8
             fp16 = gpu.fp16 if gpu.fp16 is not None else gpu.fp32
@@ -209,6 +211,8 @@ def gpu_specs_routes(app, sqlexec, dev_only):
                 "vendor": gpu.vendor,
                 "architecture": gpu.architecture or "unknown",
                 "release": gpu.release_date,
+                "int4": int4,
+                "int8": int8,
                 "fp4": fp4,
                 "fp8": fp8,
                 "fp16": fp16,
@@ -218,6 +222,8 @@ def gpu_specs_routes(app, sqlexec, dev_only):
                 "memgb": gpu.memgb,
                 "membw": gpu.membw,
                 "tdp": gpu.tdp,
+                "int4_per_watt": _per_watt(int4),
+                "int8_per_watt": _per_watt(int8),
                 "fp4_per_watt":  _per_watt(fp4),
                 "fp8_per_watt":  _per_watt(fp8),
                 "fp16_per_watt": _per_watt(fp16),
@@ -307,6 +313,8 @@ def gpu_specs_routes(app, sqlexec, dev_only):
         fp16   = _perf_evolution("fp16", "FP16 Tensor (TFLOPS)")
         fp8    = _perf_evolution("fp8",  "FP8 (TFLOPS)")
         fp4    = _perf_evolution("fp4",  "FP4 (TFLOPS)")
+        int8   = _perf_evolution("int8", "INT8 (TOPS)")
+        int4   = _perf_evolution("int4", "INT4 (TOPS)")
 
         fp64_w = _perf_per_watt("fp64", "FP64 / Watt")
         fp32_w = _perf_per_watt("fp32", "FP32 / Watt")
@@ -314,14 +322,16 @@ def gpu_specs_routes(app, sqlexec, dev_only):
         fp16_w = _perf_per_watt("fp16", "FP16 Tensor / Watt")
         fp8_w  = _perf_per_watt("fp8",  "FP8 / Watt")
         fp4_w  = _perf_per_watt("fp4",  "FP4 / Watt")
+        int8_w = _perf_per_watt("int8", "INT8 / Watt")
+        int4_w = _perf_per_watt("int4", "INT4 / Watt")
 
         membw  = _perf_evolution("membw", "Memory BW (GB/s)")
         membw_w = _perf_per_watt("membw", "Memory BW / Watt")
         memgb  = _perf_evolution("memgb", "Memory (GB)")
 
         chart = (
-            (fp64 | fp32 | tf32 | fp16 | fp8 | fp4) &
-            (fp64_w | fp32_w | tf32_w | fp16_w | fp8_w | fp4_w) &
+            (fp64 | fp32 | tf32 | fp16 | fp8 | fp4 | int8 | int4) &
+            (fp64_w | fp32_w | tf32_w | fp16_w | fp8_w | fp4_w | int8_w | int4_w) &
             (membw | membw_w | memgb)
         ).resolve_scale(
             y="independent"

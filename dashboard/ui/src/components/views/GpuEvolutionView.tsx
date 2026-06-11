@@ -18,6 +18,8 @@ interface GpuEvolutionRecord {
     vendor: string;
     architecture: string;
     release: string;
+    int4: number | null;
+    int8: number | null;
     fp4: number | null;
     fp8: number | null;
     fp16: number | null;
@@ -27,6 +29,8 @@ interface GpuEvolutionRecord {
     memgb: number | null;
     membw: number | null;
     tdp: number | null;
+    int4_per_watt: number | null;
+    int8_per_watt: number | null;
     fp4_per_watt: number | null;
     fp8_per_watt: number | null;
     fp16_per_watt: number | null;
@@ -36,7 +40,7 @@ interface GpuEvolutionRecord {
     membw_per_watt: number | null;
 }
 
-type MetricKey = 'fp64' | 'fp32' | 'tf32' | 'fp16' | 'fp8' | 'fp4' | 'membw' | 'memgb';
+type MetricKey = 'fp64' | 'fp32' | 'tf32' | 'fp16' | 'fp8' | 'fp4' | 'int8' | 'int4' | 'membw' | 'memgb';
 
 const METRICS: { key: MetricKey; label: string; unit: string }[] = [
     { key: 'fp64',  label: 'FP64',        unit: 'TFLOPS' },
@@ -45,6 +49,8 @@ const METRICS: { key: MetricKey; label: string; unit: string }[] = [
     { key: 'fp16',  label: 'FP16 Tensor', unit: 'TFLOPS' },
     { key: 'fp8',   label: 'FP8',         unit: 'TFLOPS' },
     { key: 'fp4',   label: 'FP4',         unit: 'TFLOPS' },
+    { key: 'int8',  label: 'INT8',        unit: 'TOPS' },
+    { key: 'int4',  label: 'INT4',        unit: 'TOPS' },
     { key: 'membw', label: 'Mem BW',      unit: 'GB/s' },
     { key: 'memgb', label: 'Memory',      unit: 'GB' },
 ];
@@ -52,8 +58,9 @@ const METRICS: { key: MetricKey; label: string; unit: string }[] = [
 function exportCsv(data: GpuEvolutionRecord[]) {
     const cols: (keyof GpuEvolutionRecord)[] = [
         'name', 'vendor', 'architecture', 'release',
-        'fp4', 'fp8', 'fp16', 'fp32', 'fp64', 'tf32',
+        'int4', 'int8', 'fp4', 'fp8', 'fp16', 'fp32', 'fp64', 'tf32',
         'memgb', 'membw', 'tdp',
+        'int4_per_watt', 'int8_per_watt',
         'fp4_per_watt', 'fp8_per_watt', 'fp16_per_watt',
         'fp32_per_watt', 'fp64_per_watt', 'tf32_per_watt',
         'membw_per_watt',

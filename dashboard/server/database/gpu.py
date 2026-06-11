@@ -56,6 +56,8 @@ class GPU(Base):
 
     # Convenience scalar columns for the most-queried values,
     # kept in sync with ``specs`` for fast SQL filtering / joins.
+    int4 = Column(Float, nullable=True)
+    int8 = Column(Float, nullable=True)
     fp4 = Column(Float, nullable=True)
     fp8 = Column(Float, nullable=True)
     fp16 = Column(Float, nullable=True)
@@ -83,6 +85,8 @@ class GPU(Base):
             "architecture": self.architecture,
             "release_date": self.release_date,
             "specs": self.specs,
+            "int4": self.int4,
+            "int8": self.int8,
             "fp4": self.fp4,
             "fp8": self.fp8,
             "fp16": self.fp16,
@@ -111,6 +115,8 @@ class GPU(Base):
             architecture=architecture,
             release_date=raw.get("reldate"),
             specs=raw,
+            int4=_float_or_none(raw.get("int4")),
+            int8=_float_or_none(raw.get("int8")),
             fp4=_float_or_none(raw.get("fp4")),
             fp8=_float_or_none(raw.get("fp8")),
             fp16=_float_or_none(raw.get("fp16")),
@@ -178,7 +184,7 @@ def _load_iguane_rawdata() -> dict[str, dict]:
 
 _ROW_FIELDS = [
     "name", "vendor", "architecture", "release_date", "specs",
-    "fp4", "fp8", "fp16", "fp32", "fp64", "tf32",
+    "int4", "int8", "fp4", "fp8", "fp16", "fp32", "fp64", "tf32",
     "memgb", "membw", "tdp",
 ]
 

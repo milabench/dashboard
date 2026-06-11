@@ -230,7 +230,7 @@ def _cmd_set_spec(sess, gpu_name, key, value):
     specs[key] = typed_value
     gpu.specs = specs
 
-    scalar_cols = {"fp4", "fp8", "fp16", "fp32", "fp64", "tf32", "memgb", "membw", "tdp"}
+    scalar_cols = {"int4", "int8", "fp4", "fp8", "fp16", "fp32", "fp64", "tf32", "memgb", "membw", "tdp"}
     if key in scalar_cols and isinstance(typed_value, (int, float)):
         setattr(gpu, key, float(typed_value))
 

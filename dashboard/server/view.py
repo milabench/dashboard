@@ -397,14 +397,24 @@ def view_server(config):
     from .gpu_specs import gpu_specs_routes
     gpu_specs_routes(app, sqlexec, dev_only)
 
-    # Ensure the gpus table exists
+    # Ensure the gpus table exists and has all columns
     try:
         from .database.gpu import GPU
         from milabench.metrics.sqlalchemy import Base as MetricsBase
         with sqlexec() as sess:
             MetricsBase.metadata.create_all(sess.bind, tables=[GPU.__table__], checkfirst=True)
+            # Add any columns that were added after the table was first created
+            from sqlalchemy import inspect as sa_inspect, text
+            inspector = sa_inspect(sess.bind)
+            existing = {c["name"] for c in inspector.get_columns("gpus")}
+            for col in GPU.__table__.columns:
+                if col.name not in existing:
+                    col_type = col.type.compile(sess.bind.dialect)
+                    sess.execute(text(f'ALTER TABLE gpus ADD COLUMN "{col.name}" {col_type}'))
+                    print(f"[gpu_specs] Added column gpus.{col.name}")
+            sess.commit()
     except Exception as err:
-        print(f"[gpu_specs] Could not create gpus table: {err}")
+        print(f"[gpu_specs] Could not create/update gpus table: {err}")
 
     def _evict_report_cache():
         try:
@@ -804,6 +814,93 @@ def view_server(config):
         ).resolve_scale(y='independent', x='independent', size='independent')
 
         return plot(chart.to_json())
+
+    @app.route('/api/bench/list')
+    def api_bench_list():
+        """Return benchmark names sorted by most recent run date, then name."""
+        stmt = (
+            select(Pack.name, func.max(Exec.created_time).label("latest"))
+            .join(Exec, Exec._id == Pack.exec_id)
+            .group_by(Pack.name)
+            .order_by(func.max(Exec.created_time).desc(), Pack.name)
+        )
+        with sqlexec() as sess:
+            return jsonify([row[0] for row in sess.execute(stmt)])
+
+    @app.route('/api/bench/history')
+    def api_bench_history():
+        """Return candlestick statistics for a benchmark across runs over time.
+
+        Query params:
+            bench: benchmark name (required)
+            metric: metric name (default: rate)
+            gpu: filter by GPU product name (optional)
+        """
+        bench_name = request.args.get('bench')
+        metric_name = request.args.get('metric', 'rate')
+        gpu_filter = request.args.get('gpu')
+        limit = min(int(request.args.get('limit', 365)), 1000)
+
+        if not bench_name:
+            return jsonify({"error": "bench parameter is required"}), 400
+
+        gpu_col = cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT).label("gpu")
+
+        recent_execs = (
+            select(Exec._id, Exec.created_time)
+            .join(Pack, Pack.exec_id == Exec._id)
+            .where(Pack.name == bench_name, Exec.visibility == 0)
+            .distinct()
+            .order_by(Exec.created_time.desc())
+            .limit(limit)
+        ).subquery()
+
+        raw = (
+            select(
+                Metric.exec_id,
+                Metric.value,
+                Exec.created_time,
+                gpu_col,
+            )
+            .join(Pack, Metric.pack_id == Pack._id)
+            .join(Exec, Exec._id == Metric.exec_id)
+            .where(
+                Pack.name == bench_name,
+                Metric.name == metric_name,
+                Exec.visibility == 0,
+                Metric.exec_id.in_(select(recent_execs.c._id)),
+            )
+        )
+
+        if gpu_filter:
+            raw = raw.where(
+                cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT) == gpu_filter
+            )
+
+        sub = raw.subquery()
+
+        stats = (
+            select(
+                sub.c.exec_id,
+                sub.c.created_time,
+                sub.c.gpu,
+                func.min(sub.c.value).label("min"),
+                func.max(sub.c.value).label("max"),
+                func.avg(sub.c.value).label("mean"),
+                func.count(sub.c.value).label("n"),
+                sqlalchemy.func.percentile_cont(0.25).within_group(sub.c.value).label("q25"),
+                sqlalchemy.func.percentile_cont(0.50).within_group(sub.c.value).label("median"),
+                sqlalchemy.func.percentile_cont(0.75).within_group(sub.c.value).label("q75"),
+            )
+            .group_by(sub.c.exec_id, sub.c.created_time, sub.c.gpu)
+            .order_by(sub.c.created_time)
+        )
+
+        with sqlexec() as sess:
+            cursor = sess.execute(stats)
+            results = cursor_to_json(cursor)
+
+        return jsonify(results)
 
     @app.route('/api/grouped/plot')
     def api_grouped_plot():

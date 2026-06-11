@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
             { label: 'Scaling', path: '/scaling' },
             { label: 'Grouped View', path: '/grouped' },
             { label: 'GPU Comparison', path: '/gpu-comparison' },
+            { label: 'Benchmarks', path: '/bench-history' },
         ]
     },
     {

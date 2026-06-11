@@ -113,5 +113,14 @@
             "fp32_matrix": "45.3 TFLOPS",
             "fp64_matrix": "45.3 TFLOPS"
         }
+    },
+    {
+        "name": "MI300X"
+    },
+    {
+        "name": "MI325X"
+    },
+    {
+        "name": "MI355X"
     }
 ]
