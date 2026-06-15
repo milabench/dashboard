@@ -450,4 +450,29 @@ export interface MetalJob extends SlurmJob {
     host: string;
 }
 
+// Scheduled Slurm Jobs
+export interface ScheduledJob {
+    _id: number;
+    name: string;
+    enabled: boolean;
+    cron_expression: string;
+    cluster: string;
+    script: string;
+    sbatch_args: string[];
+    job_name_prefix: string | null;
+    created_time: string | null;
+    modified_time: string | null;
+    last_run_time: string | null;
+    last_job_id: string | null;
+    next_run_time: string | null;
+}
 
+export interface ScheduledJobRun {
+    _id: number;
+    scheduled_job_id: number;
+    jr_job_id: string | null;
+    slurm_job_id: string | null;
+    submitted_at: string | null;
+    status: string;
+    error: string | null;
+}

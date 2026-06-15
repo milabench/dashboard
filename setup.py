@@ -49,6 +49,7 @@ if __name__ == "__main__":
             "waitress",
             "alembic",
             "apscheduler",
+            "croniter",
             "iguane",
         ],
         package_data={

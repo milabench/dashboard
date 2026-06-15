@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
     Box,
     Heading,
@@ -9,8 +9,10 @@ import {
     VStack,
     Badge,
     Input,
+    Checkbox,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot from '../charts/VegaPlot';
@@ -51,11 +53,32 @@ interface HistoryRecord {
 export const BenchmarkHistoryView: React.FC = () => {
     usePageTitle('Benchmark History');
 
-    const [selectedBench, setSelectedBench] = useState<string>('');
-    const [metric, setMetric] = useState<MetricKey>('rate');
-    const [gpuFilter, setGpuFilter] = useState<string>('');
-    const [benchSearch, setBenchSearch] = useState<string>('');
-    const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const selectedBench = searchParams.get('bench') || '';
+    const metric = (searchParams.get('metric') || 'rate') as MetricKey;
+    const gpuFilter = searchParams.get('gpu') || '';
+    const benchSearch = searchParams.get('q') || '';
+    const timeWindow = (searchParams.get('tw') || 'all') as TimeWindow;
+    const trimMinMax = searchParams.get('trim') === '1';
+    const hideMinMax = searchParams.get('hidewhiskers') === '1';
+
+    const setParam = useCallback((key: string, value: string) => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            if (value) next.set(key, value);
+            else next.delete(key);
+            return next;
+        }, { replace: true });
+    }, [setSearchParams]);
+
+    const setSelectedBench = (v: string) => setParam('bench', v);
+    const setMetric = (v: MetricKey) => setParam('metric', v === 'rate' ? '' : v);
+    const setGpuFilter = (v: string) => setParam('gpu', v);
+    const setBenchSearch = (v: string) => setParam('q', v);
+    const setTimeWindow = (v: TimeWindow) => setParam('tw', v === 'all' ? '' : v);
+    const setTrimMinMax = (v: boolean) => setParam('trim', v ? '1' : '');
+    const setHideMinMax = (v: boolean) => setParam('hidewhiskers', v ? '1' : '');
 
     const { data: benchList } = useQuery<string[]>({
         queryKey: ['benchList'],
@@ -66,13 +89,14 @@ export const BenchmarkHistoryView: React.FC = () => {
     });
 
     const { data: historyData, isLoading: isLoadingHistory } = useQuery<HistoryRecord[]>({
-        queryKey: ['benchHistory', selectedBench, metric, gpuFilter],
+        queryKey: ['benchHistory', selectedBench, metric, gpuFilter, trimMinMax],
         queryFn: async () => {
             const params: Record<string, string> = {
                 bench: selectedBench,
                 metric,
             };
             if (gpuFilter) params.gpu = gpuFilter;
+            if (trimMinMax) params.trim = '1';
             const response = await api.get('/bench/history', { params });
             return response.data;
         },
@@ -108,11 +132,33 @@ export const BenchmarkHistoryView: React.FC = () => {
         const chartWidth = Math.max(400, w - 350);
         const chartHeight = Math.max(300, h - 200);
 
-        const values = filteredHistoryData.map(d => ({
-            ...d,
-            date: d.created_time,
-            exec_label: `#${d.exec_id}`,
-        }));
+        // Spread overlapping points: when multiple executions fall on the
+        // same calendar day for the same GPU, shift them onto consecutive
+        // days so candlesticks don't overlap.
+        const DAY_MS = 24 * 3600_000;
+        const buckets = new Map<string, HistoryRecord[]>();
+        for (const d of filteredHistoryData) {
+            const day = d.created_time.slice(0, 10);
+            const key = `${day}__${d.gpu}`;
+            let arr = buckets.get(key);
+            if (!arr) { arr = []; buckets.set(key, arr); }
+            arr.push(d);
+        }
+
+        const values = filteredHistoryData.map(d => {
+            const day = d.created_time.slice(0, 10);
+            const key = `${day}__${d.gpu}`;
+            const group = buckets.get(key)!;
+            let date = d.created_time;
+            if (group.length > 1) {
+                const idx = group.indexOf(d);
+                const offset = idx - Math.floor((group.length - 1) / 2);
+                const t = new Date(d.created_time);
+                t.setTime(t.getTime() + offset * DAY_MS);
+                date = t.toISOString();
+            }
+            return { ...d, date, exec_label: `#${d.exec_id}` };
+        });
 
         return {
             $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -140,24 +186,24 @@ export const BenchmarkHistoryView: React.FC = () => {
                 },
             },
             layer: [
-                {
+                ...(!hideMinMax ? [{
                     mark: {
-                        type: 'rule',
+                        type: 'rule' as const,
                         strokeWidth: 1,
                     },
                     encoding: {
                         y: { field: 'min' },
                         y2: { field: 'max' },
                         tooltip: [
-                            { field: 'gpu', type: 'nominal', title: 'GPU' },
-                            { field: 'exec_label', type: 'nominal', title: 'Exec ID' },
-                            { field: 'date', type: 'temporal', title: 'Date' },
-                            { field: 'min', type: 'quantitative', title: 'Min', format: '.2f' },
-                            { field: 'max', type: 'quantitative', title: 'Max', format: '.2f' },
-                            { field: 'n', type: 'quantitative', title: 'Samples' },
+                            { field: 'gpu', type: 'nominal' as const, title: 'GPU' },
+                            { field: 'exec_label', type: 'nominal' as const, title: 'Exec ID' },
+                            { field: 'date', type: 'temporal' as const, title: 'Date' },
+                            { field: 'min', type: 'quantitative' as const, title: 'Min', format: '.2f' },
+                            { field: 'max', type: 'quantitative' as const, title: 'Max', format: '.2f' },
+                            { field: 'n', type: 'quantitative' as const, title: 'Samples' },
                         ],
                     },
-                },
+                }] : []),
                 {
                     mark: {
                         type: 'bar',
@@ -213,7 +259,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                 },
             ],
         } as Record<string, any>;
-    }, [filteredHistoryData, selectedBench, metric]);
+    }, [filteredHistoryData, selectedBench, metric, hideMinMax]);
 
     const hasData = filteredHistoryData && filteredHistoryData.length > 0;
 
@@ -343,6 +389,28 @@ export const BenchmarkHistoryView: React.FC = () => {
                             <NativeSelect.Indicator />
                         </NativeSelect.Root>
                     </Field.Root>
+
+                    <Checkbox.Root
+                        checked={trimMinMax}
+                        onCheckedChange={(e) => setTrimMinMax(!!e.checked)}
+                        alignSelf="flex-end"
+                        mb={1}
+                    >
+                        <Checkbox.HiddenInput />
+                        <Checkbox.Control />
+                        <Checkbox.Label color="var(--color-text)" fontSize="sm" whiteSpace="nowrap">Trim Outliers</Checkbox.Label>
+                    </Checkbox.Root>
+
+                    <Checkbox.Root
+                        checked={hideMinMax}
+                        onCheckedChange={(e) => setHideMinMax(!!e.checked)}
+                        alignSelf="flex-end"
+                        mb={1}
+                    >
+                        <Checkbox.HiddenInput />
+                        <Checkbox.Control />
+                        <Checkbox.Label color="var(--color-text)" fontSize="sm" whiteSpace="nowrap">Hide Whiskers</Checkbox.Label>
+                    </Checkbox.Root>
 
                     {selectedBench && (
                         <HStack gap={2} flexWrap="wrap">

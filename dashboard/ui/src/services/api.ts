@@ -892,6 +892,59 @@ export const pushToRemote = async (connInfo: {
     }
 };
 
+// ── Scheduled Slurm Jobs ────────────────────────────────────────────
+
+import type { ScheduledJob, ScheduledJobRun } from './types';
+
+export const getScheduledJobs = async (): Promise<ScheduledJob[]> => {
+    try {
+        const response = await api.get('/slurm/scheduled/list');
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const createScheduledJob = async (data: Partial<ScheduledJob>): Promise<ScheduledJob> => {
+    try {
+        const response = await api.post('/slurm/scheduled/create', data);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const updateScheduledJob = async (id: number, data: Partial<ScheduledJob>): Promise<ScheduledJob> => {
+    try {
+        const response = await api.put(`/slurm/scheduled/${id}`, data);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const deleteScheduledJob = async (id: number): Promise<{ status: string }> => {
+    try {
+        const response = await api.delete(`/slurm/scheduled/${id}`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const toggleScheduledJob = async (id: number): Promise<ScheduledJob> => {
+    try {
+        const response = await api.post(`/slurm/scheduled/${id}/toggle`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const runScheduledJobNow = async (id: number): Promise<ScheduledJobRun> => {
+    try {
+        const response = await api.post(`/slurm/scheduled/${id}/run-now`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const getScheduledJobRuns = async (id: number): Promise<ScheduledJobRun[]> => {
+    try {
+        const response = await api.get(`/slurm/scheduled/${id}/runs`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
 export const restoreBackup = async (file: File): Promise<{ status: string; message: string }> => {
     const formData = new FormData();
     formData.append('file', file);

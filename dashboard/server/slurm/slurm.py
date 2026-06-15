@@ -639,11 +639,126 @@ def local_command(*args, timeout=10):
 def slurm_integration(app, cache):
     """Add Slurm integration routes to the Flask app"""
 
-    book_keeping()
-    app.scheduler.add_job(book_keeping, 'interval', seconds=3600)
-
     from pathlib import Path
     app.secret_store = create_default_store(Path(JOBRUNNER_LOCAL_CACHE))
+
+    # Define _do_slurm_submit early so the scheduler can use it immediately
+    def _do_slurm_submit(data: dict) -> dict:
+        """Submit a Slurm job from a data dict. Returns a result dict.
+
+        On success: {"success": True, "job_id": ..., "jr_job_id": ..., "message": ...}
+        On failure: {"error": ...}
+        """
+        cluster_name = data.get('cluster', 'mila')
+        cluster_ctx = _registered_clusters.get(cluster_name)
+        if not cluster_ctx:
+            return {'error': f'Unknown cluster: {cluster_name}'}
+
+        token = _cluster.set(cluster_ctx)
+        try:
+            jr_job_id = generate_unique_job_name(data)
+            job_name = data.get('job_name', jr_job_id)
+            script_content = data.get('script', '')
+            remote_dir = f"{_remote_folder()}/{jr_job_id}"
+            remote_script = f"{remote_dir}/script.sbatch"
+
+            sbatch_args = []
+            if 'sbatch_args' in data and data['sbatch_args']:
+                sbatch_args = data['sbatch_args']
+            else:
+                if (partition := data.get('partition')) is not None:
+                    sbatch_args.append(f"--partition={partition}")
+                if (nodes := data.get('nodes')) is not None:
+                    sbatch_args.append(f"--nodes={nodes}")
+                if (ntasks := data.get('ntasks')) is not None:
+                    sbatch_args.append(f"--ntasks={ntasks}")
+                if (cpus_per_task := data.get('cpus_per_task')) is not None:
+                    sbatch_args.append(f"--cpus-per-task={cpus_per_task}")
+                if (mem := data.get('mem')) is not None:
+                    sbatch_args.append(f"--mem={mem}")
+                if (time_limit := data.get('time_limit')) is not None:
+                    sbatch_args.append(f"--time={time_limit}")
+                if (gpus_per_task := data.get('gpus_per_task')) is not None:
+                    sbatch_args.append(f"--gpus-per-task={gpus_per_task}")
+                if (ntasks_per_node := data.get('ntasks_per_node')) is not None:
+                    sbatch_args.append(f"--ntasks-per-node={ntasks_per_node}")
+                if data.get('exclusive'):
+                    sbatch_args.append('--exclusive')
+                if (export_val := data.get('export')) is not None:
+                    sbatch_args.append(f"--export={export_val}")
+                if (nodelist := data.get('nodelist')) is not None:
+                    sbatch_args.append(f"-w {nodelist}")
+                if (dependencies := data.get('dependency')) is not None:
+                    dep = [f"{event}:{job_id}" for event, job_id in dependencies]
+                    sbatch_args.append(f"--dependency={','.join(dep)}")
+
+            sbatch_args.extend([
+                f"--job-name={job_name}",
+                f'--comment="jr_job_id={jr_job_id}"',
+                f"--output={remote_dir.replace('~/', '')}/log.stdout",
+                f"--error={remote_dir.replace('~/', '')}/log.stderr",
+            ])
+
+            try:
+                resolved_script = resolve_secrets(script_content, app.secret_store)
+            except ValueError as e:
+                return {'error': str(e)}
+
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+                f.write(resolved_script)
+                script_path = f.name
+                f.flush()
+
+                result = remote_command(_ssh_host(), f"'mkdir -p {remote_dir}'")
+                if not result['success']:
+                    return {'error': f'Failed to create remote dir: {result["stderr"]}'}
+
+                scp_cmd = f"scp {script_path} {_ssh_host()}:{remote_script}"
+                subprocess.check_call(scp_cmd, shell=True)
+
+            sbatch_cmd = f"'sbatch {' '.join(sbatch_args)} -- {remote_script}'"
+
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+                f.write(sbatch_cmd[1:-1])
+                f.flush()
+                cmd_path = f.name
+                remote_cmd = f"{remote_dir}/cmd.sh"
+                scp_cmd = f"scp {cmd_path} mila:{remote_cmd}"
+                subprocess.check_call(scp_cmd, shell=True)
+
+            print(sbatch_cmd)
+            result = remote_command(_ssh_host(), sbatch_cmd)
+
+            if result['success']:
+                job_id_match = re.search(r'Submitted batch job (\d+)', result['stdout'])
+                job_id = job_id_match.group(1) if job_id_match else None
+
+                meta_dir = safe_job_path(jr_job_id, "meta")
+                os.makedirs(meta_dir, exist_ok=True)
+                if job_id:
+                    with open(os.path.join(meta_dir, "job_id.txt"), "w") as mf:
+                        mf.write(job_id)
+                with open(os.path.join(meta_dir, "cluster.txt"), "w") as mf:
+                    mf.write(cluster_name)
+
+                return {
+                    'success': True,
+                    'job_id': job_id,
+                    'jr_job_id': jr_job_id,
+                    'message': result['stdout'],
+                }
+            else:
+                return {'error': result['stderr']}
+        finally:
+            _cluster.reset(token)
+
+    app._do_slurm_submit = _do_slurm_submit
+
+    from .scheduled import scheduled_jobs_routes
+    scheduled_jobs_routes(app, cache)
+
+    book_keeping()
+    app.scheduler.add_job(book_keeping, 'interval', seconds=3600)
 
     @app.route('/api/slurm/jobs/persited/old')
     def api_slurm_persisted_old():
@@ -1077,140 +1192,12 @@ def slurm_integration(app, cache):
             if not data:
                 return jsonify({'error': 'No data provided'}), 400
 
-            cluster_name = data.get('cluster', 'mila')
-            cluster_ctx = _registered_clusters.get(cluster_name)
-            if not cluster_ctx:
-                return jsonify({'error': f'Unknown cluster: {cluster_name}'}), 400
+            result = _do_slurm_submit(data)
 
-            token = _cluster.set(cluster_ctx)
-
-            jr_job_id = generate_unique_job_name(data)
-
-            # Create a temporary SLURM script
-            job_name = data.get('job_name', jr_job_id)
-
-            script_content = data.get('script', '')
-            remote_dir = f"{_remote_folder()}/{jr_job_id}"
-            remote_script = f"{remote_dir}/script.sbatch"
-
-            # Handle both sbatch_args (new approach) and individual parameters (old approach)
-            sbatch_args = []
-
-            # If sbatch_args is provided, use it directly
-            if 'sbatch_args' in data and data['sbatch_args']:
-                sbatch_args = data['sbatch_args']
+            if result.get('success'):
+                return jsonify(result)
             else:
-                # Build sbatch_args from individual parameters (old approach)
-                if (partition := data.get('partition')) is not None:
-                    sbatch_args.append(f"--partition={partition}")
-
-                if (nodes := data.get('nodes')) is not None:
-                    sbatch_args.append(f"--nodes={nodes}")
-
-                if (ntasks := data.get('ntasks')) is not None:
-                    sbatch_args.append(f"--ntasks={ntasks}")
-
-                if (cpus_per_task := data.get('cpus_per_task')) is not None:
-                    sbatch_args.append(f"--cpus-per-task={cpus_per_task}")
-
-                if (mem := data.get('mem')) is not None:
-                    sbatch_args.append(f"--mem={mem}")
-
-                if (time_limit := data.get('time_limit')) is not None:
-                    sbatch_args.append(f"--time={time_limit}")
-
-                if (gpus_per_task := data.get('gpus_per_task')) is not None:
-                    sbatch_args.append(f"--gpus-per-task={gpus_per_task}")
-
-                if (ntasks_per_node := data.get('ntasks_per_node')) is not None:
-                    sbatch_args.append(f"--ntasks-per-node={ntasks_per_node}")
-
-                if data.get('exclusive'):
-                    sbatch_args.append('--exclusive')
-
-                if (export_val := data.get('export')) is not None:
-                    sbatch_args.append(f"--export={export_val}")
-
-                if (nodelist := data.get('nodelist')) is not None:
-                    sbatch_args.append(f"-w {nodelist}")
-
-                if (dependencies := data.get('dependency')) is not None:
-                    dep = []
-                    for event, job_id in dependencies:
-                        dep.append(f"{event}:{job_id}")
-
-                    dependency = ",".join(dep)
-                    sbatch_args.append(f"--dependency={dependency}")
-
-            # Add required arguments
-            sbatch_args.extend([
-                f"--job-name={job_name}",
-                f"--comment=\"jr_job_id={jr_job_id}\"",
-                f"--output={remote_dir.replace('~/', '')}/log.stdout",
-                f"--error={remote_dir.replace('~/', '')}/log.stderr"
-            ])
-
-            # Resolve secret templates before sending to cluster
-            try:
-                resolved_script = resolve_secrets(script_content, app.secret_store)
-            except ValueError as e:
-                return jsonify({'error': str(e)}), 400
-
-            # Create temporary file to hold the sbatch script
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(resolved_script)
-                script_path = f.name
-                f.flush()
-
-                # Create remote directory and copy script
-                result = remote_command(_ssh_host(), f"'mkdir -p {remote_dir}'")
-                if not result['success']:
-                    return jsonify({'error': f'Failed to copy script: {result["stderr"]}'}), 500
-
-                scp_cmd = f"scp {script_path} {_ssh_host()}:{remote_script}"
-                subprocess.check_call(scp_cmd, shell=True)
-            # ==
-
-            sbatch_cmd = f"'sbatch {' '.join(sbatch_args)} -- {remote_script}'"
-
-            # Create a temporary file to hold the sbatch command used
-            # this is used for the re-execute this job
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(sbatch_cmd[1:-1])
-                f.flush()
-                cmd_path = f.name
-
-                remote_cmd = f"{remote_dir}/cmd.sh"
-                scp_cmd = f"scp {cmd_path} mila:{remote_cmd}"
-                subprocess.check_call(scp_cmd, shell=True)
-
-            # Submit job
-            print(sbatch_cmd)
-            result = remote_command(_ssh_host(), sbatch_cmd)
-
-            if result['success']:
-                # Extract job ID from output
-                job_id_match = re.search(r'Submitted batch job (\d+)', result['stdout'])
-                job_id = job_id_match.group(1) if job_id_match else None
-
-                # Save job metadata locally
-                meta_dir = safe_job_path(jr_job_id, "meta")
-                os.makedirs(meta_dir, exist_ok=True)
-                if job_id:
-                    with open(os.path.join(meta_dir, "job_id.txt"), "w") as f:
-                        f.write(job_id)
-                with open(os.path.join(meta_dir, "cluster.txt"), "w") as f:
-                    f.write(cluster_name)
-
-                return jsonify({
-                    'success': True,
-                    'job_id': job_id,
-                    "jr_job_id": jr_job_id,
-                    'message': result['stdout']
-                })
-            else:
-                return jsonify({'error': result['stderr']}), 500
-
+                return jsonify(result), 500
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

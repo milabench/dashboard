@@ -247,8 +247,10 @@ def view_server(config):
 
         try:
             slurm_integration(app, cache)
-        except:
-            pass
+        except Exception as exc:
+            import traceback
+            print(f"[slurm] slurm_integration FAILED: {exc}")
+            traceback.print_exc()
 
         baremetal_server(app)
 
@@ -415,6 +417,20 @@ def view_server(config):
             sess.commit()
     except Exception as err:
         print(f"[gpu_specs] Could not create/update gpus table: {err}")
+
+    try:
+        from .database.scheduled_job import ScheduledJob, ScheduledJobRun
+        from milabench.metrics.sqlalchemy import Base as MetricsBase
+        with sqlexec() as sess:
+            MetricsBase.metadata.create_all(
+                sess.bind,
+                tables=[ScheduledJob.__table__, ScheduledJobRun.__table__],
+                checkfirst=True,
+            )
+            sess.commit()
+        print("[scheduled_jobs] Tables ready.")
+    except Exception as err:
+        print(f"[scheduled_jobs] Could not create tables: {err}")
 
     def _evict_report_cache():
         try:
@@ -840,6 +856,7 @@ def view_server(config):
         metric_name = request.args.get('metric', 'rate')
         gpu_filter = request.args.get('gpu')
         limit = min(int(request.args.get('limit', 365)), 1000)
+        trim = request.args.get('trim', '0') == '1'
 
         if not bench_name:
             return jsonify({"error": "bench parameter is required"}), 400
@@ -879,21 +896,58 @@ def view_server(config):
 
         sub = raw.subquery()
 
+        if trim:
+            # Per (exec, gpu) group, find the min and max values, then
+            # exclude rows that match those extremes before aggregating.
+            from sqlalchemy import and_
+            group_extremes = (
+                select(
+                    sub.c.exec_id,
+                    sub.c.gpu,
+                    func.min(sub.c.value).label("group_min"),
+                    func.max(sub.c.value).label("group_max"),
+                )
+                .group_by(sub.c.exec_id, sub.c.gpu)
+            ).subquery()
+
+            trimmed = (
+                select(
+                    sub.c.exec_id,
+                    sub.c.value,
+                    sub.c.created_time,
+                    sub.c.gpu,
+                )
+                .join(
+                    group_extremes,
+                    and_(
+                        sub.c.exec_id == group_extremes.c.exec_id,
+                        sub.c.gpu == group_extremes.c.gpu,
+                    ),
+                )
+                .where(
+                    sub.c.value > group_extremes.c.group_min,
+                    sub.c.value < group_extremes.c.group_max,
+                )
+            ).subquery()
+            agg_source = trimmed
+        else:
+            agg_source = sub
+
         stats = (
             select(
-                sub.c.exec_id,
-                sub.c.created_time,
-                sub.c.gpu,
-                func.min(sub.c.value).label("min"),
-                func.max(sub.c.value).label("max"),
-                func.avg(sub.c.value).label("mean"),
-                func.count(sub.c.value).label("n"),
-                sqlalchemy.func.percentile_cont(0.25).within_group(sub.c.value).label("q25"),
-                sqlalchemy.func.percentile_cont(0.50).within_group(sub.c.value).label("median"),
-                sqlalchemy.func.percentile_cont(0.75).within_group(sub.c.value).label("q75"),
+                agg_source.c.exec_id,
+                agg_source.c.created_time,
+                agg_source.c.gpu,
+                func.min(agg_source.c.value).label("min"),
+                func.max(agg_source.c.value).label("max"),
+                func.avg(agg_source.c.value).label("mean"),
+                func.count(agg_source.c.value).label("n"),
+                sqlalchemy.func.percentile_cont(0.25).within_group(agg_source.c.value).label("q25"),
+                sqlalchemy.func.percentile_cont(0.50).within_group(agg_source.c.value).label("median"),
+                sqlalchemy.func.percentile_cont(0.75).within_group(agg_source.c.value).label("q75"),
             )
-            .group_by(sub.c.exec_id, sub.c.created_time, sub.c.gpu)
-            .order_by(sub.c.created_time)
+            .group_by(agg_source.c.exec_id, agg_source.c.created_time, agg_source.c.gpu)
+            .order_by(agg_source.c.created_time)
         )
 
         with sqlexec() as sess:

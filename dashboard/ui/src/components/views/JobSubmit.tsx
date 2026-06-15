@@ -16,7 +16,7 @@ import {
     Spinner,
     Icon,
 } from '@chakra-ui/react';
-import { LuCheck, LuX, LuLock } from 'react-icons/lu';
+import { LuCheck, LuX, LuLock, LuCalendar } from 'react-icons/lu';
 import { toaster } from '../ui/toaster';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import AutocompleteInput from '../shared/AutocompleteInput';
@@ -26,9 +26,18 @@ import {
     getSlurmTemplateContent,
     saveSlurmProfile,
     saveSlurmTemplate,
-    testSlurmSecret
+    testSlurmSecret,
+    createScheduledJob,
 } from '../../services/api';
 import type { SlurmProfile, SlurmJob } from '../../services/types';
+
+const CRON_PRESETS: { label: string; cron: string }[] = [
+    { label: 'Daily at midnight',       cron: '0 0 * * *' },
+    { label: 'Weekly on Sunday at 2am', cron: '0 2 * * 0' },
+    { label: 'Monthly on the 1st',      cron: '0 0 1 * *' },
+    { label: 'Weekdays at midnight',    cron: '0 0 * * 1-5' },
+    { label: 'Custom',                  cron: '' },
+];
 
 // Utility function to parse export variables from script content
 // if only_constant=true then ignores exported variables that are derived
@@ -132,6 +141,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const [ntasksPerNode, setNtasksPerNode] = useState<string>('');
     const [exclusive, setExclusive] = useState<boolean>(false);
 
+    // Schedule state
+    const [scheduleName, setScheduleName] = useState<string>('');
+    const [cronPreset, setCronPreset] = useState<string>(CRON_PRESETS[0].cron);
+    const [cronCustom, setCronCustom] = useState<string>(CRON_PRESETS[0].cron);
+    const isCustomCron = cronPreset === '';
+    const effectiveCron = isCustomCron ? cronCustom : cronPreset;
+
     // Mutations
     const submitJobMutation = useMutation({
         mutationFn: submitSlurmJob,
@@ -213,6 +229,27 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             toaster.create({
                 title: 'Template Save Failed',
                 description: error.message || 'Failed to save template',
+                type: 'error',
+                duration: 5000,
+            });
+        },
+    });
+
+    const saveScheduledMutation = useMutation({
+        mutationFn: createScheduledJob,
+        onSuccess: (data: any) => {
+            toaster.create({
+                title: 'Scheduled Job Created',
+                description: `"${data.name}" saved with schedule: ${data.cron_expression}`,
+                type: 'success',
+                duration: 5000,
+            });
+            queryClient.invalidateQueries({ queryKey: ['scheduled-jobs'] });
+        },
+        onError: (error: any) => {
+            toaster.create({
+                title: 'Failed to Create Scheduled Job',
+                description: error?.response?.data?.error || error.message || 'Unknown error',
                 type: 'error',
                 duration: 5000,
             });
@@ -359,9 +396,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         });
     };
 
-    const handleSubmitJob = () => {
-        // Build sbatch arguments from form fields
-        const sbatch_args: string[] = [];
+    const _collectSbatchArgs = (): string[] => {
+        const args: string[] = [];
         const partition = partitionRef.current?.value;
         const nodesValue = nodes;
         const ntasksValue = ntasks;
@@ -375,42 +411,68 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         const dependencyEvent = dependencyEventRef.current?.value;
         const dependencyJobId = dependencyJobRef.current?.value;
 
-        if (partition && partition.trim() !== '') sbatch_args.push(`--partition=${partition}`);
-        if (nodesValue && nodesValue.trim() !== '') sbatch_args.push(`--nodes=${nodesValue}`);
-        if (ntasksValue && ntasksValue.trim() !== '') sbatch_args.push(`--ntasks=${ntasksValue}`);
-        if (cpusPerTaskValue && cpusPerTaskValue.trim() !== '') sbatch_args.push(`--cpus-per-task=${cpusPerTaskValue}`);
-        if (mem && mem.trim() !== '') sbatch_args.push(`--mem=${mem}`);
-        if (timeLimit && timeLimit.trim() !== '') sbatch_args.push(`--time=${timeLimit}`);
-        if (gpusPerTask && gpusPerTask.trim() !== '') sbatch_args.push(`--gpus-per-task=${gpusPerTask}`);
-        if (ntasksPerNodeValue && ntasksPerNodeValue.trim() !== '') sbatch_args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
-        if (exclusive) sbatch_args.push('--exclusive');
-        if (exportVars && exportVars.trim() !== '') sbatch_args.push(`--export=${exportVars}`);
-        if (nodelist && nodelist.trim() !== '') sbatch_args.push(`-w ${nodelist}`);
+        if (partition && partition.trim() !== '') args.push(`--partition=${partition}`);
+        if (nodesValue && nodesValue.trim() !== '') args.push(`--nodes=${nodesValue}`);
+        if (ntasksValue && ntasksValue.trim() !== '') args.push(`--ntasks=${ntasksValue}`);
+        if (cpusPerTaskValue && cpusPerTaskValue.trim() !== '') args.push(`--cpus-per-task=${cpusPerTaskValue}`);
+        if (mem && mem.trim() !== '') args.push(`--mem=${mem}`);
+        if (timeLimit && timeLimit.trim() !== '') args.push(`--time=${timeLimit}`);
+        if (gpusPerTask && gpusPerTask.trim() !== '') args.push(`--gpus-per-task=${gpusPerTask}`);
+        if (ntasksPerNodeValue && ntasksPerNodeValue.trim() !== '') args.push(`--ntasks-per-node=${ntasksPerNodeValue}`);
+        if (exclusive) args.push('--exclusive');
+        if (exportVars && exportVars.trim() !== '') args.push(`--export=${exportVars}`);
+        if (nodelist && nodelist.trim() !== '') args.push(`-w ${nodelist}`);
         if (dependencyEvent && dependencyJobId) {
-            sbatch_args.push(`--dependency=${dependencyEvent}:${dependencyJobId}`);
+            args.push(`--dependency=${dependencyEvent}:${dependencyJobId}`);
         }
+        return args;
+    };
 
-        // Read script args from DOM
-        const currentScriptArgs: Record<string, string> = {};
-        const scriptArgsContainer = document.getElementById('script-args-container');
-        if (scriptArgsContainer) {
-            const inputs = scriptArgsContainer.querySelectorAll('input[data-arg-name]');
-            inputs.forEach((input) => {
-                const argName = input.getAttribute('data-arg-name');
+    const _collectScriptArgs = (): Record<string, string> => {
+        const result: Record<string, string> = {};
+        const container = document.getElementById('script-args-container');
+        if (container) {
+            container.querySelectorAll('input[data-arg-name]').forEach((input) => {
+                const name = input.getAttribute('data-arg-name');
                 const value = (input as HTMLInputElement).value;
-                if (argName) {
-                    currentScriptArgs[argName] = value;
-                }
+                if (name) result[name] = value;
             });
         }
+        return result;
+    };
 
-        // Use the unified submit endpoint
+    const handleSubmitJob = () => {
         submitJobMutation.mutate({
             script: editorRef.current?.getValue() || '',
             job_name: jobNameRef.current?.value || 'milabench_job',
             cluster: selectedCluster,
-            sbatch_args: sbatch_args,
-            script_args: currentScriptArgs
+            sbatch_args: _collectSbatchArgs(),
+            script_args: _collectScriptArgs(),
+        });
+    };
+
+    const handleSaveScheduled = () => {
+        const name = scheduleName.trim();
+        if (!name) {
+            toaster.create({ title: 'Schedule name required', type: 'warning', duration: 3000 });
+            return;
+        }
+        if (!effectiveCron.trim()) {
+            toaster.create({ title: 'Cron expression required', type: 'warning', duration: 3000 });
+            return;
+        }
+        const script = editorRef.current?.getValue() || '';
+        if (!script.trim()) {
+            toaster.create({ title: 'Script content required', type: 'warning', duration: 3000 });
+            return;
+        }
+        saveScheduledMutation.mutate({
+            name,
+            cron_expression: effectiveCron,
+            cluster: selectedCluster,
+            script,
+            sbatch_args: _collectSbatchArgs(),
+            job_name_prefix: jobNameRef.current?.value || null,
         });
     };
     // Refs for uncontrolled inputs - much more performant
@@ -599,22 +661,65 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     return (
         <Box width="100%" height="100%" p={6} bg="var(--color-bg-page)">
             <VStack align="stretch" gap={6} height="100%">
-                <HStack justify="space-between" align="center" mb={2}>
-                    <Heading size="lg" fontWeight="bold" color="var(--color-text)">
+                <HStack justify="space-between" align="center" mb={2} gap={4} flexWrap="wrap">
+                    <Heading size="lg" fontWeight="bold" color="var(--color-text)" flexShrink={0}>
                         {initialData ? 'Edit & Resubmit Job' : 'Submit New Job'}
                     </Heading>
-                    <Button
-                        colorScheme="blue"
-                        onClick={handleSubmitJob}
-                        loading={submitJobMutation.isPending}
-                        fontWeight="medium"
-                        size="md"
-                        bg="var(--color-primary)"
-                        color="var(--color-primary-text)"
-                        _hover={{ bg: 'var(--color-primary-hover)' }}
-                    >
-                        {initialData ? 'Resubmit Job' : 'Submit Job'}
-                    </Button>
+
+                    <HStack gap={2} flex={1} justify="flex-end" minW={0} flexWrap="wrap">
+                        <Input
+                            value={scheduleName}
+                            onChange={(e) => setScheduleName(e.target.value)}
+                            placeholder="Schedule name"
+                            size="sm"
+                            w="150px"
+                            flexShrink={1}
+                        />
+                        <NativeSelect.Root size="sm" w="170px" flexShrink={1}>
+                            <NativeSelect.Field
+                                value={cronPreset}
+                                onChange={(e) => {
+                                    setCronPreset(e.target.value);
+                                    if (e.target.value !== '') setCronCustom(e.target.value);
+                                }}
+                            >
+                                {CRON_PRESETS.map(p => (
+                                    <option key={p.cron || '__custom'} value={p.cron}>{p.label}</option>
+                                ))}
+                            </NativeSelect.Field>
+                        </NativeSelect.Root>
+                        <Input
+                            value={isCustomCron ? cronCustom : cronPreset}
+                            onChange={(e) => { setCronCustom(e.target.value); setCronPreset(''); }}
+                            fontFamily="mono"
+                            placeholder="* * * * *"
+                            size="sm"
+                            w="120px"
+                            flexShrink={1}
+                        />
+                        <Button
+                            variant="outline"
+                            onClick={handleSaveScheduled}
+                            loading={saveScheduledMutation.isPending}
+                            fontWeight="medium"
+                            size="sm"
+                            flexShrink={0}
+                        >
+                            <LuCalendar /> Schedule
+                        </Button>
+                        <Button
+                            onClick={handleSubmitJob}
+                            loading={submitJobMutation.isPending}
+                            fontWeight="medium"
+                            size="sm"
+                            bg="var(--color-primary)"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
+                            flexShrink={0}
+                        >
+                            {initialData ? 'Resubmit Job' : 'Submit Job'}
+                        </Button>
+                    </HStack>
                 </HStack>
 
                 <Grid templateColumns="repeat(2, 1fr)" gap={6} width="100%" flex="1" overflow="hidden">

@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
         routes: [
             { label: 'Jobs', path: '/jobs' },
             { label: 'Submit Job', path: '/jobs/submit' },
+            { label: 'Scheduled Jobs', path: '/scheduled' },
             { label: 'Pipelines', path: '/pipelines' },
             { label: 'Dashboard', path: '/realtime' },
         ]
