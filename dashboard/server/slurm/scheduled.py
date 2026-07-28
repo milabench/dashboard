@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import traceback
 
+from apscheduler.triggers.date import DateTrigger
 from flask import request, jsonify
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
-from milabench.metrics.sqlalchemy import SQLAlchemy
-
 from ..database.scheduled_job import ScheduledJob, ScheduledJobRun
-from ..utils import database_uri
 
 log = logging.getLogger("scheduled_jobs")
 log.setLevel(logging.DEBUG)
@@ -22,6 +20,8 @@ if not log.handlers:
     _h.setFormatter(logging.Formatter("[scheduled_jobs] %(message)s"))
     _h.stream = __import__("sys").stderr
     log.addHandler(_h)
+
+_CHECKER_JOB_ID = "check_scheduled_jobs"
 
 
 def _compute_next_run(cron_expr: str, base_time: datetime | None = None) -> datetime | None:
@@ -32,20 +32,47 @@ def _compute_next_run(cron_expr: str, base_time: datetime | None = None) -> date
     return croniter(cron_expr, base).get_next(datetime)
 
 
-def scheduled_jobs_routes(app, cache):
+def scheduled_jobs_routes(app, cache, database):
     """Register scheduled-job CRUD routes and the periodic checker."""
 
-    DATABASE_URI = database_uri()
+    _sqlexec = database.connect
 
-    def _sqlexec():
-        from contextlib import contextmanager
+    def _reschedule_checker():
+        """Schedule the checker to wake up when the next job is due."""
+        try:
+            with _sqlexec() as sess:
+                earliest = sess.execute(
+                    select(func.min(ScheduledJob.next_run_time)).where(
+                        ScheduledJob.enabled == True,
+                        ScheduledJob.next_run_time != None,
+                    )
+                ).scalar()
 
-        @contextmanager
-        def ctx():
-            with SQLAlchemy(DATABASE_URI) as logger:
-                with Session(logger.client) as sess:
-                    yield sess
-        return ctx()
+            if earliest is None:
+                log.info("No enabled jobs with a next_run_time; checker idle")
+                try:
+                    app.scheduler.remove_job(_CHECKER_JOB_ID)
+                except Exception:
+                    pass
+                return
+
+            wake_at = max(earliest, datetime.utcnow() + timedelta(seconds=1))
+            log.info("Next job due at %s; checker scheduled for %s", earliest.isoformat(), wake_at.isoformat())
+
+            try:
+                app.scheduler.reschedule_job(
+                    _CHECKER_JOB_ID,
+                    trigger=DateTrigger(run_date=wake_at),
+                )
+            except Exception:
+                app.scheduler.add_job(
+                    _check_scheduled_jobs,
+                    trigger=DateTrigger(run_date=wake_at),
+                    id=_CHECKER_JOB_ID,
+                    replace_existing=True,
+                )
+        except Exception as exc:
+            log.error("Reschedule error: %s", exc, exc_info=True)
 
     @app.route('/api/slurm/scheduled/list')
     def api_scheduled_list():
@@ -92,6 +119,7 @@ def scheduled_jobs_routes(app, cache):
             sess.commit()
             result = job.as_dict()
 
+        _reschedule_checker()
         return jsonify(result), 201
 
     @app.route('/api/slurm/scheduled/<int:job_id>', methods=['PUT'])
@@ -129,6 +157,7 @@ def scheduled_jobs_routes(app, cache):
             sess.commit()
             result = job.as_dict()
 
+        _reschedule_checker()
         return jsonify(result)
 
     @app.route('/api/slurm/scheduled/<int:job_id>', methods=['DELETE'])
@@ -139,6 +168,7 @@ def scheduled_jobs_routes(app, cache):
                 return jsonify({"error": "Not found"}), 404
             sess.delete(job)
             sess.commit()
+        _reschedule_checker()
         return jsonify({"status": "deleted"})
 
     @app.route('/api/slurm/scheduled/<int:job_id>/toggle', methods=['POST'])
@@ -153,6 +183,7 @@ def scheduled_jobs_routes(app, cache):
             job.modified_time = datetime.utcnow()
             sess.commit()
             result = job.as_dict()
+        _reschedule_checker()
         return jsonify(result)
 
     @app.route('/api/slurm/scheduled/<int:job_id>/run-now', methods=['POST'])
@@ -162,6 +193,7 @@ def scheduled_jobs_routes(app, cache):
             if not job:
                 return jsonify({"error": "Not found"}), 404
             result = _submit_scheduled_job(sess, job)
+        _reschedule_checker()
         return jsonify(result)
 
     @app.route('/api/slurm/scheduled/<int:job_id>/runs')
@@ -219,8 +251,8 @@ def scheduled_jobs_routes(app, cache):
         return run.as_dict()
 
     def _check_scheduled_jobs():
-        """Periodic checker: submit any jobs that are due."""
-        log.info("Checker tick")
+        """Wake-up handler: submit due jobs, then sleep until the next one."""
+        log.info("Checker wake-up")
         try:
             now = datetime.utcnow()
             with _sqlexec() as sess:
@@ -258,11 +290,7 @@ def scheduled_jobs_routes(app, cache):
         except Exception as exc:
             log.error("Checker error: %s", exc, exc_info=True)
 
-    app.scheduler.add_job(
-        _check_scheduled_jobs,
-        'interval',
-        seconds=60,
-        id='check_scheduled_jobs',
-    )
-    log.info("Periodic checker registered (60s interval, running now).")
+        _reschedule_checker()
+
+    log.info("Scheduled jobs checker starting.")
     _check_scheduled_jobs()

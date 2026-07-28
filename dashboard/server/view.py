@@ -1,7 +1,6 @@
 from io import StringIO
 import os
 import json
-from contextlib import contextmanager
 from collections import defaultdict
 import base64
 from datetime import datetime
@@ -13,14 +12,13 @@ from flask_caching import Cache
 from flask import request
 from flask_socketio import SocketIO, emit
 import sqlalchemy
-from sqlalchemy.orm import Session
 from sqlalchemy import select, func, cast, TEXT
 
 from milabench.metrics.sqlalchemy import Exec, Metric, Pack, Weight, SavedQuery
-from milabench.metrics.sqlalchemy import SQLAlchemy
 from milabench.metrics.report import fetch_data, make_pivot_summary, fetch_data_by_id
 from milabench.report import make_report
 
+from .db import Database
 from .plot import pivot_query
 from .utils import database_uri, page, make_selection_key, make_filters, cursor_to_json, cursor_to_dataframe
 from .slurm import slurm_integration
@@ -175,6 +173,7 @@ def view_server(config):
     """Display milabench results"""
 
     DATABASE_URI = database_uri()
+    database = Database(DATABASE_URI)
 
     app = Flask(__name__)
     app.config.update(config)
@@ -182,6 +181,7 @@ def view_server(config):
         "CACHE_TYPE": "SimpleCache",
         "CACHE_DEFAULT_TIMEOUT": 300
     })
+    app.extensions["database"] = database
 
     cache = Cache(app)
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -207,11 +207,7 @@ def view_server(config):
     print(DATABASE_URI)
 
 
-    @contextmanager
-    def sqlexec():
-        with SQLAlchemy(DATABASE_URI) as logger:
-            with Session(logger.client) as sess:
-                yield sess
+    sqlexec = database.connect
 
     dev_mode = os.environ.get("DEV_MODE", "true").lower() not in ("0", "false", "no")
     app.config["DEV_MODE"] = dev_mode
@@ -225,7 +221,7 @@ def view_server(config):
             return f(*args, **kwargs)
         return wrapper
 
-    push_routes(app, DATABASE_URI)
+    push_routes(app, database)
 
     @app.route('/api/ping')
     def api_ping():
@@ -246,7 +242,7 @@ def view_server(config):
         sync_routes(app, DATABASE_URI)
 
         try:
-            slurm_integration(app, cache)
+            slurm_integration(app, cache, database)
         except Exception as exc:
             import traceback
             print(f"[slurm] slurm_integration FAILED: {exc}")
@@ -297,8 +293,7 @@ def view_server(config):
 
     @app.route('/api/summary/<runame>')
     def api_summary(runame):
-        with SQLAlchemy(DATABASE_URI) as logger:
-            df_post = fetch_data(logger.client, runame)
+        df_post = fetch_data(database.engine, runame)
 
         multirun = {}
         for real_runname in df_post["run"].unique():
@@ -394,7 +389,7 @@ def view_server(config):
             return jsonify(sess.execute(stmt).scalars().all())
 
     from .gpu_summary import gpu_summary_routes
-    gpu_summary_routes(app, sqlexec, scheduler, dev_only)
+    gpu_summary_routes(app, sqlexec)
 
     from .gpu_specs import gpu_specs_routes
     gpu_specs_routes(app, sqlexec, dev_only)
@@ -686,8 +681,7 @@ def view_server(config):
             return fetch_data_by_id(client, run_id, profile=profile)
 
     def report(run_id, profile="default"):
-        with SQLAlchemy(DATABASE_URI) as logger:
-            df_post = fetch_data_type(logger.client, run_id, profile=profile)
+        df_post = fetch_data_type(database.engine, run_id, profile=profile)
 
         names = list(df_post["run"].unique())
 

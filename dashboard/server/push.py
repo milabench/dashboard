@@ -5,27 +5,28 @@ import tempfile
 import traceback
 from flask import Flask, flash, request, redirect, jsonify, Response, stream_with_context
 from werkzeug.utils import secure_filename
-from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from milabench.metrics.archive import publish_zipped_run
 from milabench.metrics.sqlalchemy import SQLAlchemy, PushKey
+from .db import Database
+from .gpu_summary import refresh_gpu_summary
 from .utils import database_uri
 
 
-def _invalidate_report_cache(db_uri, exec_id):
+def _invalidate_report_cache(database, exec_id):
     """Delete cached report rows for the given exec_id after a push."""
     if exec_id is None:
         return
     try:
         from .report_cache import invalidate_exec, _table_exists
-        with SQLAlchemy(db_uri) as backend:
-            with Session(backend.client) as sess:
-                if _table_exists(sess):
-                    invalidate_exec(sess, exec_id)
-                    print(f"[report_cache] Invalidated cache for exec_id={exec_id}")
+        with database.connect() as sess:
+            if _table_exists(sess):
+                invalidate_exec(sess, exec_id)
+                print(f"[report_cache] Invalidated cache for exec_id={exec_id}")
     except Exception as err:
         print(f"[report_cache] Invalidation failed for exec_id={exec_id}: {err}")
+
 
 
 def _sse(event, data):
@@ -43,26 +44,37 @@ MAX_ENTRY_SIZE = int(os.getenv("MAX_ENTRY_SIZE", 100 * 1024 * 1024))  # 100 MB p
 MAX_ENTRIES = int(os.getenv("MAX_ZIP_ENTRIES", 50_000))
 
 
-def push_routes(app, database_uri):
+def push_routes(app, database):
     UPLOAD_FOLDER = '/tmp/'
     ALLOWED_EXTENSIONS = {'zip'}
 
     app.config['UPLOAD_FOLDER'] = os.getenv("UPLOAD_FOLDER", UPLOAD_FOLDER)
     app.config['MAX_CONTENT_LENGTH'] = MAX_ZIP_SIZE
 
+    @app.after_request
+    def mark_legacy_zip_endpoint(response):
+        if request.path == "/api/push/zip":
+            response.headers["Deprecation"] = "true"
+            response.headers["Warning"] = (
+                '299 - "/api/push/zip is deprecated; use /api/push/zip/stream"'
+            )
+            response.headers["Link"] = (
+                '</api/push/zip/stream>; rel="successor-version"'
+            )
+        return response
+
     def allowed_file(filename):
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
     def resolve_push_key(key):
         """Look up a push key and return the associated name, or None."""
-        with SQLAlchemy(database_uri) as backend:
-            with Session(backend.client) as sess:
-                row = sess.execute(
-                    select(PushKey).where(PushKey.key == key)
-                ).scalar_one_or_none()
-                if not row:
-                    print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
-                return row.name if row else None
+        with database.connect() as sess:
+            row = sess.execute(
+                select(PushKey).where(PushKey.key == key)
+            ).scalar_one_or_none()
+            if not row:
+                print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
+            return row.name if row else None
 
     @app.route('/api/push/key/request', methods=['POST'])
     def request_push_key():
@@ -73,37 +85,36 @@ def push_routes(app, database_uri):
         if not name:
             return jsonify({"status": "ERR", "message": "Name is required"}), 400
 
-        with SQLAlchemy(database_uri) as backend:
-            with Session(backend.client) as sess:
-                existing = sess.execute(
-                    select(PushKey).where(PushKey.name == name)
-                ).scalar_one_or_none()
+        with database.connect() as sess:
+            existing = sess.execute(
+                select(PushKey).where(PushKey.name == name)
+            ).scalar_one_or_none()
 
-                if existing:
-                    return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
+            if existing:
+                return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
 
-                key = secrets.token_hex(32)
-                push_key = PushKey(name=name, key=key)
-                sess.add(push_key)
-                sess.commit()
+            key = secrets.token_hex(32)
+            push_key = PushKey(name=name, key=key)
+            sess.add(push_key)
+            sess.commit()
 
-                return jsonify({
-                    "status": "OK",
-                    "name": name,
-                    "key": key,
-                    "message": "Save this key - it will not be shown again."
-                })
+            return jsonify({
+                "status": "OK",
+                "name": name,
+                "key": key,
+                "message": "Save this key - it will not be shown again."
+            })
 
     @app.route('/api/push/key/list')
     def list_push_keys():
         """List all registered push key names (without exposing the secrets)."""
-        with SQLAlchemy(database_uri) as backend:
-            with Session(backend.client) as sess:
-                rows = sess.execute(select(PushKey)).scalars().all()
-                return jsonify([{"name": row.name} for row in rows])
+        with database.connect() as sess:
+            rows = sess.execute(select(PushKey)).scalars().all()
+            return jsonify([{"name": row.name} for row in rows])
 
     @app.route('/api/push/zip', methods=['POST'])
-    def upload_zip_file():
+    def upload_zip_file_legacy():
+        """Deprecated non-streaming upload endpoint."""
         push_key = request.form.get('key') or request.headers.get('X-Push-Key')
         if not push_key:
             return jsonify({"status": "ERR", "message": "Push key is required"}), 401
@@ -138,11 +149,13 @@ def push_routes(app, database_uri):
                         user_meta = {}
 
                 meta_tags = {**user_meta, "contributor": contributor}
-                with SQLAlchemy(database_uri, meta_tags=meta_tags) as backend:
+                with SQLAlchemy(engine=database.engine, meta_tags=meta_tags) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
                     exec_id = backend._run_id
 
-                _invalidate_report_cache(database_uri, exec_id)
+                _invalidate_report_cache(database, exec_id)
+                if exec_id is not None:
+                    refresh_gpu_summary(database.connect)
 
                 os.remove(dest)
                 return jsonify({
@@ -236,7 +249,7 @@ def push_routes(app, database_uri):
                     yield _sse("info", {"message": f"Found {len(data)} run(s)", "contributor": contributor})
 
                     pushed_exec_ids = []
-                    with SQLAlchemy(database_uri, meta_tags=meta_tags) as backend:
+                    with SQLAlchemy(engine=database.engine, meta_tags=meta_tags) as backend:
                         with multilogger(backend, stop_on_exception=True) as log:
                             for runname, rundata in data.items():
                                 if hasattr(backend, "start_new_run"):
@@ -264,7 +277,9 @@ def push_routes(app, database_uri):
                                     pushed_exec_ids.append(backend._run_id)
 
                     for eid in pushed_exec_ids:
-                        _invalidate_report_cache(database_uri, eid)
+                        _invalidate_report_cache(database, eid)
+                    if pushed_exec_ids:
+                        refresh_gpu_summary(database.connect)
 
                 yield _sse("done", {"status": "OK", "message": f"{file.filename} pushed by {contributor}"})
 
@@ -295,7 +310,7 @@ def push_routes(app, database_uri):
             try:
                 run_path = os.path.join(run_folder, run)
 
-                with SQLAlchemy(database_uri, meta_override={}) as backend:
+                with SQLAlchemy(engine=database.engine, meta_override={}) as backend:
                     publish_archived_run(backend, run_path, stop_on_exception=True)
 
                 success.append(run.name)
@@ -303,6 +318,9 @@ def push_routes(app, database_uri):
             except Exception as err:
                 traceback.print_exc()
                 failures.append((run.name, str(err)))
+
+        if success:
+            refresh_gpu_summary(database.connect)
 
         print("DONE")
         return {
@@ -330,12 +348,13 @@ def push_zip_folder(file_path, url='http://localhost:5000/push'):
 def push_server(config):
     """Simple push server that takes a zip folder of runs to push to the database"""
 
-    DATABASE_URI = database_uri()
+    database = Database(database_uri())
 
     app = Flask(__name__)
     app.config.update(config)
 
-    push_routes(app, DATABASE_URI)
+    app.extensions["database"] = database
+    push_routes(app, database)
 
     return app
 

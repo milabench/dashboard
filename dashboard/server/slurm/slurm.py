@@ -636,7 +636,7 @@ def local_command(*args, timeout=10):
         }
 
 
-def slurm_integration(app, cache):
+def slurm_integration(app, cache, database):
     """Add Slurm integration routes to the Flask app"""
 
     from pathlib import Path
@@ -755,7 +755,7 @@ def slurm_integration(app, cache):
     app._do_slurm_submit = _do_slurm_submit
 
     from .scheduled import scheduled_jobs_routes
-    scheduled_jobs_routes(app, cache)
+    scheduled_jobs_routes(app, cache, database)
 
     book_keeping()
     app.scheduler.add_job(book_keeping, 'interval', seconds=3600)

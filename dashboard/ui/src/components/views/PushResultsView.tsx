@@ -15,7 +15,7 @@ import {
 } from '@chakra-ui/react';
 import { LuUpload } from 'react-icons/lu';
 import { toaster } from '../ui/toaster';
-import { pushZipFile, requestPushKey, listPushKeys } from '../../services/api';
+import { pushZipStream, requestPushKey, listPushKeys } from '../../services/api';
 
 export const PushResultsView: React.FC = () => {
     usePageTitle('Push Results');
@@ -23,6 +23,7 @@ export const PushResultsView: React.FC = () => {
     const [pushKey, setPushKey] = useState<string>('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [metadataText, setMetadataText] = useState<string>('');
@@ -54,6 +55,7 @@ export const PushResultsView: React.FC = () => {
         if (!selectedFile || !pushKey.trim()) return;
 
         setIsUploading(true);
+        setUploadProgress('Uploading file…');
         try {
             let metadata: Record<string, string> | undefined;
             if (metadataText.trim()) {
@@ -70,7 +72,20 @@ export const PushResultsView: React.FC = () => {
                     return;
                 }
             }
-            const result = await pushZipFile(selectedFile, pushKey.trim(), metadata);
+            const result = await pushZipStream(
+                selectedFile,
+                pushKey.trim(),
+                metadata,
+                ({ event, data }) => {
+                    if (data.message) {
+                        setUploadProgress(data.message);
+                    } else if (event === 'run') {
+                        setUploadProgress(`Processing run ${data.name}`);
+                    } else if (event === 'bench') {
+                        setUploadProgress(`Processing benchmark ${data.name}`);
+                    }
+                },
+            );
             if (result.status === 'OK') {
                 toaster.create({
                     title: 'Upload successful',
@@ -97,6 +112,7 @@ export const PushResultsView: React.FC = () => {
             });
         } finally {
             setIsUploading(false);
+            setUploadProgress('');
         }
     };
 
@@ -311,6 +327,11 @@ export const PushResultsView: React.FC = () => {
                                         {isUploading ? 'Uploading…' : 'Upload'}
                                     </Button>
                                 </HStack>
+                                {isUploading && uploadProgress && (
+                                    <Text color="var(--color-text-muted)" fontSize="sm">
+                                        {uploadProgress}
+                                    </Text>
+                                )}
                             </VStack>
                         </Box>
                     </VStack>

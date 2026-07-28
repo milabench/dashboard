@@ -643,27 +643,88 @@ export const listPushKeys = async (): Promise<{ name: string }[]> => {
     }
 };
 
-export const pushZipFile = async (file: File, pushKey?: string, metadata?: Record<string, string>): Promise<PushZipResponse> => {
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
-        if (pushKey) formData.append('key', pushKey);
-        if (metadata && Object.keys(metadata).length > 0) formData.append('metadata', JSON.stringify(metadata));
+export interface PushStreamEvent {
+    event: string;
+    data: Record<string, any>;
+}
 
-        const response = await api.post('/push/zip', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-            timeout: 120000,
-        });
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.data) {
-            return error.response.data;
-        }
-        return handleError(error);
+export const pushZipStream = async (
+    file: File,
+    pushKey?: string,
+    metadata?: Record<string, string>,
+    onEvent?: (event: PushStreamEvent) => void,
+): Promise<PushZipResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (pushKey) formData.append('key', pushKey);
+    if (metadata && Object.keys(metadata).length > 0) {
+        formData.append('metadata', JSON.stringify(metadata));
     }
+
+    // Axios buffers the whole body in browsers, so streaming needs fetch.
+    const baseURL = api.defaults.baseURL || '/api';
+    const response = await fetch(`${baseURL}/push/zip/stream`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({
+            message: `Upload failed with status ${response.status}`,
+        }));
+        return { status: 'ERR', message: error.message || error.error };
+    }
+    if (!response.body) {
+        return { status: 'ERR', message: 'Streaming is not supported by this browser' };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result: PushZipResponse = {
+        status: 'ERR',
+        message: 'Upload stream ended before completion',
+    };
+
+    const processBlock = (block: string) => {
+        let event = 'message';
+        const dataLines: string[] = [];
+
+        for (const line of block.split(/\r?\n/)) {
+            if (line.startsWith('event:')) event = line.slice(6).trim();
+            if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length === 0) return;
+
+        const data = JSON.parse(dataLines.join('\n'));
+        onEvent?.({ event, data });
+
+        if (event === 'done') result = data as PushZipResponse;
+        if (event === 'error') {
+            result = {
+                status: 'ERR',
+                message: data.message || 'Upload failed',
+            };
+        }
+    };
+
+    while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || '';
+        blocks.forEach(processBlock);
+
+        if (done) break;
+    }
+    if (buffer.trim()) processBlock(buffer);
+
+    return result;
 };
+
+/** @deprecated Use pushZipStream to receive upload progress. */
+export const pushZipFile = pushZipStream;
 
 export const pushJobFolder = async (jrJobId: string): Promise<PushFolderResponse> => {
     try {

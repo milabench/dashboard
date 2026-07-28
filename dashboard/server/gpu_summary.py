@@ -2,7 +2,7 @@
 
 Provides two endpoints:
   GET  /api/gpu/summary          - fast read from materialized view (falls back to live query)
-  POST /api/gpu/summary/refresh  - force-refresh the materialized view (dev only)
+  GET  /api/gpu/summary/live     - always compute the summary live
 """
 
 import sqlalchemy
@@ -180,7 +180,18 @@ def _live_query(sqlexec):
         return rows
 
 
-def gpu_summary_routes(app, sqlexec, scheduler, dev_only):
+def refresh_gpu_summary(sqlexec):
+    """Refresh the materialized view after new benchmark data is committed."""
+    try:
+        with sqlexec() as sess:
+            refresh_views(sess, [VIEW_NAME])
+        return True
+    except Exception as err:
+        print(f"[gpu_summary] Refresh failed: {err}")
+        return False
+
+
+def gpu_summary_routes(app, sqlexec):
     """Register GPU summary endpoints on the Flask app."""
 
     _has_view = False
@@ -198,16 +209,7 @@ def gpu_summary_routes(app, sqlexec, scheduler, dev_only):
         except Exception as err:
             print(f"[gpu_summary] Could not ensure materialized view: {err}")
 
-    def _refresh():
-        try:
-            with sqlexec() as sess:
-                refresh_views(sess, [VIEW_NAME])
-        except Exception as err:
-            print(f"[gpu_summary] Refresh failed: {err}")
-
     _ensure_view()
-    if _has_view:
-        scheduler.add_job(_refresh, 'interval', minutes=10, id='refresh_gpu_summary')
 
     @app.route('/api/gpu/summary')
     def api_gpu_summary():
@@ -225,12 +227,3 @@ def gpu_summary_routes(app, sqlexec, scheduler, dev_only):
         """Always compute the GPU summary in real time."""
         rows = _live_query(sqlexec)
         return jsonify(_rows_to_json(rows))
-
-    @app.route('/api/gpu/summary/refresh', methods=['POST'])
-    @dev_only
-    def api_gpu_summary_refresh():
-        """Force-refresh the materialized view."""
-        if not _has_view:
-            return jsonify({"status": "ERR", "message": "Materialized view not available"}), 503
-        _refresh()
-        return jsonify({"status": "ok"})
