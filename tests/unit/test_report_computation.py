@@ -33,7 +33,7 @@ from milabench.report import (
     make_dataframe,
     make_report,
 )
-from milabench.metrics.report import (
+from dashboard.server.report_data import (
     dropminmax,
     mean as db_mean,
     std as db_std,

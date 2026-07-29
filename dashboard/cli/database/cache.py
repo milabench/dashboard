@@ -120,7 +120,7 @@ class Cache(Command):
 
                 case "clear":
                     from sqlalchemy import delete
-                    from milabench.metrics.sqlalchemy import ReportCache
+                    from dashboard.server.database.models import ReportCache
 
                     result = sess.execute(delete(ReportCache))
                     sess.commit()

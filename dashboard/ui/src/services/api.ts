@@ -622,9 +622,22 @@ export const listSlurmSecrets = async (): Promise<string[]> => {
 };
 
 // Push-related API functions
-export const requestPushKey = async (name: string): Promise<{ status: string; name?: string; key?: string; message: string }> => {
+export const requestPushKey = async (
+    name: string,
+    metadata?: Record<string, unknown>,
+): Promise<{
+    status: string;
+    name?: string;
+    key?: string;
+    metadata?: Record<string, unknown>;
+    message: string;
+}> => {
     try {
-        const response = await api.post('/push/key/request', { name });
+        const payload: { name: string; metadata?: Record<string, unknown> } = { name };
+        if (metadata && Object.keys(metadata).length > 0) {
+            payload.metadata = metadata;
+        }
+        const response = await api.post('/push/key/request', payload);
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {
@@ -634,7 +647,7 @@ export const requestPushKey = async (name: string): Promise<{ status: string; na
     }
 };
 
-export const listPushKeys = async (): Promise<{ name: string }[]> => {
+export const listPushKeys = async (): Promise<{ name: string; metadata?: Record<string, unknown> }[]> => {
     try {
         const response = await api.get('/push/key/list');
         return response.data;
@@ -651,7 +664,7 @@ export interface PushStreamEvent {
 export const pushZipStream = async (
     file: File,
     pushKey?: string,
-    metadata?: Record<string, string>,
+    metadata?: Record<string, unknown>,
     onEvent?: (event: PushStreamEvent) => void,
 ): Promise<PushZipResponse> => {
     const formData = new FormData();

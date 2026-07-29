@@ -9,7 +9,7 @@ import sqlalchemy
 from flask import jsonify
 from sqlalchemy import select, func, cast, text, TEXT, Float
 
-from milabench.metrics.sqlalchemy import Exec, Pack
+from dashboard.server.database.models import Exec, Pack
 from .materialized_views import GPU_SUMMARY_VIEW as VIEW_NAME, _view_exists
 from dashboard.cli.database.views import create_views, refresh_views
 

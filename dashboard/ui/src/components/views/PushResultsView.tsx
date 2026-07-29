@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Box,
     VStack,
@@ -19,6 +19,7 @@ import { pushZipStream, requestPushKey, listPushKeys } from '../../services/api'
 
 export const PushResultsView: React.FC = () => {
     usePageTitle('Push Results');
+    const queryClient = useQueryClient();
 
     const [pushKey, setPushKey] = useState<string>('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -29,6 +30,7 @@ export const PushResultsView: React.FC = () => {
     const [metadataText, setMetadataText] = useState<string>('');
 
     const [requestName, setRequestName] = useState<string>('');
+    const [keyMetadataText, setKeyMetadataText] = useState<string>('');
     const [isRequesting, setIsRequesting] = useState(false);
     const [generatedKey, setGeneratedKey] = useState<string | null>(null);
 
@@ -57,14 +59,18 @@ export const PushResultsView: React.FC = () => {
         setIsUploading(true);
         setUploadProgress('Uploading file…');
         try {
-            let metadata: Record<string, string> | undefined;
+            let metadata: Record<string, unknown> | undefined;
             if (metadataText.trim()) {
                 try {
-                    metadata = JSON.parse(metadataText.trim());
+                    const parsed = JSON.parse(metadataText.trim());
+                    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                        throw new Error('not an object');
+                    }
+                    metadata = parsed;
                 } catch {
                     toaster.create({
                         title: 'Invalid metadata',
-                        description: 'Metadata must be valid JSON (e.g. {"key": "value"})',
+                        description: 'Metadata must be a JSON object (e.g. {"key": "value"})',
                         type: 'error',
                         duration: 5000,
                     });
@@ -119,9 +125,28 @@ export const PushResultsView: React.FC = () => {
     const handleRequestKey = async () => {
         if (!requestName.trim()) return;
 
+        let keyMetadata: Record<string, unknown> | undefined;
+        if (keyMetadataText.trim()) {
+            try {
+                const parsed = JSON.parse(keyMetadataText.trim());
+                if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                    throw new Error('not an object');
+                }
+                keyMetadata = parsed;
+            } catch {
+                toaster.create({
+                    title: 'Invalid key metadata',
+                    description: 'Key metadata must be a JSON object (e.g. {"source": "ci"})',
+                    type: 'error',
+                    duration: 5000,
+                });
+                return;
+            }
+        }
+
         setIsRequesting(true);
         try {
-            const result = await requestPushKey(requestName.trim());
+            const result = await requestPushKey(requestName.trim(), keyMetadata);
             if (result.status === 'OK' && result.key) {
                 setGeneratedKey(result.key);
                 toaster.create({
@@ -131,6 +156,8 @@ export const PushResultsView: React.FC = () => {
                     duration: 10000,
                 });
                 setRequestName('');
+                setKeyMetadataText('');
+                queryClient.invalidateQueries({ queryKey: ['pushKeys'] });
             } else {
                 toaster.create({
                     title: 'Failed to generate key',
@@ -182,19 +209,40 @@ export const PushResultsView: React.FC = () => {
                         <Heading size="md" color="var(--color-text)">Request a Push Key</Heading>
                         <Text color="var(--color-text-muted)" fontSize="sm">
                             Enter the name you want associated with your results. This name will be publicly visible.
+                            Optional metadata is stored on the key and applied to every run pushed with it.
                         </Text>
+                        <Field.Root>
+                            <Field.Label color="var(--color-text)">Contributor name</Field.Label>
+                            <Input
+                                value={requestName}
+                                onChange={(e) => setRequestName(e.target.value)}
+                                placeholder="Your name or organization"
+                                bg="var(--color-input-bg)"
+                                borderColor="var(--color-border)"
+                                color="var(--color-text)"
+                                _focus={{ borderColor: 'var(--color-primary)' }}
+                            />
+                        </Field.Root>
+                        <Field.Root>
+                            <Field.Label color="var(--color-text)">Key Metadata (optional)</Field.Label>
+                            <Textarea
+                                value={keyMetadataText}
+                                onChange={(e) => setKeyMetadataText(e.target.value)}
+                                placeholder='{"source": "ci", "ignore": true}'
+                                fontFamily="mono"
+                                fontSize="sm"
+                                rows={3}
+                                bg="var(--color-input-bg)"
+                                borderColor="var(--color-border)"
+                                color="var(--color-text)"
+                                _focus={{ borderColor: 'var(--color-primary)' }}
+                            />
+                            <Field.HelperText color="var(--color-text-muted)" fontSize="xs">
+                                JSON object attached to the push key. These fields override run and per-upload metadata
+                                and cannot be spoofed by uploaded archives.
+                            </Field.HelperText>
+                        </Field.Root>
                         <HStack gap={4}>
-                            <Field.Root flex="1">
-                                <Input
-                                    value={requestName}
-                                    onChange={(e) => setRequestName(e.target.value)}
-                                    placeholder="Your name or organization"
-                                    bg="var(--color-input-bg)"
-                                    borderColor="var(--color-border)"
-                                    color="var(--color-text)"
-                                    _focus={{ borderColor: 'var(--color-primary)' }}
-                                />
-                            </Field.Root>
                             <Button
                                 onClick={handleRequestKey}
                                 disabled={!requestName.trim() || isRequesting}
@@ -277,7 +325,8 @@ export const PushResultsView: React.FC = () => {
                                 _focus={{ borderColor: 'var(--color-primary)' }}
                             />
                             <Field.HelperText color="var(--color-text-muted)" fontSize="xs">
-                                JSON object merged into run metadata. The "contributor" field is always set from your push key.
+                                JSON object merged into run metadata for this upload only. Push-key metadata and
+                                "contributor" always override conflicting fields.
                             </Field.HelperText>
                         </Field.Root>
 
@@ -342,13 +391,25 @@ export const PushResultsView: React.FC = () => {
                     <Box borderWidth={1} borderRadius="md" p={4} bg="var(--color-bg-card)" borderColor="var(--color-border)">
                         <VStack align="stretch" gap={4}>
                             <Heading size="md" color="var(--color-text)">Registered Contributors</Heading>
-                            <HStack gap={2} flexWrap="wrap">
+                            <VStack align="stretch" gap={2}>
                                 {pushKeys.map((pk) => (
-                                    <Badge key={pk.name} bg="var(--color-primary)" color="var(--color-primary-text)">
-                                        {pk.name}
-                                    </Badge>
+                                    <HStack key={pk.name} gap={2} align="flex-start" flexWrap="wrap">
+                                        <Badge bg="var(--color-primary)" color="var(--color-primary-text)">
+                                            {pk.name}
+                                        </Badge>
+                                        {pk.metadata && Object.keys(pk.metadata).length > 0 && (
+                                            <Text
+                                                as="code"
+                                                fontSize="xs"
+                                                color="var(--color-text-muted)"
+                                                fontFamily="mono"
+                                            >
+                                                {JSON.stringify(pk.metadata)}
+                                            </Text>
+                                        )}
+                                    </HStack>
                                 ))}
-                            </HStack>
+                            </VStack>
                         </VStack>
                     </Box>
                 )}

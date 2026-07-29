@@ -3,7 +3,10 @@ global-exclude __pycache__
 
 recursive-include dashboard *.json
 recursive-include dashboard *.py
+recursive-include dashboard *.mako
 recursive-include dashboard/static *
+recursive-include dashboard/alembic *
+include dashboard/alembic.ini
 
 include LICENSE
 include requirements.txt

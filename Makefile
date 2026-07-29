@@ -30,7 +30,13 @@ back-conda:
 back:
 	(. ../.venv/bin/activate; POSTGRES_USER=milabench_write POSTGRES_PSWD=1234 flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
 
+# Alembic (config lives in dashboard/alembic.ini)
+alembic-upgrade:
+	cd dashboard && alembic upgrade head
 
+alembic-revision:
+	cd dashboard && alembic revision --autogenerate -m "$(msg)"
 
-
+alembic-history:
+	cd dashboard && alembic history
 

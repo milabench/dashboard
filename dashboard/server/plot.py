@@ -1,7 +1,7 @@
 import sqlalchemy
 from sqlalchemy import select, func, Float, Integer
 
-from milabench.metrics.sqlalchemy import Exec, Metric, Pack, Weight
+from dashboard.server.database.models import Exec, Metric, Pack, Weight
 
 from .utils import make_selection_key, make_filters
 
@@ -332,7 +332,7 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
 
 
 def pivot_query(sesh, rows, cols, values, filters, profile="default", visibility=0):
-    from milabench.metrics.report import base_report_view
+    from dashboard.server.report_data import base_report_view
 
     filter_fields = [f['field'] for f in filters]
     names = {}

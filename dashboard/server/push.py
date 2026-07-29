@@ -7,8 +7,9 @@ from flask import Flask, flash, request, redirect, jsonify, Response, stream_wit
 from werkzeug.utils import secure_filename
 from sqlalchemy import select
 
-from milabench.metrics.archive import publish_zipped_run
-from milabench.metrics.sqlalchemy import SQLAlchemy, PushKey
+from dashboard.server.archive import publish_zipped_run
+from dashboard.server.database.writer import SQLAlchemy
+from dashboard.server.database.models import PushKey
 from .db import Database
 from .gpu_summary import refresh_gpu_summary
 from .utils import database_uri
@@ -67,23 +68,40 @@ def push_routes(app, database):
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
     def resolve_push_key(key):
-        """Look up a push key and return the associated name, or None."""
+        """Look up a push key and return (name, metadata) or (None, None)."""
         with database.connect() as sess:
             row = sess.execute(
                 select(PushKey).where(PushKey.key == key)
             ).scalar_one_or_none()
             if not row:
                 print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
-            return row.name if row else None
+                return None, None
+            meta = row.metadata_ if isinstance(row.metadata_, dict) else {}
+            return row.name, meta or {}
+
+    def _parse_key_metadata(raw):
+        """Validate optional push-key metadata; return (meta_dict, error_response)."""
+        if raw is None:
+            return {}, None
+        if not isinstance(raw, dict):
+            return None, (jsonify({
+                "status": "ERR",
+                "message": "metadata must be a JSON object",
+            }), 400)
+        return raw, None
 
     @app.route('/api/push/key/request', methods=['POST'])
     def request_push_key():
         """Generate a new push key for a given name."""
-        data = request.json
+        data = request.json or {}
         name = data.get('name', '').strip()
 
         if not name:
             return jsonify({"status": "ERR", "message": "Name is required"}), 400
+
+        key_meta, err = _parse_key_metadata(data.get('metadata'))
+        if err:
+            return err
 
         with database.connect() as sess:
             existing = sess.execute(
@@ -94,7 +112,7 @@ def push_routes(app, database):
                 return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
 
             key = secrets.token_hex(32)
-            push_key = PushKey(name=name, key=key)
+            push_key = PushKey(name=name, key=key, metadata_=key_meta)
             sess.add(push_key)
             sess.commit()
 
@@ -102,15 +120,48 @@ def push_routes(app, database):
                 "status": "OK",
                 "name": name,
                 "key": key,
+                "metadata": key_meta,
                 "message": "Save this key - it will not be shown again."
             })
 
     @app.route('/api/push/key/list')
     def list_push_keys():
-        """List all registered push key names (without exposing the secrets)."""
+        """List all registered push key names and metadata (without secrets)."""
         with database.connect() as sess:
             rows = sess.execute(select(PushKey)).scalars().all()
-            return jsonify([{"name": row.name} for row in rows])
+            return jsonify([
+                {
+                    "name": row.name,
+                    "metadata": row.metadata_ if isinstance(row.metadata_, dict) else {},
+                }
+                for row in rows
+            ])
+
+    def _parse_upload_metadata():
+        """Parse optional per-upload metadata from the multipart form."""
+        user_meta = {}
+        raw = request.form.get('metadata')
+        if raw:
+            try:
+                user_meta = json.loads(raw)
+                if not isinstance(user_meta, dict):
+                    user_meta = {}
+            except (json.JSONDecodeError, TypeError):
+                user_meta = {}
+        return user_meta
+
+    def _build_meta_layers(contributor, key_meta, user_meta):
+        """Build meta_tags / meta_forced for SQLAlchemy ingest.
+
+        Precedence (low → high):
+          per-upload metadata → archived run metadata → push-key metadata → contributor
+        """
+        meta_tags = dict(user_meta or {})
+        meta_forced = {
+            **(key_meta or {}),
+            "contributor": contributor,
+        }
+        return meta_tags, meta_forced
 
     @app.route('/api/push/zip', methods=['POST'])
     def upload_zip_file_legacy():
@@ -119,7 +170,7 @@ def push_routes(app, database):
         if not push_key:
             return jsonify({"status": "ERR", "message": "Push key is required"}), 401
 
-        contributor = resolve_push_key(push_key)
+        contributor, key_meta = resolve_push_key(push_key)
         if not contributor:
             return jsonify({"status": "ERR", "message": "Invalid push key"}), 403
 
@@ -137,19 +188,13 @@ def push_routes(app, database):
                 os.close(fd)
                 file.save(dest)
 
-                user_meta = {}
-                raw = request.form.get('metadata')
-                if raw:
-                    try:
-                        import json
-                        user_meta = json.loads(raw)
-                        if not isinstance(user_meta, dict):
-                            user_meta = {}
-                    except (json.JSONDecodeError, TypeError):
-                        user_meta = {}
-
-                meta_tags = {**user_meta, "contributor": contributor}
-                with SQLAlchemy(engine=database.engine, meta_tags=meta_tags) as backend:
+                user_meta = _parse_upload_metadata()
+                meta_tags, meta_forced = _build_meta_layers(contributor, key_meta, user_meta)
+                with SQLAlchemy(
+                    engine=database.engine,
+                    meta_tags=meta_tags,
+                    meta_forced=meta_forced,
+                ) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
                     exec_id = backend._run_id
 
@@ -177,7 +222,7 @@ def push_routes(app, database):
         if not push_key:
             return jsonify({"status": "ERR", "message": "Push key is required"}), 401
 
-        contributor = resolve_push_key(push_key)
+        contributor, key_meta = resolve_push_key(push_key)
         if not contributor:
             return jsonify({"status": "ERR", "message": "Invalid push key"}), 403
 
@@ -192,17 +237,8 @@ def push_routes(app, database):
         os.close(fd)
         file.save(dest)
 
-        user_meta = {}
-        raw = request.form.get('metadata')
-        if raw:
-            try:
-                user_meta = json.loads(raw)
-                if not isinstance(user_meta, dict):
-                    user_meta = {}
-            except (json.JSONDecodeError, TypeError):
-                user_meta = {}
-
-        meta_tags = {**user_meta, "contributor": contributor}
+        user_meta = _parse_upload_metadata()
+        meta_tags, meta_forced = _build_meta_layers(contributor, key_meta, user_meta)
 
         def generate():
             import time
@@ -249,7 +285,11 @@ def push_routes(app, database):
                     yield _sse("info", {"message": f"Found {len(data)} run(s)", "contributor": contributor})
 
                     pushed_exec_ids = []
-                    with SQLAlchemy(engine=database.engine, meta_tags=meta_tags) as backend:
+                    with SQLAlchemy(
+                        engine=database.engine,
+                        meta_tags=meta_tags,
+                        meta_forced=meta_forced,
+                    ) as backend:
                         with multilogger(backend, stop_on_exception=True) as log:
                             for runname, rundata in data.items():
                                 if hasattr(backend, "start_new_run"):
@@ -300,7 +340,7 @@ def push_routes(app, database):
         """Push a job runner folder to the database"""
 
         from .slurm import safe_job_path
-        from ..metrics.archive import publish_archived_run
+        from .archive import publish_archived_run
 
         run_folder = safe_job_path(jr_job_id, "runs")
         failures = []

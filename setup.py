@@ -57,6 +57,9 @@ if __name__ == "__main__":
                 "static/**/*",
                 "data/*",
                 "data/scaling/*",
+                "alembic.ini",
+                "alembic/**/*",
             ],
         },
+        include_package_data=True,
     )

@@ -16,7 +16,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session as SASession
 
-from milabench.metrics.sqlalchemy import Base
+from dashboard.server.database.models import Base
 from dashboard.server.database.scheduled_job import ScheduledJob, ScheduledJobRun
 from dashboard.server.slurm.scheduled import _compute_next_run
 

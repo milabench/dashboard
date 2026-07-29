@@ -6,7 +6,7 @@ from contextvars import ContextVar
 import sqlalchemy
 from sqlalchemy.orm import Session
 
-from milabench.metrics.sqlalchemy import from_json, to_json
+from dashboard.server.database.models import from_json, to_json
 
 class Database:
     def __init__(self, uri):

@@ -20,7 +20,7 @@ from sqlalchemy import (
     Text,
 )
 
-from milabench.metrics.sqlalchemy import Base
+from .models import Base
 
 
 class ScheduledJob(Base):

@@ -14,8 +14,8 @@ from flask_socketio import SocketIO, emit
 import sqlalchemy
 from sqlalchemy import select, func, cast, TEXT
 
-from milabench.metrics.sqlalchemy import Exec, Metric, Pack, Weight, SavedQuery
-from milabench.metrics.report import fetch_data, make_pivot_summary, fetch_data_by_id
+from dashboard.server.database.models import Exec, Metric, Pack, Weight, SavedQuery
+from dashboard.server.report_data import fetch_data, make_pivot_summary, fetch_data_by_id
 from milabench.report import make_report
 
 from .db import Database
@@ -144,23 +144,30 @@ def pandas_to_html_relative(df, default_float="{:.2f}".format):
 
 
 
+def _alembic_config(database_url):
+    """Build an Alembic Config pointing at dashboard/alembic.ini."""
+    from pathlib import Path
+
+    from alembic.config import Config
+
+    # dashboard/server/view.py -> package root dashboard/
+    pkg_root = Path(__file__).resolve().parents[1]
+    alembic_cfg = Config(str(pkg_root / "alembic.ini"))
+    url_str = (
+        database_url.render_as_string(hide_password=False)
+        if hasattr(database_url, "render_as_string")
+        else str(database_url)
+    )
+    alembic_cfg.set_main_option("sqlalchemy.url", url_str)
+    return alembic_cfg
+
+
 def _run_migrations(database_url):
     """Run Alembic migrations automatically on startup."""
     try:
-        from alembic.config import Config
         from alembic import command
-        import importlib_resources
 
-        migration_dir = importlib_resources.files("milabench.metrics.migration")
-        alembic_cfg = Config(str(migration_dir / "alembic.ini"))
-
-        url_str = (
-            database_url.render_as_string(hide_password=False)
-            if hasattr(database_url, "render_as_string")
-            else str(database_url)
-        )
-        alembic_cfg.set_main_option("sqlalchemy.url", url_str)
-
+        alembic_cfg = _alembic_config(database_url)
         command.upgrade(alembic_cfg, "head")
         print("[migrations] Database is up to date.")
     except Exception as err:
@@ -397,7 +404,7 @@ def view_server(config):
     # Ensure the gpus table exists and has all columns
     try:
         from .database.gpu import GPU
-        from milabench.metrics.sqlalchemy import Base as MetricsBase
+        from dashboard.server.database.models import Base as MetricsBase
         with sqlexec() as sess:
             MetricsBase.metadata.create_all(sess.bind, tables=[GPU.__table__], checkfirst=True)
             # Add any columns that were added after the table was first created
@@ -415,7 +422,7 @@ def view_server(config):
 
     try:
         from .database.scheduled_job import ScheduledJob, ScheduledJobRun
-        from milabench.metrics.sqlalchemy import Base as MetricsBase
+        from dashboard.server.database.models import Base as MetricsBase
         with sqlexec() as sess:
             MetricsBase.metadata.create_all(
                 sess.bind,
@@ -1060,7 +1067,7 @@ def view_server(config):
 
     @cache.memoize(timeout=3600)
     def cached_query(rows, cols, values, filters, profile="default"):
-        from milabench.metrics.report import base_report_view
+        from dashboard.server.report_data import base_report_view
 
         filter_fields = [f['field'] for f in filters]
 

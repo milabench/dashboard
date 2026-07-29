@@ -99,7 +99,7 @@ def cursor_to_dataframe(cursor):
 
 
 def make_selection_key(key, names=None, used_tables=None):
-    from milabench.metrics.sqlalchemy import Exec, Metric, Pack, Weight
+    from dashboard.server.database.models import Exec, Metric, Pack, Weight
     from sqlalchemy import Text, cast
 
     table, path = key.split(":")

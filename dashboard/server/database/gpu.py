@@ -36,7 +36,7 @@ from sqlalchemy import (
     String,
 )
 
-from milabench.metrics.sqlalchemy import Base
+from .models import Base
 
 
 class GPU(Base):
@@ -193,11 +193,13 @@ def _gpu_to_row(gpu: GPU) -> dict:
     return {k: getattr(gpu, k) for k in _ROW_FIELDS}
 
 
-def seed_gpus(session) -> int:
+def seed_gpus(session, *, commit: bool = True) -> int:
     """Insert or update GPU specs from IGUANE data. Returns count of upserted rows."""
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     rawdata = _load_iguane_rawdata()
+    if not rawdata:
+        return 0
 
     rows = []
     for name, raw in rawdata.items():
@@ -215,5 +217,6 @@ def seed_gpus(session) -> int:
         set_={k: getattr(stmt.excluded, k) for k in _ROW_FIELDS},
     )
     session.execute(stmt)
-    session.commit()
+    if commit:
+        session.commit()
     return len(rows)

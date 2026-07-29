@@ -17,7 +17,7 @@ from datetime import datetime
 from sqlalchemy import delete, select, update, func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from milabench.metrics.sqlalchemy import ReportCache
+from dashboard.server.database.models import ReportCache
 
 REPORT_CACHE_MAX_EXECS = int(os.getenv("REPORT_CACHE_MAX_EXECS", 50))
 
