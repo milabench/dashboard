@@ -174,6 +174,50 @@ def _run_migrations(database_url):
         print(f"[migrations] Warning: auto-migration failed: {err}")
 
 
+def _scaling_from_db(sqlexec, gpus):
+    """Return scaling rows from Postgres, or None if the table is missing/empty."""
+    try:
+        from dashboard.server.database.scaling import ScalingObservation
+
+        stmt = select(ScalingObservation)
+        if gpus:
+            stmt = stmt.where(ScalingObservation.gpu.in_(gpus))
+        stmt = stmt.order_by(
+            ScalingObservation.gpu,
+            ScalingObservation.bench,
+            ScalingObservation.batch_size,
+        )
+        with sqlexec() as sess:
+            rows = sess.execute(stmt).scalars().all()
+        if not rows:
+            return None
+        return [row.as_api_dict() for row in rows]
+    except Exception as err:
+        print(f"[scaling] DB query failed, falling back to YAML: {err}")
+        return None
+
+
+def _scaling_from_yaml(gpus):
+    """Filesystem fallback for /api/scaling (skips default.yaml)."""
+    from milabench.analysis.scaling import read_config
+
+    scaling_dir = str(importlib_resources.files("dashboard.data") / "scaling")
+    if not os.path.isdir(scaling_dir):
+        return {"error": f"Scaling config directory not found: {scaling_dir}"}
+
+    if len(gpus) == 0:
+        gpus = [
+            f.split(".")[0]
+            for f in os.listdir(scaling_dir)
+            if f.endswith(".yaml") and f not in ("default.yaml", "inference.yaml")
+        ]
+
+    output = []
+    for gpu in gpus:
+        path = os.path.join(scaling_dir, f"{gpu}.yaml")
+        if os.path.isfile(path):
+            read_config(f"{gpu}.yaml", output, folder=scaling_dir)
+    return output
 
 
 def view_server(config):
@@ -785,27 +829,16 @@ def view_server(config):
 
     @app.route('/api/scaling')
     def api_scaling():
-        """Fetch scaling data from the scaling configuration files"""
-        from milabench.analysis.scaling import read_config
-
-        scaling_dir = str(importlib_resources.files("dashboard.data") / "scaling")
-
-        if not os.path.isdir(scaling_dir):
-            return jsonify({"error": f"Scaling config directory not found: {scaling_dir}"}), 404
-
+        """Fetch scaling observations (Postgres preferred, YAML fallback)."""
         gpus = request.args.getlist("gpus")
 
-        if len(gpus) == 0:
-            gpus = [
-                f.split(".")[0]
-                for f in os.listdir(scaling_dir)
-                if f.endswith(".yaml") and f != "default.yaml"
-            ]
+        db_rows = _scaling_from_db(sqlexec, gpus)
+        if db_rows is not None:
+            return jsonify(db_rows)
 
-        output = []
-        for gpu in gpus:
-            read_config(f"{gpu}.yaml", output, folder=scaling_dir)
-
+        output = _scaling_from_yaml(gpus)
+        if isinstance(output, dict) and "error" in output:
+            return jsonify(output), 404
         return jsonify(output)
 
     @app.route('/html/scaling/x=<string:x>/y=<string:y>')

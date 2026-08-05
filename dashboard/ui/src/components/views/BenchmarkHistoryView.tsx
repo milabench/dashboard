@@ -61,7 +61,8 @@ export const BenchmarkHistoryView: React.FC = () => {
     const benchSearch = searchParams.get('q') || '';
     const timeWindow = (searchParams.get('tw') || 'all') as TimeWindow;
     const trimMinMax = searchParams.get('trim') === '1';
-    const hideMinMax = searchParams.get('hidewhiskers') === '1';
+    // Default on; only show whiskers when explicitly disabled via ?hidewhiskers=0
+    const hideMinMax = searchParams.get('hidewhiskers') !== '0';
 
     const setParam = useCallback((key: string, value: string) => {
         setSearchParams(prev => {
@@ -78,7 +79,7 @@ export const BenchmarkHistoryView: React.FC = () => {
     const setBenchSearch = (v: string) => setParam('q', v);
     const setTimeWindow = (v: TimeWindow) => setParam('tw', v === 'all' ? '' : v);
     const setTrimMinMax = (v: boolean) => setParam('trim', v ? '1' : '');
-    const setHideMinMax = (v: boolean) => setParam('hidewhiskers', v ? '1' : '');
+    const setHideMinMax = (v: boolean) => setParam('hidewhiskers', v ? '' : '0');
 
     const { data: benchList } = useQuery<string[]>({
         queryKey: ['benchList'],

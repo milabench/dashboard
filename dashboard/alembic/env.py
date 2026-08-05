@@ -18,17 +18,19 @@ if config.config_file_name is not None:
 
 local_dev = "postgresql://milabench_write:1234@localhost:5432/milabench"
 
-db_url = os.getenv("DATABASE_URI")
-if db_url:
+# Prefer a URL already set by the caller (e.g. ``dashboard db migrate``, which
+# injects the admin URL). Do not let DATABASE_URI clobber that — it is often
+# the app-role DSN and may omit the password in some shells/secret layouts.
+if not config.get_main_option("sqlalchemy.url"):
+    db_url = os.getenv("DATABASE_URI") or local_dev
     config.set_main_option("sqlalchemy.url", db_url)
-elif not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", local_dev)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
 from dashboard.server.database.models import Base  # noqa: E402
 import dashboard.server.database.gpu  # noqa: F401,E402
 import dashboard.server.database.scheduled_job  # noqa: F401,E402
+import dashboard.server.database.scaling  # noqa: F401,E402
 
 target_metadata = Base.metadata
 

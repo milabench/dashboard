@@ -28,8 +28,9 @@ export interface Execution {
             torch: string;
             build_settings: {
                 TORCH_VERSION: string;
-                CUDA_VERSION: string;
-                CUDNN_VERSION: string;
+                CUDA_VERSION?: string;
+                HIP_VERSION?: string;
+                CUDNN_VERSION?: string;
             };
         };
         milabench: {

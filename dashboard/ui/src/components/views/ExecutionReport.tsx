@@ -304,8 +304,21 @@ export const ExecutionReport = () => {
                                 <GridItem>
                                     <Stat.Root>
                                         <Stat.Label>PyTorch</Stat.Label>
-                                        <Stat.ValueText>{execution.meta?.pytorch?.build_settings?.TORCH_VERSION || 'N/A'}</Stat.ValueText>
-                                        <Stat.HelpText>CUDA: {execution.meta?.pytorch?.build_settings?.CUDA_VERSION || 'N/A'}</Stat.HelpText>
+                                        <Stat.ValueText>
+                                            {execution.meta?.pytorch?.build_settings?.TORCH_VERSION
+                                                || execution.meta?.pytorch?.torch
+                                                || 'N/A'}
+                                        </Stat.ValueText>
+                                        <Stat.HelpText>
+                                            {(() => {
+                                                const bs = execution.meta?.pytorch?.build_settings;
+                                                const hip = bs?.HIP_VERSION;
+                                                const cuda = bs?.CUDA_VERSION;
+                                                if (hip) return `ROCm: ${hip}`;
+                                                if (cuda) return `CUDA: ${cuda}`;
+                                                return 'Accel: N/A';
+                                            })()}
+                                        </Stat.HelpText>
                                     </Stat.Root>
                                 </GridItem>
                                 <GridItem>

@@ -269,6 +269,10 @@ class SQLAlchemy:
         namespace=None,
         unit=None,
     ):
+        # Empty sampler payloads (torchmem/jaxmem when CUDA/JAX unavailable).
+        if isinstance(value, dict) and not value:
+            return
+
         if not isinstance(value, numbers.Number):
             print(f"Unexpected value {value} for metric {name}")
             return
@@ -316,6 +320,33 @@ class SQLAlchemy:
                     run_id, pack_id, f"gpu.{metric}", value, gpu_id=gpu_id, job_id=jobid, order=metric_time, unit=unit
                 )
 
+    def _change_allocmem(self, run_id, pack_id, prefix, payload, jobid, metric_time=None):
+        """Expand per-device allocator stats (torchmem / jaxmem) into numeric rows.
+
+        Expected shape::
+
+            {"0": {"allocated": ..., "reserved": ..., "max_allocated": ..., "max_reserved": ...}}
+        """
+        if not isinstance(payload, dict):
+            print(f"Unexpected value {payload} for metric {prefix}")
+            return
+
+        for gpu_id, values in payload.items():
+            if not isinstance(values, dict):
+                print(f"Unexpected value {values} for metric {prefix}[{gpu_id}]")
+                continue
+            for metric, value in values.items():
+                self._push_metric(
+                    run_id,
+                    pack_id,
+                    f"{prefix}.{metric}",
+                    value,
+                    gpu_id=gpu_id,
+                    job_id=jobid,
+                    order=metric_time,
+                    unit="MiB",
+                )
+
     def _push_composed_data(self, run_id, pack_id, gpu_id, k, v, jobid, metric_time):
         for metric, value in v.items():
             unit = None
@@ -351,6 +382,16 @@ class SQLAlchemy:
             # so the gpu_id is moved to its own column
             # and each metric is pushed as a separate document
             self._change_gpudata(run_id, pack_id, "gpudata", gpudata, job_id, metric_time=metric_time)
+
+        elif (torchmem := data.pop("torchmem", None)) is not None:
+            self._change_allocmem(
+                run_id, pack_id, "torchmem", torchmem, job_id, metric_time=metric_time
+            )
+
+        elif (jaxmem := data.pop("jaxmem", None)) is not None:
+            self._change_allocmem(
+                run_id, pack_id, "jaxmem", jaxmem, job_id, metric_time=metric_time
+            )
 
         elif (process := data.pop("process", None)) is not None:
             self._push_composed_data(run_id, pack_id, gpu_id, "process", process, job_id, metric_time=metric_time)

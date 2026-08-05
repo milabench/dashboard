@@ -1,30 +1,132 @@
 
 import os
+from pathlib import Path
+
 from sqlalchemy import URL
+
+# Keys loaded from data/.secrets into the environment when unset.
+_DB_SECRET_KEYS = (
+    "POSTGRES_ADMIN_PASSWORD",
+    "DB_APP_PASSWORD",
+    "POSTGRES_PSWD",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "POSTGRES_DB",
+    "POSTGRES_SSLMODE",
+    "POSTGRES_USER",
+    "POSTGRES_ADMIN_USER",
+    "DATABASE_URI",
+    # Dedicated backup role (used by GHA / dump --backup-user)
+    "POSTGRES_BACKUP_USER",
+    "POSTGRES_BACKUP_PASSWORD",
+    # Azure Blob backups
+    "BACKUP_STORAGE_ACCOUNT",
+)
+
+
+def load_db_secrets(root=None):
+    """Fill unset DB-related env vars from ``data/.secrets``.
+
+    Distinguishes admin vs application credentials:
+
+    * ``POSTGRES_ADMIN_PASSWORD`` — PostgreSQL admin (DDL / Alembic)
+    * ``DB_APP_PASSWORD`` / ``POSTGRES_PSWD`` — app role (``milabench_write``)
+
+    Environment variables already set take precedence over the secrets file.
+    """
+    if root is None:
+        from dashboard.server.slurm.constant import JOBRUNNER_LOCAL_CACHE
+
+        root = Path(JOBRUNNER_LOCAL_CACHE)
+    else:
+        root = Path(root)
+
+    from dashboard.server.slurm.secrets import create_default_store
+
+    store = create_default_store(root)
+    for key in _DB_SECRET_KEYS:
+        if os.environ.get(key):
+            continue
+        value = store.get(key)
+        if value:
+            os.environ[key] = value
+
+    # App password alias: DB_APP_PASSWORD is the canonical secret name in
+    # deploy tooling; POSTGRES_PSWD is what the dashboard runtime uses.
+    if not os.environ.get("POSTGRES_PSWD") and os.environ.get("DB_APP_PASSWORD"):
+        os.environ["POSTGRES_PSWD"] = os.environ["DB_APP_PASSWORD"]
+
+
+def _postgres_url(*, username, password):
+    db = os.getenv("POSTGRES_DB", "milabench")
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    sslmode = os.getenv("POSTGRES_SSLMODE", "")
+    query = {"sslmode": sslmode} if sslmode else {}
+    return URL.create(
+        "postgresql",
+        username=username,
+        password=password,
+        host=host,
+        port=int(port),
+        database=db,
+        query=query,
+    )
 
 
 def database_uri():
-    USER = os.getenv("POSTGRES_USER", "username")
-    PSWD = os.getenv("POSTGRES_PSWD", "password")
-    DB = os.getenv("POSTGRES_DB", "milabench")
-    HOST = os.getenv("POSTGRES_HOST", "localhost")
-    PORT = os.getenv("POSTGRES_PORT", "5432")
-    SSLMODE = os.getenv("POSTGRES_SSLMODE", "")
+    """Connection URL for the application DB role (read/write app access).
 
+    Uses ``POSTGRES_USER`` / ``POSTGRES_PSWD``, with ``DB_APP_PASSWORD`` as a
+    fallback for the password (see ``load_db_secrets``).
+    """
     uri_override = os.getenv("DATABASE_URI", None)
     if uri_override:
         return uri_override
 
-    query = {"sslmode": SSLMODE} if SSLMODE else {}
-    return URL.create(
-        "postgresql",
-        username=USER,
-        password=PSWD,
-        host=HOST,
-        port=int(PORT),
-        database=DB,
-        query=query,
+    user = os.getenv("POSTGRES_USER", "username")
+    password = (
+        os.getenv("POSTGRES_PSWD")
+        or os.getenv("DB_APP_PASSWORD")
+        or "password"
     )
+    return _postgres_url(username=user, password=password)
+
+
+def admin_database_uri():
+    """Connection URL for the PostgreSQL admin role (migrations / grants).
+
+    Uses ``POSTGRES_ADMIN_USER`` / ``POSTGRES_ADMIN_PASSWORD``. Does **not**
+    fall back to the app password — migrations must use admin credentials.
+    """
+    user = os.getenv("POSTGRES_ADMIN_USER", "pgadmin")
+    password = os.getenv("POSTGRES_ADMIN_PASSWORD", "")
+    if not password:
+        raise ValueError(
+            "POSTGRES_ADMIN_PASSWORD is not set. Add it to data/.secrets "
+            "or export it in the environment."
+        )
+    return _postgres_url(username=user, password=password)
+
+
+def backup_database_uri():
+    """Connection URL for dumps (backup role, else admin, else app).
+
+    Preference order:
+
+    1. ``POSTGRES_BACKUP_USER`` / ``POSTGRES_BACKUP_PASSWORD``
+    2. admin credentials (``admin_database_uri``)
+    3. app credentials (``database_uri``)
+    """
+    backup_user = os.getenv("POSTGRES_BACKUP_USER")
+    backup_password = os.getenv("POSTGRES_BACKUP_PASSWORD")
+    if backup_user and backup_password:
+        return _postgres_url(username=backup_user, password=backup_password)
+
+    try:
+        return admin_database_uri()
+    except ValueError:
+        return database_uri()
 
 
 def page(title, body, more_css=""):
