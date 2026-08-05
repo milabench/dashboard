@@ -43,6 +43,11 @@ class Scaling(Command):
             default=None,
             help="Directory of *.yaml scaling files (for import)",
         )
+        parser.add_argument(
+            "--secrets",
+            default=None,
+            help="Path to data directory containing .secrets (default: repo data/)",
+        )
 
     @staticmethod
     def execute(args):
@@ -52,8 +57,16 @@ class Scaling(Command):
         from dashboard.server.utils import database_uri, load_db_secrets
         from dashboard.server.database.scaling import ScalingObservation
 
-        load_db_secrets()
-        engine = create_engine(database_uri())
+        load_db_secrets(root=args.secrets)
+        try:
+            uri = database_uri()
+        except ValueError as err:
+            print(f"[scaling] {err}")
+            return 1
+
+        if hasattr(uri, "host"):
+            print(f"[scaling] Connecting to {uri.host} as {uri.username}")
+        engine = create_engine(uri)
 
         with Session(engine) as sess:
             match args.action:

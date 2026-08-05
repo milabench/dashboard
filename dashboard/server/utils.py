@@ -79,18 +79,34 @@ def database_uri():
 
     Uses ``POSTGRES_USER`` / ``POSTGRES_PSWD``, with ``DB_APP_PASSWORD`` as a
     fallback for the password (see ``load_db_secrets``).
-    """
-    uri_override = os.getenv("DATABASE_URI", None)
-    if uri_override:
-        return uri_override
 
-    user = os.getenv("POSTGRES_USER", "username")
+    ``DATABASE_URI`` is honored only when it includes a password; a password-less
+    override (common when shell-expanding an unset ``$POSTGRES_*`` into a URI)
+    is ignored so component env/secrets can still authenticate.
+    """
+    uri_override = os.getenv("DATABASE_URI") or None
+    if uri_override:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(uri_override)
+        if parsed.password:
+            return uri_override
+        # Fall through — password-less DATABASE_URI is not usable.
+
+    user = os.getenv("POSTGRES_USER", "milabench_write")
     password = (
         os.getenv("POSTGRES_PSWD")
         or os.getenv("DB_APP_PASSWORD")
-        or "password"
+        or ""
     )
+    if not password:
+        raise ValueError(
+            "App DB password is not set. Add DB_APP_PASSWORD (or POSTGRES_PSWD) "
+            "to data/.secrets, or export it. If DATABASE_URI is set without a "
+            "password, unset it so secrets can be used."
+        )
     return _postgres_url(username=user, password=password)
+
 
 
 def admin_database_uri():
