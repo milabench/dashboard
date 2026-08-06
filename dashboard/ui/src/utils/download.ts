@@ -1,5 +1,31 @@
 /** Browser download helpers for plot/data export. */
 
+export async function copyTextToClipboard(text: string): Promise<void> {
+    if (navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch {
+            // Clipboard API can fail outside secure context or without permission.
+        }
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', 'true');
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    if (!ok) {
+        throw new Error('Could not copy to clipboard');
+    }
+}
+
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

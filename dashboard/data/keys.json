@@ -34,6 +34,7 @@
     "Metric:gpu_id",
     "Metric:job_id",
     "Weight:profile",
+    "Weight:weight",
     "Weight:priority",
     "Weight:enabled",
     "Weight:group1",

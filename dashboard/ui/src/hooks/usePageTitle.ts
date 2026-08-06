@@ -27,6 +27,7 @@ export const getTitleForRoute = (pathname: string): string => {
     if (pathname === '/executions') return 'Latest Executions';
     if (pathname.startsWith('/executions/')) return 'Execution Report';
     if (pathname === '/pivot') return 'Pivot View';
+    if (pathname === '/pivot/plot') return 'Pivot Plot';
     if (pathname === '/explorer') return 'Explorer';
     if (pathname === '/scaling') return 'Scaling';
     if (pathname === '/grouped') return 'Grouped View';

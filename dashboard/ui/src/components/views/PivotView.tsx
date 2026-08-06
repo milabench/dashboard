@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
@@ -25,14 +25,12 @@ import { PivotTableView } from './PivotTableView';
 import { PivotContextPanel, type PivotContextPanelState } from './PivotContextPanel';
 import { PivotFieldPickerPanel, type PivotFieldPickerState } from './PivotFieldPickerPanel';
 import { LuX } from 'react-icons/lu';
-
-interface PivotField {
-    field: string;
-    type: 'row' | 'column' | 'value' | 'filter';
-    operator?: string;
-    value?: string;
-    aggregators?: string[];  // For value fields - single aggregator in a one-element array
-}
+import {
+    hasPivotUrlConfig,
+    parsePivotFieldsFromSearchParams,
+    encodePivotValuesForApi,
+    type PivotField,
+} from '../../utils/pivotUrlParams';
 
 type PivotZoneType = PivotField['type'];
 type PivotLayout = 'sidebar' | 'classic';
@@ -52,89 +50,6 @@ function buildDefaultPivotFields(execIds?: string): PivotField[] {
         fields.push({ field: 'Exec:_id', type: 'filter', operator: 'in', value: execIds });
     }
     return fields;
-}
-
-function hasPivotUrlConfig(params: URLSearchParams): boolean {
-    return Boolean(
-        params.get('rows')
-        || params.get('cols')
-        || params.get('values')
-        || params.get('filters'),
-    );
-}
-
-function parsePivotFieldsFromSearchParams(params: URLSearchParams): PivotField[] | null {
-    const rows = params.get('rows');
-    const cols = params.get('cols');
-    const values = params.get('values');
-    const filters = params.get('filters');
-
-    if (!hasPivotUrlConfig(params)) {
-        return null;
-    }
-
-    const newFields: PivotField[] = [];
-
-    if (rows) {
-        rows.split(',').forEach((field) => {
-            if (field.trim()) {
-                newFields.push({ field: field.trim(), type: 'row' });
-            }
-        });
-    }
-
-    if (cols) {
-        cols.split(',').forEach((field) => {
-            if (field.trim()) {
-                newFields.push({ field: field.trim(), type: 'column' });
-            }
-        });
-    }
-
-    if (values) {
-        try {
-            const decodedValues = JSON.parse(atob(values));
-            if (Array.isArray(decodedValues)) {
-                decodedValues.forEach((value: { field?: string; aggregators?: string[] }) => {
-                    if (value.field) {
-                        newFields.push({
-                            field: value.field,
-                            type: 'value',
-                            aggregators: [value.aggregators?.[0] || 'avg'],
-                        });
-                    }
-                });
-            }
-        } catch {
-            values.split(',').forEach((field) => {
-                if (field.trim()) {
-                    newFields.push({
-                        field: field.trim(),
-                        type: 'value',
-                        aggregators: ['avg'],
-                    });
-                }
-            });
-        }
-    }
-
-    if (filters) {
-        try {
-            const decodedFilters = JSON.parse(atob(filters));
-            decodedFilters.forEach((filter: { field: string; operator?: string; value?: string }) => {
-                newFields.push({
-                    field: filter.field,
-                    type: 'filter',
-                    operator: filter.operator,
-                    value: filter.value,
-                });
-            });
-        } catch (error) {
-            console.error('Error parsing filters from URL:', error);
-        }
-    }
-
-    return newFields.length > 0 ? newFields : null;
 }
 
 const PIVOT_ZONE_WRAP_PROPS = {
@@ -184,6 +99,7 @@ export const PivotView = () => {
     usePageTitle('Pivot View');
 
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const hasUrlConfig = hasPivotUrlConfig(searchParams);
 
@@ -478,6 +394,11 @@ export const PivotView = () => {
         });
     };
 
+    const openPlotView = () => {
+        const query = searchParams.toString();
+        navigate(query ? `/pivot/plot?${query}` : '/pivot/plot');
+    };
+
     const removeField = (index: number) => {
         const newFields = [...fields];
         newFields.splice(index, 1);
@@ -489,14 +410,10 @@ export const PivotView = () => {
 
         const rows = fields.filter(f => f.type === 'row').map(f => f.field);
         const cols = fields.filter(f => f.type === 'column').map(f => f.field);
-        const values = fields.filter(f => f.type === 'value').map(f => ({
-            field: f.field,
-            aggregators: [f.aggregators?.[0] || 'avg'],
-        }));
 
         params.append('rows', rows.join(','));
         params.append('cols', cols.join(','));
-        params.append('values', btoa(JSON.stringify(values)));
+        params.append('values', encodePivotValuesForApi(fields));
 
         const filters = fields.filter(f => f.type === 'filter').map(f => ({
             field: f.field,
@@ -512,8 +429,13 @@ export const PivotView = () => {
             params.append('relative', 'true');
         }
 
+        const plot = searchParams.get('plot');
+        if (plot) {
+            params.set('plot', plot);
+        }
+
         setSearchParams(params);
-    }, [fields, isRelativePivot, setSearchParams]);
+    }, [fields, isRelativePivot, searchParams, setSearchParams]);
 
     const handleRelativePivotChange = useCallback((newValue: boolean) => {
         setIsRelativePivot(newValue);
@@ -1388,6 +1310,22 @@ export const PivotView = () => {
                         title={pivotLayout === 'sidebar' ? 'Switch to classic layout with field list' : 'Switch to sidebar layout'}
                     >
                         {pivotLayout === 'sidebar' ? 'Classic Layout' : 'Sidebar Layout'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        color="var(--color-text)"
+                        borderColor="var(--color-border)"
+                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                        onClick={openPlotView}
+                        disabled={!hasQueryResults}
+                        title={
+                            !hasQueryResults
+                                ? 'Run a pivot query first, then open the Vega-Lite plot builder'
+                                : 'Open Vega-Lite plot builder in a separate view'
+                        }
+                    >
+                        Plot
                     </Button>
                 </HStack>
             </HStack>

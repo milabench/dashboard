@@ -9,6 +9,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { Executions } from './components/views/Executions';
 import { PivotView } from './components/views/PivotView';
+import { PivotPlotPage } from './components/views/PivotPlotPage';
 import { ExecutionReport } from './components/views/ExecutionReport';
 import { ExplorerView } from './components/views/ExplorerView';
 import { Profile } from './components/views/Profile';
@@ -73,6 +74,7 @@ function App() {
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />
                 <Route path="/pivot" element={<PivotView />} />
+                <Route path="/pivot/plot" element={<PivotPlotPage />} />
                 <Route path="/explorer" element={<ExplorerView />} />
                 <Route path="/grouped" element={<GroupedView />} />
                 <Route path="/scaling" element={<Scaling />} />

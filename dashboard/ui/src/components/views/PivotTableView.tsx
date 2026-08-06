@@ -32,6 +32,7 @@ interface PivotTableViewProps {
     onGenerationComplete: () => void;
     previewEnabled?: boolean;
     onQueryResults?: (rowCount: number) => void;
+    onPivotDataChange?: (rows: Record<string, unknown>[]) => void;
     clearResultsToken?: number;
 }
 
@@ -44,6 +45,7 @@ export const PivotTableView = ({
     onGenerationComplete,
     previewEnabled = true,
     onQueryResults,
+    onPivotDataChange,
     clearResultsToken = 0,
 }: PivotTableViewProps) => {
     const [pivotData, setPivotData] = useState<any[]>([]);
@@ -53,7 +55,8 @@ export const PivotTableView = ({
     useEffect(() => {
         setPivotData([]);
         setError(null);
-    }, [clearResultsToken]);
+        onPivotDataChange?.([]);
+    }, [clearResultsToken, onPivotDataChange]);
 
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
@@ -95,6 +98,7 @@ export const PivotTableView = ({
 
             if (Array.isArray(response)) {
                 setPivotData(response);
+                onPivotDataChange?.(response as Record<string, unknown>[]);
                 onQueryResults?.(response.length);
             } else {
                 setPivotData([]);

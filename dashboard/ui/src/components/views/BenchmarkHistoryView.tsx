@@ -175,6 +175,10 @@ export const BenchmarkHistoryView: React.FC = () => {
 
         const vendorScale = buildVendorColorScale(values.map(d => d.vendor));
         const medianTick = cssColor('--color-plot-median-tick', '#1a202c');
+        const legendStyle = {
+            labelColor: cssColor('--color-text', '#1a202c'),
+            symbolSize: 120,
+        };
         const legendRight = {
             orient: 'right' as const,
             direction: 'vertical' as const,
@@ -183,7 +187,36 @@ export const BenchmarkHistoryView: React.FC = () => {
             columns: 1,
             padding: 20,
             labelFontSize: 12,
-            symbolSize: 120,
+            ...legendStyle,
+        };
+        const hoverParams = [
+            {
+                name: 'gpuHover',
+                select: {
+                    type: 'point',
+                    fields: ['gpu'],
+                    on: 'pointerover',
+                    clear: 'pointerout',
+                },
+                bind: { legend: 'mouseover' },
+            },
+            {
+                name: 'vendorHover',
+                select: {
+                    type: 'point',
+                    fields: ['vendor'],
+                    on: 'pointerover',
+                    clear: 'pointerout',
+                },
+                bind: { legend: 'mouseover' },
+            },
+        ];
+        const highlightOpacity = {
+            condition: [
+                { param: 'gpuHover', value: 1 },
+                { param: 'vendorHover', value: 1 },
+            ],
+            value: 0.5,
         };
 
         return {
@@ -209,16 +242,29 @@ export const BenchmarkHistoryView: React.FC = () => {
                     type: 'nominal',
                     title: 'Vendor',
                     scale: vendorScale,
-                    legend: legendRight,
+                    legend: { ...legendRight, symbolOpacity: 1 },
                 },
                 shape: {
                     field: 'gpu',
                     type: 'nominal',
                     title: 'GPU',
-                    legend: legendRight,
+                    legend: {
+                        ...legendRight,
+                        symbolOpacity: 1,
+                        symbolFillColor: cssColor('--color-text-muted', '#718096'),
+                        symbolStrokeColor: cssColor('--color-text-muted', '#718096'),
+                    },
                 },
             },
             layer: [
+                {
+                    description: 'Transparent layer to make series easier to hover',
+                    params: hoverParams,
+                    mark: { type: 'point', filled: true, opacity: 0, size: 400, tooltip: null },
+                    encoding: {
+                        y: { field: 'mean' },
+                    },
+                },
                 ...(!hideMinMax ? [{
                     mark: {
                         type: 'rule' as const,
@@ -227,6 +273,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                     encoding: {
                         y: { field: 'min' },
                         y2: { field: 'max' },
+                        opacity: highlightOpacity,
                         tooltip: [
                             { field: 'gpu', type: 'nominal' as const, title: 'GPU' },
                             { field: 'vendor', type: 'nominal' as const, title: 'Vendor' },
@@ -250,6 +297,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                     encoding: {
                         y: { field: 'q25' },
                         y2: { field: 'q75' },
+                        opacity: highlightOpacity,
                         tooltip: [
                             { field: 'gpu', type: 'nominal', title: 'GPU' },
                             { field: 'vendor', type: 'nominal', title: 'Vendor' },
@@ -272,6 +320,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                     },
                     encoding: {
                         y: { field: 'median' },
+                        opacity: highlightOpacity,
                         tooltip: [
                             { field: 'gpu', type: 'nominal', title: 'GPU' },
                             { field: 'median', type: 'quantitative', title: 'Median', format: '.2f' },
@@ -284,11 +333,20 @@ export const BenchmarkHistoryView: React.FC = () => {
                         type: 'point',
                         size: 70,
                         filled: true,
-                        strokeWidth: 1,
-                        stroke: medianTick,
                     },
                     encoding: {
                         y: { field: 'mean' },
+                        stroke: {
+                            condition: [
+                                { param: 'gpuHover', empty: false, value: cssColor('--color-text', '#1a202c') },
+                            ],
+                            value: cssColor('--color-bg-page', '#ffffff'),
+                        },
+                        strokeWidth: [
+                            { condition: { param: 'gpuHover', empty: false }, value: 2 },
+                            { value: 0.75 },
+                        ],
+                        opacity: highlightOpacity,
                         tooltip: [
                             { field: 'gpu', type: 'nominal', title: 'GPU' },
                             { field: 'vendor', type: 'nominal', title: 'Vendor' },
@@ -525,7 +583,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                 </HStack>
 
                 <Text fontSize="xs" color="var(--color-text-muted)" mb={2} flexShrink={0}>
-                    Color = vendor, shape = GPU. Candles: whiskers = min/max, box = Q25/Q75, line = median, marker = mean
+                    Color = vendor, shape = GPU. Hover a series or legend entry to highlight. Candles: whiskers = min/max, box = Q25/Q75, line = median, marker = mean
                 </Text>
 
                 {/* Chart area — fills remaining space */}
