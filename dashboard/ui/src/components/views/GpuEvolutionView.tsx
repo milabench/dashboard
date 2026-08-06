@@ -12,6 +12,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot from '../charts/VegaPlot';
+import { useColorMode } from '../ui/color-mode';
+import { buildVendorColorScale } from '../../utils/gpuColors';
 
 interface GpuEvolutionRecord {
     name: string;
@@ -86,6 +88,7 @@ function exportCsv(data: GpuEvolutionRecord[]) {
 
 export const GpuComparisonView: React.FC = () => {
     usePageTitle('Theoretical FLOPS Spec Comparison');
+    const { colorMode } = useColorMode();
 
     const [vendor, setVendor] = useState<string>('');
     const [metric, setMetric] = useState<MetricKey>('fp16');
@@ -113,6 +116,7 @@ export const GpuComparisonView: React.FC = () => {
 
         const chartWidth = Math.max(300, w - 200);
         const chartHeight = Math.max(250, h - 200);
+        const vendorScale = buildVendorColorScale(filtered.map((d: any) => d.vendor));
 
         return {
             $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -140,6 +144,7 @@ export const GpuComparisonView: React.FC = () => {
                             field: 'vendor',
                             type: 'nominal',
                             title: 'Vendor',
+                            scale: vendorScale,
                             legend: { orient: 'bottom', direction: 'horizontal' },
                         },
                         shape: {
@@ -184,12 +189,17 @@ export const GpuComparisonView: React.FC = () => {
                             scale: { zero: false, type: 'log' },
                         },
                         text: { field: 'name', type: 'nominal' },
-                        color: { field: 'vendor', type: 'nominal', legend: null },
+                        color: {
+                            field: 'vendor',
+                            type: 'nominal',
+                            scale: vendorScale,
+                            legend: null,
+                        },
                     },
                 },
             ],
         } as Record<string, any>;
-    }, [gpuData, metric, showPerWatt]);
+    }, [gpuData, metric, showPerWatt, colorMode]);
 
     const hasData = gpuData && gpuData.length > 0;
     const isPerWatt = showPerWatt === 'per_watt';

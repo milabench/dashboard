@@ -53,9 +53,14 @@ TABLES = [
     "gpus",
     "scaling_observations",
 ]
+# App role must own matviews so REFRESH works from the dashboard (not just admin).
+MATERIALIZED_VIEWS = [
+    "gpu_summary_mv",
+]
 READ_ROLES = ["milabench_write", "milabench_read", "milabench_migration"]
 WRITE_ROLES = ["milabench_write", "milabench_migration"]
 OWNER_ROLE = "milabench_migration"
+VIEW_OWNER_ROLE = "milabench_write"
 
 
 class Migrate(Command):
@@ -198,6 +203,23 @@ def _grant_all():
         for stmt in statements:
             conn.execute(text(stmt))
             print(f"[grant-all] {stmt}")
+
+        # Matviews: app role owns them so REFRESH works on push / CLI refresh.
+        for mv in MATERIALIZED_VIEWS:
+            exists = conn.execute(
+                text("SELECT 1 FROM pg_matviews WHERE matviewname = :name"),
+                {"name": mv},
+            ).scalar()
+            if not exists:
+                print(f"[grant-all] {mv}: not present, skip ownership")
+                continue
+            for stmt in (
+                f"ALTER MATERIALIZED VIEW {mv} OWNER TO {VIEW_OWNER_ROLE}",
+                f"GRANT SELECT ON {mv} TO {readers}",
+            ):
+                conn.execute(text(stmt))
+                print(f"[grant-all] {stmt}")
+
         conn.commit()
 
     print(f"[grant-all] Done - permissions applied to {tables}")

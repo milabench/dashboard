@@ -331,6 +331,17 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
 
 
 
+def _pivot_agg(name, expr):
+    """Map UI aggregator names to Postgres-compatible SQLAlchemy aggregates."""
+    if name == "median":
+        return func.percentile_cont(0.5).within_group(expr)
+    if name == "std":
+        return func.stddev(expr)
+    if name == "var":
+        return func.variance(expr)
+    return getattr(func, name)(expr)
+
+
 def pivot_query(sesh, rows, cols, values, filters, profile="default", visibility=0):
     from dashboard.server.report_data import base_report_view
 
@@ -375,9 +386,7 @@ def pivot_query(sesh, rows, cols, values, filters, profile="default", visibility
                 value = getattr(sub.c, k_name)
 
                 switch = sqlalchemy.case((sqlalchemy.and_(*conds), value), else_=None).cast(Float)
-                fun = getattr(func, f)
-
-                agg.append(fun(switch).label(label))
+                agg.append(_pivot_agg(f, switch).label(label))
 
     final_group_by = [
         getattr(sub.c, names[key]) for key in rows

@@ -1,7 +1,15 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, {
+    useEffect,
+    useRef,
+    useState,
+    useMemo,
+    useImperativeHandle,
+    forwardRef,
+} from 'react';
 import { Box, Text, Spinner } from '@chakra-ui/react';
 import { useVega } from '../../contexts/VegaContext';
 import { useColorMode } from '../ui/color-mode';
+import { exportVegaViewPng } from '../../utils/download';
 
 export type SpecBuilder = (width: number, height: number) => Record<string, any> | null;
 
@@ -10,6 +18,13 @@ export interface VegaPlotProps {
     height?: string;
     configOverrides?: Record<string, any>;
 }
+
+export type VegaPlotHandle = {
+    /** Export the current plot as a PNG download. */
+    exportPng: (filename: string) => Promise<void>;
+    /** True when a Vega view is ready for export. */
+    isReady: () => boolean;
+};
 
 async function buildConfig(
     container: HTMLElement,
@@ -67,12 +82,26 @@ async function buildConfig(
     return base;
 }
 
-const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverrides }) => {
+const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
+    { spec, height = '300px', configOverrides },
+    ref,
+) {
     const { embed, isLoaded, error: loadError } = useVega();
     const { colorMode } = useColorMode();
     const sizeRef = useRef<HTMLDivElement>(null);
     const plotRef = useRef<HTMLDivElement>(null);
+    const viewRef = useRef<any>(null);
     const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+
+    useImperativeHandle(ref, () => ({
+        isReady: () => !!viewRef.current,
+        exportPng: async (filename: string) => {
+            if (!viewRef.current) {
+                throw new Error('Plot is not ready to export');
+            }
+            await exportVegaViewPng(viewRef.current, filename);
+        },
+    }), []);
 
     useEffect(() => {
         const el = sizeRef.current;
@@ -112,22 +141,35 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
     useEffect(() => {
         if (!isLoaded || !embed || !plotRef.current || !resolvedSpec) return;
 
+        let cancelled = false;
+
         const render = async () => {
             const el = plotRef.current as HTMLElement;
             const config = await buildConfig(el, colorMode, configOverrides);
 
             try {
-                await embed(el, resolvedSpec, {
+                const result = await embed(el, resolvedSpec, {
                     actions: false,
                     renderer: 'svg',
                     config,
                 });
+                if (!cancelled) {
+                    viewRef.current = result?.view ?? null;
+                }
             } catch (err: any) {
                 console.error('Vega render error:', err);
+                if (!cancelled) {
+                    viewRef.current = null;
+                }
             }
         };
 
         render();
+
+        return () => {
+            cancelled = true;
+            viewRef.current = null;
+        };
     }, [isLoaded, embed, resolvedSpec, colorMode, configOverrides]);
 
     if (loadError) {
@@ -157,6 +199,6 @@ const VegaPlot: React.FC<VegaPlotProps> = ({ spec, height = '300px', configOverr
             />
         </Box>
     );
-};
+});
 
 export default VegaPlot;

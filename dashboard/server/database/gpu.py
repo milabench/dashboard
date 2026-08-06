@@ -171,6 +171,26 @@ def _guess_architecture(name: str) -> str | None:
 
 
 def _guess_vendor(name: str) -> str:
+    upper = name.upper()
+    if (
+        "TENSTORRENT" in upper
+        or "WORMHOLE" in upper
+        or "BLACKHOLE" in upper
+        or "GRAYSKULL" in upper
+        or upper.startswith("N300")
+        or upper.startswith("P150")
+    ):
+        return "tenstorrent"
+    if (
+        "INTEL" in upper
+        or "GAUDI" in upper
+        or "HABANA" in upper
+        or "ARC A" in upper
+        or "DATA CENTER GPU" in upper
+        or "XPU" in upper
+        or "PVC" in upper
+    ):
+        return "intel"
     if name.startswith("MI"):
         return "amd"
     return "nvidia"

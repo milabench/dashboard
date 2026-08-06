@@ -152,6 +152,48 @@
   --color-table-baseline-badge: #2b6cb0;  /* blue.600   */
   --color-table-empty-text:     #718096;  /* gray.500   */
   --color-table-empty-bg:       #f7fafc;  /* gray.50    */
+
+  /* Vendor identity for plots (distinct from status success/danger).
+   * Ramps span hue within the family so same-vendor GPUs stay separable. */
+  --color-vendor-nvidia:      #76B900;
+  --color-vendor-amd:         #ED1C24;
+  --color-vendor-intel:       #0071C5;
+  --color-vendor-tenstorrent: #7C3AED;
+
+  --color-nvidia-1: #76B900;  /* brand lime-green */
+  --color-nvidia-2: #0D9488;  /* teal */
+  --color-nvidia-3: #C4D600;  /* chartreuse */
+  --color-nvidia-4: #166534;  /* forest */
+  --color-nvidia-5: #22C55E;  /* mid green */
+  --color-nvidia-6: #065F46;  /* deep emerald */
+  --color-nvidia-7: #84CC16;  /* yellow-green */
+  --color-nvidia-8: #115E59;  /* dark teal */
+
+  --color-amd-1: #ED1C24;     /* brand red */
+  --color-amd-2: #EA580C;     /* orange-red */
+  --color-amd-3: #BE123C;     /* rose */
+  --color-amd-4: #F97316;     /* bright orange */
+  --color-amd-5: #9F1239;     /* deep crimson */
+  --color-amd-6: #FB7185;     /* light coral */
+  --color-amd-7: #7F1D1D;     /* dark red */
+  --color-amd-8: #E11D48;     /* pink-red */
+
+  --color-intel-1: #0071C5;   /* Intel blue */
+  --color-intel-2: #0EA5E9;   /* sky */
+  --color-intel-3: #1E3A8A;   /* navy */
+  --color-intel-4: #38BDF8;   /* light sky */
+  --color-intel-5: #0369A1;   /* deep sky */
+  --color-intel-6: #60A5FA;   /* soft blue */
+
+  --color-tenstorrent-1: #7C3AED;  /* violet */
+  --color-tenstorrent-2: #A855F7;  /* purple */
+  --color-tenstorrent-3: #5B21B6;  /* deep violet */
+  --color-tenstorrent-4: #C084FC;  /* light purple */
+  --color-tenstorrent-5: #6D28D9;  /* mid violet */
+  --color-tenstorrent-6: #E9D5FF;  /* soft lilac */
+
+  /* Contrast tick on colored history candles */
+  --color-plot-median-tick: #1a202c;
 }
 
 /* ── Dark mode overrides ──────────────────────────────────────────────── */
@@ -300,4 +342,44 @@ html.dark {
   --color-table-baseline-badge: #63b3ed;  /* blue.400   */
   --color-table-empty-text:     #a0aec0;  /* gray.400   */
   --color-table-empty-bg:       #1a202c;  /* gray.800   */
+
+  /* Vendor identity for plots — slightly brighter on dark backgrounds */
+  --color-vendor-nvidia:      #9AD41A;
+  --color-vendor-amd:         #FF5A5F;
+  --color-vendor-intel:       #38BDF8;
+  --color-vendor-tenstorrent: #C084FC;
+
+  --color-nvidia-1: #9AD41A;
+  --color-nvidia-2: #2DD4BF;
+  --color-nvidia-3: #D9F99D;
+  --color-nvidia-4: #4ADE80;
+  --color-nvidia-5: #86EFAC;
+  --color-nvidia-6: #14B8A6;
+  --color-nvidia-7: #A3E635;
+  --color-nvidia-8: #059669;
+
+  --color-amd-1: #FF5A5F;
+  --color-amd-2: #FB923C;
+  --color-amd-3: #FB7185;
+  --color-amd-4: #FDBA74;
+  --color-amd-5: #F43F5E;
+  --color-amd-6: #FDA4AF;
+  --color-amd-7: #E11D48;
+  --color-amd-8: #F87171;
+
+  --color-intel-1: #38BDF8;
+  --color-intel-2: #60A5FA;
+  --color-intel-3: #7DD3FC;
+  --color-intel-4: #0EA5E9;
+  --color-intel-5: #93C5FD;
+  --color-intel-6: #0284C7;
+
+  --color-tenstorrent-1: #C084FC;
+  --color-tenstorrent-2: #A855F7;
+  --color-tenstorrent-3: #E9D5FF;
+  --color-tenstorrent-4: #8B5CF6;
+  --color-tenstorrent-5: #D8B4FE;
+  --color-tenstorrent-6: #7C3AED;
+
+  --color-plot-median-tick: #edf2f7;
 }

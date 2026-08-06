@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getGpuSummary, type GpuSummary } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { vendorBadgePalette } from '../../utils/gpuColors';
 
 function PassBar({ passed, total }: { passed: number; total: number }) {
     const pct = total > 0 ? (passed / total) * 100 : 0;
@@ -119,7 +120,7 @@ export const SupportedGpusView: React.FC = () => {
                                     </Badge>
                                 </Table.Cell>
                                 <Table.Cell>
-                                    <Badge colorPalette={stripQuotes(row.arch) === 'cuda' ? 'green' : 'purple'} variant="subtle">
+                                    <Badge colorPalette={vendorBadgePalette(stripQuotes(row.arch))} variant="subtle">
                                         {stripQuotes(row.arch).toUpperCase()}
                                     </Badge>
                                 </Table.Cell>

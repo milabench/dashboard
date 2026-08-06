@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Box,
     Heading,
@@ -10,12 +10,16 @@ import {
     Badge,
     Input,
     Checkbox,
+    Button,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import VegaPlot from '../charts/VegaPlot';
+import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
+import { useColorMode } from '../ui/color-mode';
+import { buildVendorColorScale, cssColor, guessVendor } from '../../utils/gpuColors';
+import { downloadJson, safeFilename } from '../../utils/download';
 
 type MetricKey = 'rate' | 'memory' | 'gpu' | 'cpu' | 'perf';
 type TimeWindow = 'all' | '1m' | '6m' | '1y' | '5y' | '10y';
@@ -52,6 +56,9 @@ interface HistoryRecord {
 
 export const BenchmarkHistoryView: React.FC = () => {
     usePageTitle('Benchmark History');
+    const { colorMode } = useColorMode();
+    const plotRef = useRef<VegaPlotHandle>(null);
+    const [exporting, setExporting] = useState(false);
 
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -158,8 +165,26 @@ export const BenchmarkHistoryView: React.FC = () => {
                 t.setTime(t.getTime() + offset * DAY_MS);
                 date = t.toISOString();
             }
-            return { ...d, date, exec_label: `#${d.exec_id}` };
+            return {
+                ...d,
+                date,
+                exec_label: `#${d.exec_id}`,
+                vendor: guessVendor(d.gpu),
+            };
         });
+
+        const vendorScale = buildVendorColorScale(values.map(d => d.vendor));
+        const medianTick = cssColor('--color-plot-median-tick', '#1a202c');
+        const legendRight = {
+            orient: 'right' as const,
+            direction: 'vertical' as const,
+            labelLimit: 400,
+            titleLimit: 200,
+            columns: 1,
+            padding: 20,
+            labelFontSize: 12,
+            symbolSize: 120,
+        };
 
         return {
             $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -180,10 +205,17 @@ export const BenchmarkHistoryView: React.FC = () => {
                     title: METRICS.find(m => m.key === metric)?.label || metric,
                 },
                 color: {
+                    field: 'vendor',
+                    type: 'nominal',
+                    title: 'Vendor',
+                    scale: vendorScale,
+                    legend: legendRight,
+                },
+                shape: {
                     field: 'gpu',
                     type: 'nominal',
                     title: 'GPU',
-                    legend: { orient: 'right', direction: 'vertical', labelLimit: 400, titleLimit: 200, columns: 1, padding: 20, labelFontSize: 12, symbolSize: 120 },
+                    legend: legendRight,
                 },
             },
             layer: [
@@ -197,6 +229,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                         y2: { field: 'max' },
                         tooltip: [
                             { field: 'gpu', type: 'nominal' as const, title: 'GPU' },
+                            { field: 'vendor', type: 'nominal' as const, title: 'Vendor' },
                             { field: 'exec_label', type: 'nominal' as const, title: 'Exec ID' },
                             { field: 'date', type: 'temporal' as const, title: 'Date' },
                             { field: 'min', type: 'quantitative' as const, title: 'Min', format: '.2f' },
@@ -209,13 +242,17 @@ export const BenchmarkHistoryView: React.FC = () => {
                     mark: {
                         type: 'bar',
                         width: 8,
-                        opacity: 0.7,
+                        opacity: 0.8,
+                        stroke: medianTick,
+                        strokeWidth: 0.75,
+                        strokeOpacity: 0.55,
                     },
                     encoding: {
                         y: { field: 'q25' },
                         y2: { field: 'q75' },
                         tooltip: [
                             { field: 'gpu', type: 'nominal', title: 'GPU' },
+                            { field: 'vendor', type: 'nominal', title: 'Vendor' },
                             { field: 'exec_label', type: 'nominal', title: 'Exec ID' },
                             { field: 'date', type: 'temporal', title: 'Date' },
                             { field: 'q25', type: 'quantitative', title: 'Q25', format: '.2f' },
@@ -231,7 +268,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                         type: 'tick',
                         size: 14,
                         thickness: 2,
-                        color: 'white',
+                        color: medianTick,
                     },
                     encoding: {
                         y: { field: 'median' },
@@ -245,14 +282,16 @@ export const BenchmarkHistoryView: React.FC = () => {
                 {
                     mark: {
                         type: 'point',
-                        size: 30,
+                        size: 70,
                         filled: true,
-                        shape: 'diamond',
+                        strokeWidth: 1,
+                        stroke: medianTick,
                     },
                     encoding: {
                         y: { field: 'mean' },
                         tooltip: [
                             { field: 'gpu', type: 'nominal', title: 'GPU' },
+                            { field: 'vendor', type: 'nominal', title: 'Vendor' },
                             { field: 'exec_label', type: 'nominal', title: 'Exec ID' },
                             { field: 'mean', type: 'quantitative', title: 'Mean', format: '.2f' },
                         ],
@@ -260,9 +299,39 @@ export const BenchmarkHistoryView: React.FC = () => {
                 },
             ],
         } as Record<string, any>;
-    }, [filteredHistoryData, selectedBench, metric, hideMinMax]);
+    }, [filteredHistoryData, selectedBench, metric, hideMinMax, colorMode]);
 
     const hasData = filteredHistoryData && filteredHistoryData.length > 0;
+
+    const handleExportJson = () => {
+        if (!hasData || !selectedBench) return;
+        downloadJson(
+            {
+                benchmark: selectedBench,
+                metric,
+                gpu_filter: gpuFilter || null,
+                time_window: timeWindow,
+                trim_outliers: trimMinMax,
+                hide_whiskers: hideMinMax,
+                runs: filteredHistoryData,
+            },
+            safeFilename(['bench_history', selectedBench, metric, gpuFilter || 'all', timeWindow], 'json'),
+        );
+    };
+
+    const handleExportPng = async () => {
+        if (!plotRef.current?.isReady() || !selectedBench) return;
+        setExporting(true);
+        try {
+            await plotRef.current.exportPng(
+                safeFilename(['bench_history', selectedBench, metric, gpuFilter || 'all', timeWindow], 'png'),
+            );
+        } catch (err) {
+            console.error('PNG export failed:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
         <HStack h="100%" gap={0} align="stretch" bg="var(--color-bg-page)" overflow="hidden">
@@ -428,10 +497,35 @@ export const BenchmarkHistoryView: React.FC = () => {
                             )}
                         </HStack>
                     )}
+
+                    <HStack gap={2} ml="auto" flexShrink={0}>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleExportPng}
+                            disabled={!hasData || exporting}
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            whiteSpace="nowrap"
+                        >
+                            {exporting ? 'Saving…' : 'Save PNG'}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleExportJson}
+                            disabled={!hasData}
+                            borderColor="var(--color-border)"
+                            color="var(--color-text)"
+                            whiteSpace="nowrap"
+                        >
+                            Export JSON
+                        </Button>
+                    </HStack>
                 </HStack>
 
                 <Text fontSize="xs" color="var(--color-text-muted)" mb={2} flexShrink={0}>
-                    Each candle shows: whiskers = min/max, box = Q25/Q75, line = median, diamond = mean
+                    Color = vendor, shape = GPU. Candles: whiskers = min/max, box = Q25/Q75, line = median, marker = mean
                 </Text>
 
                 {/* Chart area — fills remaining space */}
@@ -456,6 +550,7 @@ export const BenchmarkHistoryView: React.FC = () => {
                         </Box>
                     ) : (
                         <VegaPlot
+                            ref={plotRef}
                             spec={specBuilder}
                             height="100%"
                         />
