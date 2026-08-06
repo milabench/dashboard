@@ -11,13 +11,11 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
-import { useColorMode } from '../ui/color-mode';
-import { buildVendorColorScale, guessVendor } from '../../utils/gpuColors';
+import { buildVendorColorScale, cssColor, guessVendor } from '../../utils/gpuColors';
 import { downloadJson, safeFilename } from '../../utils/download';
 
 const Scaling = () => {
     usePageTitle('Scaling');
-    const { colorMode } = useColorMode();
     const plotRef = useRef<VegaPlotHandle>(null);
     const [exporting, setExporting] = useState(false);
 
@@ -59,6 +57,84 @@ const Scaling = () => {
         const cellWidth = Math.max(120, Math.floor(w / (cols + 1)) - cellPadding);
         const cellHeight = Math.max(cellWidth, Math.floor(h / rows) - cellPadding);
         const vendorScale = buildVendorColorScale(values.map((d: any) => d.vendor));
+        const legendStyle = {
+            labelColor: cssColor('--color-text', '#1a202c'),
+            symbolSize: 120,
+        };
+
+        const axisEncoding = {
+            x: { field: xAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
+            y: { field: yAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
+        };
+        const seriesEncoding = {
+            shape: {
+                field: 'gpu',
+                type: 'nominal',
+                title: 'GPU',
+                legend: {
+                    ...legendStyle,
+                    symbolOpacity: 1,
+                    symbolFillColor: cssColor('--color-text-muted', '#718096'),
+                    symbolStrokeColor: cssColor('--color-text-muted', '#718096'),
+                },
+            },
+            color: {
+                field: 'vendor',
+                type: 'nominal',
+                title: 'Vendor',
+                scale: vendorScale,
+                legend: {
+                    ...legendStyle,
+                    symbolOpacity: 1,
+                },
+            },
+        };
+        const hoverParams = [
+            {
+                name: 'gpuHover',
+                select: {
+                    type: 'point',
+                    fields: ['gpu'],
+                    on: 'pointerover',
+                    clear: 'pointerout',
+                },
+                bind: { legend: 'mouseover' },
+            },
+            {
+                name: 'vendorHover',
+                select: {
+                    type: 'point',
+                    fields: ['vendor'],
+                    on: 'pointerover',
+                    clear: 'pointerout',
+                },
+                bind: { legend: 'mouseover' },
+            },
+        ];
+        const highlightOpacity = {
+            condition: [
+                // { param: 'gpuHover', value: 1 },
+                { param: 'vendorHover', value: 1 },
+            ],
+            value: 0.5,
+        };
+
+        const strokeColor = {
+            condition: [
+                { param: 'gpuHover', value: cssColor('--color-bg-page', '#718096') },
+                // { param: 'vendorHover', value: cssColor('--color-bg-page', '#718096') },
+            ],
+            value: cssColor('--color-bg-page', '#718096'),
+        };
+        const strokeWidthEmphasis = {
+            condition: [
+                { param: 'gpuHover', value: 1 },
+                // { param: 'vendorHover', value: 1 },
+            ],
+            value: 2,
+        };
+
+
 
         return {
             data: { values },
@@ -67,35 +143,42 @@ const Scaling = () => {
             spec: {
                 width: cellWidth,
                 height: cellHeight,
-                mark: 'point',
-                encoding: {
-                    x: { field: xAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
-                    y: { field: yAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
-                    shape: {
-                        field: 'gpu',
-                        type: 'nominal',
-                        title: 'GPU',
+                layer: [
+                    {
+                        description: 'Transparent layer to make points easier to hover',
+                        params: hoverParams,
+                        mark: { type: 'point', filled: true, opacity: 0, size: 400, tooltip: null },
+                        encoding: {
+                            ...axisEncoding,
+                            ...seriesEncoding,
+                        },
                     },
-                    color: {
-                        field: 'vendor',
-                        type: 'nominal',
-                        title: 'Vendor',
-                        scale: vendorScale,
+                    {
+                        mark: { type: 'point', filled: true, size: 120 },
+                        encoding: {
+                            ...axisEncoding,
+                            ...seriesEncoding,
+
+                            stroke: strokeColor,
+                            strokeWidth: strokeWidthEmphasis,
+                            opacity: highlightOpacity,
+
+                            // size: { field: 'perf', type: 'quantitative', legend: null },
+                            tooltip: [
+                                { field: 'bench', type: 'nominal', title: 'Benchmark' },
+                                { field: 'gpu', type: 'nominal', title: 'GPU' },
+                                { field: 'vendor', type: 'nominal', title: 'Vendor' },
+                                { field: xAxis, type: 'quantitative', title: xAxis, format: '~s' },
+                                { field: yAxis, type: 'quantitative', title: yAxis, format: '~s' },
+                                { field: 'perf', type: 'quantitative', title: 'perf', format: '~s' },
+                            ],
+                        },
                     },
-                    size: { field: 'perf', type: 'quantitative', legend: null },
-                    tooltip: [
-                        { field: 'bench', type: 'nominal', title: 'Benchmark' },
-                        { field: 'gpu', type: 'nominal', title: 'GPU' },
-                        { field: 'vendor', type: 'nominal', title: 'Vendor' },
-                        { field: xAxis, type: 'quantitative', title: xAxis, format: '~s' },
-                        { field: yAxis, type: 'quantitative', title: yAxis, format: '~s' },
-                        { field: 'perf', type: 'quantitative', title: 'perf', format: '~s' },
-                    ],
-                },
+                ],
             },
             resolve: { scale: { y: 'independent', x: 'independent', size: 'independent' } },
         } as Record<string, any>;
-    }, [scalingData, xAxis, yAxis, colorMode]);
+    }, [scalingData, xAxis, yAxis]);
 
     const handleExportJson = () => {
         if (!hasData) return;

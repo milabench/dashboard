@@ -9,6 +9,7 @@ import { DataTable } from '../common/Table';
 import { Loading } from '../common/Loading';
 import type { Column } from '../common/Table';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { MilabenchVersion } from '../shared/MilabenchVersion';
 
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -54,8 +55,13 @@ export const Executions = () => {
         },
         {
             header: 'Milabench',
-            accessor: (exec: Execution) => exec.meta?.milabench?.tag || 'N/A',
-            width: '120px',
+            accessor: (exec: Execution) => (
+                <MilabenchVersion
+                    tag={exec.meta?.milabench?.tag}
+                    commit={exec.meta?.milabench?.commit}
+                />
+            ),
+            width: '140px',
         },
         {
             header: 'Status',

@@ -1,5 +1,5 @@
 import sqlalchemy
-from sqlalchemy import select, func, Float, Integer
+from sqlalchemy import select, func, Float, Integer, text
 
 from dashboard.server.database.models import Exec, Metric, Pack, Weight
 
@@ -340,6 +340,28 @@ def _pivot_agg(name, expr):
     if name == "var":
         return func.variance(expr)
     return getattr(func, name)(expr)
+
+
+# Authoritative pivot query limit (Postgres statement_timeout). Clients must not exceed this.
+PIVOT_TIMEOUT_MS = 30_000
+
+
+def apply_pivot_statement_timeout(sess):
+    """Cancel pivot SQL after PIVOT_TIMEOUT_MS (Postgres only; no-op elsewhere)."""
+    bind = sess.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    # Integer form is milliseconds: https://www.postgresql.org/docs/current/runtime-config-client.html
+    sess.execute(text(f"SET LOCAL statement_timeout = {int(PIVOT_TIMEOUT_MS)}"))
+
+
+def is_statement_timeout(exc: BaseException) -> bool:
+    """True if ``exc`` is a Postgres statement_timeout cancel."""
+    orig = getattr(exc, "orig", None)
+    if getattr(orig, "pgcode", None) == "57014":
+        return True
+    msg = str(exc).lower()
+    return "statement timeout" in msg or "canceling statement due to statement timeout" in msg
 
 
 def pivot_query(sesh, rows, cols, values, filters, profile="default", visibility=0):

@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { getGpuSummary, type GpuSummary } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { vendorBadgePalette } from '../../utils/gpuColors';
+import { MilabenchVersion } from '../shared/MilabenchVersion';
 
 function PassBar({ passed, total }: { passed: number; total: number }) {
     const pct = total > 0 ? (passed / total) * 100 : 0;
@@ -44,7 +45,7 @@ function formatDate(iso: string | null): string {
 }
 
 function stripQuotes(s: string | null): string {
-    if (!s) return '-';
+    if (!s || s === 'null') return '-';
     return s.replace(/^"|"$/g, '');
 }
 
@@ -127,10 +128,11 @@ export const SupportedGpusView: React.FC = () => {
                                 <Table.Cell>{stripQuotes(row.pytorch)}</Table.Cell>
                                 <Table.Cell>{stripQuotes(row.accel_version)}</Table.Cell>
                                 <Table.Cell>
-                                    <Text fontSize="sm">{stripQuotes(row.milabench_tag)}</Text>
-                                    <Text fontSize="xs" color="fg.muted" fontFamily="mono">
-                                        {stripQuotes(row.milabench_commit)?.slice(0, 8)}
-                                    </Text>
+                                    <MilabenchVersion
+                                        tag={row.milabench_tag ? stripQuotes(row.milabench_tag) : null}
+                                        commit={row.milabench_commit ? stripQuotes(row.milabench_commit) : null}
+                                        fallback="-"
+                                    />
                                 </Table.Cell>
                                 <Table.Cell>{stripQuotes(row.contributor)}</Table.Cell>
                                 <Table.Cell>

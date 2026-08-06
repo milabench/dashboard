@@ -112,9 +112,14 @@ register_view(
         mr.run_name,
         e.meta -> 'pytorch' ->> 'torch' AS pytorch,
         e.meta -> 'accelerators' ->> 'arch' AS arch,
+        -- Prefer torch.version.cuda / .hip (always set by milabench); fall back to
+        -- build_settings which often lack HIP_VERSION on ROCm builds.
+        -- nullif(..., 'null') drops JSON-null values that cast to the text 'null'.
         coalesce(
-            e.meta -> 'pytorch' -> 'build_settings' ->> 'CUDA_VERSION',
-            e.meta -> 'pytorch' -> 'build_settings' ->> 'HIP_VERSION'
+            nullif(nullif(e.meta -> 'pytorch' ->> 'cuda', ''), 'null'),
+            nullif(nullif(e.meta -> 'pytorch' ->> 'hip', ''), 'null'),
+            nullif(nullif(e.meta -> 'pytorch' -> 'build_settings' ->> 'CUDA_VERSION', ''), 'null'),
+            nullif(nullif(e.meta -> 'pytorch' -> 'build_settings' ->> 'HIP_VERSION', ''), 'null')
         ) AS accel_version,
         e.meta -> 'milabench' ->> 'tag' AS milabench_tag,
         e.meta -> 'milabench' ->> 'commit' AS milabench_commit,

@@ -25,6 +25,7 @@ import { Loading } from '../common/Loading';
 import { MetricsView } from './MetricsView';
 import { FastReportView } from './FastReportView';
 import { HtmlReportView } from './HtmlReportView';
+import { MilabenchVersion } from '../shared/MilabenchVersion';
 
 const copyToClipboard = (text: string) => {
     return () => {
@@ -311,9 +312,12 @@ export const ExecutionReport = () => {
                                         </Stat.ValueText>
                                         <Stat.HelpText>
                                             {(() => {
-                                                const bs = execution.meta?.pytorch?.build_settings;
-                                                const hip = bs?.HIP_VERSION;
-                                                const cuda = bs?.CUDA_VERSION;
+                                                const clean = (v?: string | null) =>
+                                                    v && v !== 'null' ? v : null;
+                                                const pt = execution.meta?.pytorch;
+                                                const bs = pt?.build_settings;
+                                                const cuda = clean(pt?.cuda) || clean(bs?.CUDA_VERSION);
+                                                const hip = clean(pt?.hip) || clean(bs?.HIP_VERSION);
                                                 if (hip) return `ROCm: ${hip}`;
                                                 if (cuda) return `CUDA: ${cuda}`;
                                                 return 'Accel: N/A';
@@ -338,7 +342,13 @@ export const ExecutionReport = () => {
                                 <GridItem>
                                     <Stat.Root>
                                         <Stat.Label>Milabench</Stat.Label>
-                                        <Stat.ValueText>{execution.meta?.milabench?.tag || 'N/A'}</Stat.ValueText>
+                                        <Stat.ValueText>
+                                            <MilabenchVersion
+                                                tag={execution.meta?.milabench?.tag}
+                                                commit={execution.meta?.milabench?.commit}
+                                                tagFontSize="md"
+                                            />
+                                        </Stat.ValueText>
                                         <Stat.HelpText>Date: {execution.meta?.milabench?.date || 'N/A'}</Stat.HelpText>
                                     </Stat.Root>
                                 </GridItem>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     Box,
@@ -10,71 +10,231 @@ import {
     Heading,
     Button,
     Dialog,
-    Select,
     Input,
     Badge,
     Grid,
     GridItem,
-    ButtonGroup,
+    IconButton,
     useDisclosure,
     Field,
-    useListCollection,
+    Progress,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { api, getAllSavedQueries, saveQuery } from '../../services/api';
+import { api, getAllSavedQueries, saveQuery, PIVOT_TIMEOUT_MS, fetchLatestDistinctGPURunIds } from '../../services/api';
 import { PivotTableView } from './PivotTableView';
-import { PivotIframeView } from './PivotIframeView';
+import { PivotContextPanel, type PivotContextPanelState } from './PivotContextPanel';
+import { PivotFieldPickerPanel, type PivotFieldPickerState } from './PivotFieldPickerPanel';
+import { LuX } from 'react-icons/lu';
 
 interface PivotField {
     field: string;
     type: 'row' | 'column' | 'value' | 'filter';
     operator?: string;
     value?: string;
-    aggregators?: string[];  // For value fields - multiple aggregators
+    aggregators?: string[];  // For value fields - single aggregator in a one-element array
 }
 
-// Add these interfaces for the edit modals
-interface EditableValue {
-    field: string;
-    aggregators: string[];
+type PivotZoneType = PivotField['type'];
+type PivotLayout = 'sidebar' | 'classic';
+
+const PIVOT_LAYOUT_STORAGE_KEY = 'pivot-view-layout';
+
+function buildDefaultPivotFields(execIds?: string): PivotField[] {
+    const fields: PivotField[] = [
+        { field: 'Weight:priority', type: 'row' },
+        { field: 'Pack:name', type: 'row' },
+        { field: 'Exec:meta.accelerators.gpus.0.product', type: 'column' },
+        { field: 'Metric:name', type: 'column' },
+        { field: 'Metric:value', type: 'value', aggregators: ['median'] },
+        { field: 'Metric:name', type: 'filter', operator: 'in', value: 'rate' },
+    ];
+    if (execIds) {
+        fields.push({ field: 'Exec:_id', type: 'filter', operator: 'in', value: execIds });
+    }
+    return fields;
 }
 
-interface EditableFilter {
-    field: string;
-    operator: string;
-    value: string;
+function hasPivotUrlConfig(params: URLSearchParams): boolean {
+    return Boolean(
+        params.get('rows')
+        || params.get('cols')
+        || params.get('values')
+        || params.get('filters'),
+    );
+}
+
+function parsePivotFieldsFromSearchParams(params: URLSearchParams): PivotField[] | null {
+    const rows = params.get('rows');
+    const cols = params.get('cols');
+    const values = params.get('values');
+    const filters = params.get('filters');
+
+    if (!hasPivotUrlConfig(params)) {
+        return null;
+    }
+
+    const newFields: PivotField[] = [];
+
+    if (rows) {
+        rows.split(',').forEach((field) => {
+            if (field.trim()) {
+                newFields.push({ field: field.trim(), type: 'row' });
+            }
+        });
+    }
+
+    if (cols) {
+        cols.split(',').forEach((field) => {
+            if (field.trim()) {
+                newFields.push({ field: field.trim(), type: 'column' });
+            }
+        });
+    }
+
+    if (values) {
+        try {
+            const decodedValues = JSON.parse(atob(values));
+            if (Array.isArray(decodedValues)) {
+                decodedValues.forEach((value: { field?: string; aggregators?: string[] }) => {
+                    if (value.field) {
+                        newFields.push({
+                            field: value.field,
+                            type: 'value',
+                            aggregators: [value.aggregators?.[0] || 'avg'],
+                        });
+                    }
+                });
+            }
+        } catch {
+            values.split(',').forEach((field) => {
+                if (field.trim()) {
+                    newFields.push({
+                        field: field.trim(),
+                        type: 'value',
+                        aggregators: ['avg'],
+                    });
+                }
+            });
+        }
+    }
+
+    if (filters) {
+        try {
+            const decodedFilters = JSON.parse(atob(filters));
+            decodedFilters.forEach((filter: { field: string; operator?: string; value?: string }) => {
+                newFields.push({
+                    field: filter.field,
+                    type: 'filter',
+                    operator: filter.operator,
+                    value: filter.value,
+                });
+            });
+        } catch (error) {
+            console.error('Error parsing filters from URL:', error);
+        }
+    }
+
+    return newFields.length > 0 ? newFields : null;
+}
+
+const PIVOT_ZONE_WRAP_PROPS = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    alignContent: 'flex-start',
+} as const;
+
+const PIVOT_BADGE_FONT = {
+    fontFamily: 'mono',
+    fontSize: 'xs',
+} as const;
+
+function pivotBoldFieldName(name: string) {
+    return <Box as="span" fontWeight="bold">{name}</Box>;
+}
+
+function renderSimplePivotBadge(fieldName: string) {
+    return (
+        <Box as="span" {...PIVOT_BADGE_FONT}>
+            {pivotBoldFieldName(fieldName)}
+        </Box>
+    );
+}
+
+function renderValuePivotBadge(field: PivotField) {
+    const aggregator = field.aggregators?.[0] || 'avg';
+    return (
+        <Box as="span" {...PIVOT_BADGE_FONT}>
+            {aggregator}({pivotBoldFieldName(field.field)})
+        </Box>
+    );
+}
+
+function renderFilterPivotBadge(field: PivotField) {
+    return (
+        <Box as="span" {...PIVOT_BADGE_FONT}>
+            {pivotBoldFieldName(field.field)}
+            {field.operator ? ` ${field.operator}` : ''}
+            {field.value ? ` ${field.value}` : ''}
+        </Box>
+    );
 }
 
 export const PivotView = () => {
     usePageTitle('Pivot View');
 
-    const [isOpen, setIsOpen] = useState(false);
-    const onOpen = () => setIsOpen(true);
-    const onClose = () => setIsOpen(false);
     const [searchParams, setSearchParams] = useSearchParams();
-    const [selectedField, setSelectedField] = useState<PivotField | null>(null);
+    const queryClient = useQueryClient();
+    const hasUrlConfig = hasPivotUrlConfig(searchParams);
+
+    const { data: defaultExecIds, isFetched: defaultExecIdsFetched } = useQuery({
+        queryKey: ['latestDistinctGpuRunIds'],
+        queryFn: fetchLatestDistinctGPURunIds,
+        enabled: !hasUrlConfig,
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const [contextPanel, setContextPanel] = useState<PivotContextPanelState | null>(null);
+    const [fieldPicker, setFieldPicker] = useState<PivotFieldPickerState | null>(null);
+    const lastPointerRef = useRef({ x: 0, y: 0 });
     const [isRelativePivot, setIsRelativePivot] = useState(() => {
         const relative = searchParams.get('relative');
         return relative === 'true';
     });
-    const [viewMode, setViewMode] = useState<'iframe' | 'table'>(() => {
-        if (!import.meta.env.DEV) return 'table';
-        const mode = searchParams.get('mode');
-        return mode === 'iframe' ? 'iframe' : 'table';
+    const [fields, setFields] = useState<PivotField[]>(() => {
+        const fromUrl = parsePivotFieldsFromSearchParams(searchParams);
+        if (fromUrl) {
+            return fromUrl;
+        }
+        const cachedExecIds = queryClient.getQueryData<string>(['latestDistinctGpuRunIds']);
+        if (cachedExecIds) {
+            return buildDefaultPivotFields(cachedExecIds);
+        }
+        return [];
     });
-    const [fields, setFields] = useState<PivotField[]>([
-        { field: 'Exec:name', type: 'row' },
-        { field: 'Pack:name', type: 'row' },
-        { field: 'Metric:name', type: 'column' },
-        { field: 'Metric:value', type: 'value', aggregators: ['avg'] },
-    ]);
     const dropZonesRef = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [triggerGeneration, setTriggerGeneration] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [executionTime, setExecutionTime] = useState<number | null>(null);
+    const [elapsedMs, setElapsedMs] = useState(0);
+    const [previewEnabled, setPreviewEnabled] = useState(true);
+    const [hasQueryResults, setHasQueryResults] = useState(false);
+    const [clearResultsToken, setClearResultsToken] = useState(0);
+    const generationStartRef = useRef<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
+    const [pivotLayout, setPivotLayout] = useState<PivotLayout>(() => {
+        try {
+            const stored = localStorage.getItem(PIVOT_LAYOUT_STORAGE_KEY);
+            if (stored === 'classic' || stored === 'sidebar') {
+                return stored;
+            }
+        } catch {
+            // ignore storage errors
+        }
+        return 'sidebar';
+    });
 
-    // Collections for Select components
+    // Operator and aggregator options for context panels
     const operatorItems = [
         { label: 'Equals (==)', value: '==' },
         { label: 'Not Equals (!=)', value: '!=' },
@@ -89,7 +249,6 @@ export const PivotView = () => {
         { label: 'Is', value: 'is' },
         { label: 'Is Not', value: 'is not' },
     ];
-    const operatorCollection = useListCollection({ initialItems: operatorItems });
 
     const aggregatorItems = [
         { label: 'Average', value: 'avg' },
@@ -101,24 +260,10 @@ export const PivotView = () => {
         { label: 'Variance', value: 'var' },
         { label: 'Median', value: 'median' },
     ];
-    const aggregatorCollection = useListCollection({ initialItems: aggregatorItems });
-
     // Save/Load modal state
     const { open: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose, setOpen: setSaveModalOpen } = useDisclosure();
     const { open: isLoadModalOpen, onOpen: onLoadModalOpen, onClose: onLoadModalClose, setOpen: setLoadModalOpen } = useDisclosure();
     const [saveQueryName, setSaveQueryName] = useState<string>('');
-
-    // Edit modals state
-    const [isEditValueOpen, setIsEditValueOpen] = useState(false);
-    const onEditValueOpen = () => setIsEditValueOpen(true);
-    const onEditValueClose = () => setIsEditValueOpen(false);
-    const [isEditFilterOpen, setIsEditFilterOpen] = useState(false);
-    const onEditFilterOpen = () => setIsEditFilterOpen(true);
-    const onEditFilterClose = () => setIsEditFilterOpen(false);
-    const [editingValueIndex, setEditingValueIndex] = useState<number>(-1);
-    const [editingFilterIndex, setEditingFilterIndex] = useState<number>(-1);
-    const [editableValue, setEditableValue] = useState<EditableValue>({ field: '', aggregators: ['avg'] });
-    const [editableFilter, setEditableFilter] = useState<EditableFilter>({ field: '', operator: '==', value: '' });
 
     // Fetch available fields from /api/keys
     const { data: availableFields } = useQuery({
@@ -135,158 +280,202 @@ export const PivotView = () => {
         queryFn: getAllSavedQueries,
     });
 
-    // Load configuration from URL on mount and auto-execute query if URL has parameters
+    // Load defaults from URL or wait for latest GPU exec ids before first URL sync.
     useEffect(() => {
-        const rows = searchParams.get('rows');
-        const cols = searchParams.get('cols');
-        const values = searchParams.get('values');
-        const filters = searchParams.get('filters');
-
-        if (rows || cols || values || filters) {
-            const newFields: PivotField[] = [];
-
-            if (rows) {
-                rows.split(',').forEach(field => {
-                    newFields.push({ field, type: 'row' });
-                });
-            }
-
-            if (cols) {
-                cols.split(',').forEach(field => {
-                    newFields.push({ field, type: 'column' });
-                });
-            }
-
-            if (values) {
-                try {
-                    const decodedValues = JSON.parse(atob(values));
-                    if (Array.isArray(decodedValues)) {
-                        decodedValues.forEach((value: any) => {
-                            if (value.field) {
-                                newFields.push({
-                                    field: value.field,
-                                    type: 'value',
-                                    aggregators: value.aggregators || ['avg']
-                                });
-                            }
-                        });
-                    }
-                } catch (error) {
-                    // Fallback to old format (comma-separated string)
-                    values.split(',').forEach(field => {
-                        if (field.trim()) {
-                            newFields.push({
-                                field: field.trim(),
-                                type: 'value',
-                                aggregators: ['avg']
-                            });
-                        }
-                    });
-                }
-            }
-
-            if (filters) {
-                try {
-                    const decodedFilters = JSON.parse(atob(filters));
-                    decodedFilters.forEach((filter: any) => {
-                        newFields.push({
-                            field: filter.field,
-                            type: 'filter',
-                            operator: filter.operator,
-                            value: filter.value
-                        });
-                    });
-                } catch (error) {
-                    console.error('Error parsing filters from URL:', error);
-                }
-            }
-
-            if (newFields.length > 0) {
-                setFields(newFields);
-            }
-        }
-        // Mark as initialized without auto-executing
-        if (!hasInitialized) {
+        const fromUrl = parsePivotFieldsFromSearchParams(searchParams);
+        if (fromUrl) {
+            setFields(fromUrl);
             setHasInitialized(true);
+            return;
         }
-    }, [searchParams, hasInitialized]);
+
+        if (!defaultExecIdsFetched) {
+            return;
+        }
+
+        setFields(buildDefaultPivotFields(defaultExecIds));
+        setHasInitialized(true);
+    }, [searchParams, defaultExecIdsFetched, defaultExecIds]);
 
     // Auto-update URL when fields change (but not on initial load)
     useEffect(() => {
         if (hasInitialized) {
             updateURLParams();
         }
-    }, [fields, isRelativePivot, viewMode, hasInitialized]);
+    }, [fields, isRelativePivot, hasInitialized]);
 
-    // Reset timing when view mode changes
-    useEffect(() => {
-        setExecutionTime(null);
-        setGenerationStartTime(null);
-    }, [viewMode]);
+    const rememberPointer = (event: React.DragEvent | React.MouseEvent) => {
+        lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    };
 
-    const handleFieldDrop = (type: 'row' | 'column' | 'value' | 'filter', field: string) => {
+    const getPointerPosition = (event?: React.DragEvent | React.MouseEvent) => {
+        if (event) {
+            rememberPointer(event);
+        }
+        return lastPointerRef.current;
+    };
+
+    const openValuePanel = (
+        field: string,
+        event?: React.DragEvent | React.MouseEvent,
+        fieldIndex?: number,
+        selectedAggregator?: string,
+    ) => {
+        setFieldPicker(null);
+        const { x, y } = getPointerPosition(event);
+        setContextPanel({
+            kind: 'value',
+            field,
+            fieldIndex,
+            selectedAggregator: selectedAggregator || 'avg',
+            x,
+            y,
+        });
+    };
+
+    const openFilterPanel = (
+        field: string,
+        event?: React.DragEvent | React.MouseEvent,
+        fieldIndex?: number,
+        operator = '==',
+        value = '',
+    ) => {
+        setFieldPicker(null);
+        const { x, y } = getPointerPosition(event);
+        setContextPanel({
+            kind: 'filter',
+            field,
+            fieldIndex,
+            operator,
+            value,
+            x,
+            y,
+        });
+    };
+
+    const handleFieldDrop = (type: 'row' | 'column' | 'value' | 'filter', field: string, event: React.DragEvent) => {
         if (type === 'filter') {
-            setSelectedField({ field, type });
-            onOpen();
+            openFilterPanel(field, event);
         } else if (type === 'value') {
-            // Default aggregator for new value fields
-            setFields([...fields, { field, type, aggregators: ['avg'] }]);
+            openValuePanel(field, event);
         } else {
             setFields([...fields, { field, type }]);
         }
     };
 
+    const handleValueSelect = (aggregator: string) => {
+        if (!contextPanel || contextPanel.kind !== 'value') {
+            return;
+        }
+
+        if (contextPanel.fieldIndex !== undefined) {
+            const newFields = [...fields];
+            newFields[contextPanel.fieldIndex] = {
+                ...newFields[contextPanel.fieldIndex],
+                aggregators: [aggregator],
+            };
+            setFields(newFields);
+        } else {
+            setFields([...fields, {
+                field: contextPanel.field,
+                type: 'value',
+                aggregators: [aggregator],
+            }]);
+        }
+        setContextPanel(null);
+    };
+
     const handleFilterApply = (operator: string, value: string) => {
-        if (selectedField) {
-            setFields([...fields, { ...selectedField, operator, value }]);
-            onClose();
+        if (!contextPanel || contextPanel.kind !== 'filter') {
+            return;
         }
-    };
 
-    const handleEditValue = (index: number) => {
-        const field = fields[index];
-        setEditingValueIndex(index);
-        setEditableValue({
-            field: field.field,
-            aggregators: field.aggregators || ['avg']
-        });
-        onEditValueOpen();
-    };
-
-    const handleEditFilter = (index: number) => {
-        const field = fields[index];
-        setEditingFilterIndex(index);
-        setEditableFilter({
-            field: field.field,
-            operator: field.operator || '==',
-            value: field.value || ''
-        });
-        onEditFilterOpen();
-    };
-
-    const handleValueSave = () => {
-        if (editingValueIndex >= 0) {
+        if (contextPanel.fieldIndex !== undefined) {
             const newFields = [...fields];
-            newFields[editingValueIndex] = {
-                ...newFields[editingValueIndex],
-                aggregators: editableValue.aggregators
+            newFields[contextPanel.fieldIndex] = {
+                ...newFields[contextPanel.fieldIndex],
+                operator,
+                value,
             };
             setFields(newFields);
-            onEditValueClose();
+        } else {
+            setFields([...fields, {
+                field: contextPanel.field,
+                type: 'filter',
+                operator,
+                value,
+            }]);
         }
+        setContextPanel(null);
     };
 
-    const handleFilterSave = () => {
-        if (editingFilterIndex >= 0) {
-            const newFields = [...fields];
-            newFields[editingFilterIndex] = {
-                ...newFields[editingFilterIndex],
-                operator: editableFilter.operator,
-                value: editableFilter.value
-            };
-            setFields(newFields);
-            onEditFilterClose();
+    const handleEditValue = (index: number, event: React.MouseEvent) => {
+        const field = fields[index];
+        openValuePanel(field.field, event, index, field.aggregators?.[0] || 'avg');
+    };
+
+    const handleEditFilter = (index: number, event: React.MouseEvent) => {
+        const field = fields[index];
+        openFilterPanel(
+            field.field,
+            event,
+            index,
+            field.operator || '==',
+            field.value || '',
+        );
+    };
+
+    const openFieldPicker = (zoneType: PivotZoneType, event: React.MouseEvent) => {
+        setContextPanel(null);
+        rememberPointer(event);
+        setFieldPicker({
+            zoneType,
+            x: event.clientX,
+            y: event.clientY,
+        });
+    };
+
+    const handleZoneClick = (zoneType: PivotZoneType, event: React.MouseEvent) => {
+        const target = event.target as HTMLElement;
+        if (target.closest('[data-pivot-badge]') || target.closest('[data-pivot-gap]')) {
+            return;
         }
+        openFieldPicker(zoneType, event);
+    };
+
+    const handleFieldPickerSelect = (field: string) => {
+        if (!fieldPicker) {
+            return;
+        }
+
+        const { zoneType, x, y } = fieldPicker;
+        setFieldPicker(null);
+
+        if (zoneType === 'row' || zoneType === 'column') {
+            setFields((prev) => [...prev, { field, type: zoneType }]);
+            return;
+        }
+
+        lastPointerRef.current = { x, y };
+        window.requestAnimationFrame(() => {
+            if (zoneType === 'value') {
+                openValuePanel(field);
+            } else {
+                openFilterPanel(field);
+            }
+        });
+    };
+
+    const togglePivotLayout = () => {
+        setPivotLayout((current) => {
+            const next: PivotLayout = current === 'sidebar' ? 'classic' : 'sidebar';
+            try {
+                localStorage.setItem(PIVOT_LAYOUT_STORAGE_KEY, next);
+            } catch {
+                // ignore storage errors
+            }
+            return next;
+        });
     };
 
     const removeField = (index: number) => {
@@ -302,7 +491,7 @@ export const PivotView = () => {
         const cols = fields.filter(f => f.type === 'column').map(f => f.field);
         const values = fields.filter(f => f.type === 'value').map(f => ({
             field: f.field,
-            aggregators: f.aggregators || ['avg']
+            aggregators: [f.aggregators?.[0] || 'avg'],
         }));
 
         params.append('rows', rows.join(','));
@@ -319,25 +508,12 @@ export const PivotView = () => {
             params.append('filters', btoa(JSON.stringify(filters)));
         }
 
-        // Add mode parameter
-        params.append('mode', viewMode);
-
-        // Add relative pivot parameter
         if (isRelativePivot) {
             params.append('relative', 'true');
         }
 
-        // Update URL with current configuration
         setSearchParams(params);
-    }, [fields, viewMode, isRelativePivot, setSearchParams]);
-
-    const handleModeChange = useCallback((newMode: 'iframe' | 'table') => {
-        setViewMode(newMode);
-        // Update URL immediately when mode changes
-        const params = new URLSearchParams(searchParams);
-        params.set('mode', newMode);
-        setSearchParams(params);
-    }, [searchParams, setSearchParams]);
+    }, [fields, isRelativePivot, setSearchParams]);
 
     const handleRelativePivotChange = useCallback((newValue: boolean) => {
         setIsRelativePivot(newValue);
@@ -351,38 +527,56 @@ export const PivotView = () => {
         setSearchParams(params);
     }, [searchParams, setSearchParams]);
 
-    const resetPivot = () => {
-        setFields([
-            { field: 'Exec:name', type: 'row' },
-            { field: 'Pack:name', type: 'row' },
-            { field: 'Metric:name', type: 'column' },
-            { field: 'Metric:value', type: 'value', aggregators: ['avg'] },
-        ]);
-        setViewMode('iframe');
+    const resetPivot = async () => {
+        let execIds = '';
+        try {
+            execIds = await queryClient.fetchQuery({
+                queryKey: ['latestDistinctGpuRunIds'],
+                queryFn: fetchLatestDistinctGPURunIds,
+                staleTime: 0,
+            });
+        } catch {
+            // Keep defaults without exec filter if gpu summary is unavailable.
+        }
+        setFields(buildDefaultPivotFields(execIds));
         setIsRelativePivot(false);
+        setPreviewEnabled(true);
+        setHasQueryResults(false);
+        setClearResultsToken((token) => token + 1);
         setSearchParams(new URLSearchParams());
     };
 
-    const generatePivot = () => {
-        // Start timing
-        setGenerationStartTime(performance.now());
-        setExecutionTime(null);
+    const handleQueryResults = (rowCount: number) => {
+        const hasResults = rowCount > 0;
+        setHasQueryResults(hasResults);
+        if (hasResults) {
+            setPreviewEnabled(false);
+        }
+    };
 
-        // Increment trigger to signal child components to generate
-        console.log('Generate pivot triggered from PivotView');
+    const generatePivot = () => {
+        generationStartRef.current = performance.now();
+        setElapsedMs(0);
+        setExecutionTime(null);
         setTriggerGeneration(true);
     };
 
-
-    const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
+    useEffect(() => {
+        if (!isGenerating) return;
+        const id = window.setInterval(() => {
+            if (generationStartRef.current != null) {
+                setElapsedMs(performance.now() - generationStartRef.current);
+            }
+        }, 100);
+        return () => window.clearInterval(id);
+    }, [isGenerating]);
 
     const handleGenerationComplete = () => {
-        if (generationStartTime) {
-            const endTime = performance.now();
-            const duration = endTime - generationStartTime;
-            setExecutionTime(duration);
-            setGenerationStartTime(null);
+        if (generationStartRef.current != null) {
+            setExecutionTime(performance.now() - generationStartRef.current);
+            generationStartRef.current = null;
         }
+        setElapsedMs(0);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -426,6 +620,7 @@ export const PivotView = () => {
 
     const handleDrop = (e: React.DragEvent, type: 'row' | 'column' | 'value' | 'filter') => {
         e.preventDefault();
+        rememberPointer(e);
         const target = e.currentTarget as HTMLDivElement;
         target.style.backgroundColor = '';
         target.style.borderColor = '';
@@ -444,7 +639,7 @@ export const PivotView = () => {
             }
         } else {
             // Adding a new field
-            handleFieldDrop(type, draggedData);
+            handleFieldDrop(type, draggedData, e);
         }
     };
 
@@ -483,13 +678,26 @@ export const PivotView = () => {
             const updatedField = { ...sourceField, type: targetType as 'row' | 'column' | 'value' | 'filter' };
 
             if (targetType === 'filter') {
-                // Handle filter fields specially
-                setSelectedField(updatedField);
-                setFields(newFields); // Update fields to remove the original
-                onOpen();
+                newFields.splice(sourceIndex, 1);
+                setFields(newFields);
+                openFilterPanel(
+                    updatedField.field,
+                    undefined,
+                    undefined,
+                    updatedField.operator || '==',
+                    updatedField.value || '',
+                );
                 return;
-            } else if (targetType === 'value' && !updatedField.aggregators) {
-                // Add default aggregator for value fields
+            }
+
+            if (targetType === 'value' && sourceType !== 'value') {
+                newFields.splice(sourceIndex, 1);
+                setFields(newFields);
+                openValuePanel(updatedField.field);
+                return;
+            }
+
+            if (targetType === 'value' && !updatedField.aggregators?.length) {
                 updatedField.aggregators = ['avg'];
             }
 
@@ -522,6 +730,7 @@ export const PivotView = () => {
     const handleFieldDropZone = (e: React.DragEvent, beforeIndex: number, zoneType: string) => {
         e.preventDefault();
         e.stopPropagation();
+        rememberPointer(e);
 
         const target = e.currentTarget as HTMLElement;
         target.style.backgroundColor = '';
@@ -591,6 +800,380 @@ export const PivotView = () => {
         target.style.borderTop = '';
     };
 
+    const renderPivotZoneGap = (zoneIndex: number, zoneType: PivotZoneType) => (
+        <Box
+            data-pivot-gap
+            w={2}
+            h="20px"
+            flexShrink={0}
+            onDragOver={handleFieldDragOver}
+            onDragLeave={handleFieldDragLeave}
+            onDrop={(e) => handleFieldDropZone(e, zoneIndex, zoneType)}
+            cursor="pointer"
+        />
+    );
+
+    const renderPivotZoneFields = (
+        zoneType: PivotZoneType,
+        emptyText: string,
+        emptyColor: string,
+        badgeStyle: { bg: string; color: string; hoverBg: string },
+        renderBadge: (field: PivotField, fieldIndex: number) => ReactNode,
+        compact = false,
+    ) => {
+        const zoneFields = fields.filter((f) => f.type === zoneType);
+        if (zoneFields.length === 0) {
+            return (
+                <Text color={emptyColor} fontSize="sm" textAlign="center" mt={compact ? 2 : 8} w="100%">
+                    {emptyText}
+                </Text>
+            );
+        }
+
+        return (
+            <>
+                {zoneFields.map((field, index) => {
+                    const fieldIndex = fields.findIndex((f) => f === field);
+                    return (
+                        <Fragment key={`${zoneType}-${fieldIndex}`}>
+                            {index > 0 && renderPivotZoneGap(index, zoneType)}
+                            <Badge
+                                data-pivot-badge
+                                m={1}
+                                p={1.5}
+                                pl={3}
+                                pr={1.5}
+                                bg={badgeStyle.bg}
+                                color={badgeStyle.color}
+                                cursor="move"
+                                draggable
+                                fontFamily="mono"
+                                fontSize="xs"
+                                _hover={{
+                                    bg: badgeStyle.hoverBg,
+                                    transform: 'scale(1.05)',
+                                }}
+                                transition="all 0.2s"
+                                borderRadius="full"
+                                onDragStart={(e) => handleFieldDragStart(e, fieldIndex, zoneType)}
+                                onDragEnd={handleFieldDragEnd}
+                            >
+                                <HStack as="span" gap={1} align="center">
+                                    {renderBadge(field, fieldIndex)}
+                                    <IconButton
+                                        aria-label="Remove field"
+                                        size="2xs"
+                                        variant="subtle"
+                                        minW="16px"
+                                        w="16px"
+                                        h="16px"
+                                        p={0}
+                                        color="currentColor"
+                                        bg="color-mix(in srgb, currentColor 15%, transparent)"
+                                        borderRadius="full"
+                                        _hover={{
+                                            bg: 'color-mix(in srgb, currentColor 30%, transparent)',
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeField(fieldIndex);
+                                        }}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                    >
+                                        <LuX size={10} />
+                                    </IconButton>
+                                </HStack>
+                            </Badge>
+                        </Fragment>
+                    );
+                })}
+                {renderPivotZoneGap(zoneFields.length, zoneType)}
+            </>
+        );
+    };
+
+    const renderPivotZone = (zoneType: PivotZoneType, layout: PivotLayout) => {
+        const isSidebar = layout === 'sidebar';
+        const emptyAction = isSidebar ? 'Click to add' : 'Click or drop';
+        const zoneProps = {
+            row: {
+                title: 'Rows',
+                titleColor: 'var(--color-pivot-row-heading)',
+                emptyText: `${emptyAction} row fields${isSidebar ? '' : ' here'}`,
+                emptyColor: 'var(--color-pivot-row-text)',
+                bg: 'var(--color-pivot-row-bg)',
+                borderColor: 'var(--color-pivot-row-border)',
+                borderHover: 'var(--color-pivot-row-border-hover)',
+                badgeStyle: {
+                    bg: 'var(--color-pivot-row-badge-bg)',
+                    color: 'var(--color-pivot-row-badge-text)',
+                    hoverBg: 'var(--color-pivot-row-heading)',
+                },
+            },
+            column: {
+                title: 'Columns',
+                titleColor: 'var(--color-pivot-col-heading)',
+                emptyText: `${emptyAction} column fields${isSidebar ? '' : ' here'}`,
+                emptyColor: 'var(--color-pivot-col-text)',
+                bg: 'var(--color-pivot-col-bg)',
+                borderColor: 'var(--color-pivot-col-border)',
+                borderHover: 'var(--color-pivot-col-border-hover)',
+                badgeStyle: {
+                    bg: 'var(--color-pivot-col-badge-bg)',
+                    color: 'var(--color-pivot-col-badge-text)',
+                    hoverBg: 'var(--color-pivot-col-heading)',
+                },
+            },
+            value: {
+                title: 'Values',
+                titleColor: 'var(--color-pivot-value-heading)',
+                emptyText: `${emptyAction} value fields${isSidebar ? '' : ' here'}`,
+                emptyColor: 'var(--color-pivot-value-text)',
+                bg: 'var(--color-pivot-value-bg)',
+                borderColor: 'var(--color-pivot-value-border)',
+                borderHover: 'var(--color-pivot-value-border-hover)',
+                badgeStyle: {
+                    bg: 'var(--color-pivot-value-badge-bg)',
+                    color: 'var(--color-pivot-value-badge-text)',
+                    hoverBg: 'var(--color-pivot-value-heading)',
+                },
+            },
+            filter: {
+                title: 'Filters',
+                titleColor: 'var(--color-pivot-filter-heading)',
+                emptyText: `${emptyAction} filter fields${isSidebar ? '' : ' here'}`,
+                emptyColor: 'var(--color-pivot-filter-text)',
+                bg: 'var(--color-pivot-filter-bg)',
+                borderColor: 'var(--color-pivot-filter-border)',
+                borderHover: 'var(--color-pivot-filter-border-hover)',
+                badgeStyle: {
+                    bg: 'var(--color-pivot-filter-badge-bg)',
+                    color: 'var(--color-pivot-filter-badge-text)',
+                    hoverBg: 'var(--color-pivot-filter-heading)',
+                },
+            },
+        } as const;
+
+        const config = zoneProps[zoneType];
+        const renderBadge = (field: PivotField, fieldIndex: number) => {
+            if (zoneType === 'value') {
+                return (
+                    <Box
+                        as="span"
+                        cursor="pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditValue(fieldIndex, e);
+                        }}
+                        title="Change aggregation"
+                    >
+                        {renderValuePivotBadge(field)}
+                    </Box>
+                );
+            }
+            if (zoneType === 'filter') {
+                return (
+                    <Box
+                        as="span"
+                        cursor="pointer"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditFilter(fieldIndex, e);
+                        }}
+                        title="Edit filter"
+                    >
+                        {renderFilterPivotBadge(field)}
+                    </Box>
+                );
+            }
+            return renderSimplePivotBadge(field.field);
+        };
+
+        return (
+            <VStack
+                key={zoneType}
+                align="stretch"
+                flex={isSidebar ? '1' : '1'}
+                gap={2}
+                minH={isSidebar ? '100px' : undefined}
+            >
+                <Heading size="sm" color={config.titleColor}>{config.title}</Heading>
+                <Box
+                    ref={(el: HTMLDivElement | null) => { dropZonesRef.current[zoneType] = el; }}
+                    {...PIVOT_ZONE_WRAP_PROPS}
+                    flex={isSidebar ? '1' : undefined}
+                    p={isSidebar ? 3 : 4}
+                    bg={config.bg}
+                    borderWidth={2}
+                    borderStyle="dashed"
+                    borderColor={config.borderColor}
+                    borderRadius="md"
+                    minH={isSidebar ? '100px' : '150px'}
+                    cursor="pointer"
+                    onClick={(e) => handleZoneClick(zoneType, e)}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, zoneType)}
+                    _hover={{ borderColor: config.borderHover }}
+                    transition="all 0.2s"
+                    data-drop-zone={zoneType}
+                >
+                    {renderPivotZoneFields(
+                        zoneType,
+                        config.emptyText,
+                        config.emptyColor,
+                        config.badgeStyle,
+                        renderBadge,
+                        isSidebar,
+                    )}
+                </Box>
+            </VStack>
+        );
+    };
+
+    const renderPivotBuilder = (layout: PivotLayout) => {
+        const zoneTypes: PivotZoneType[] = ['row', 'column', 'value', 'filter'];
+        if (layout === 'sidebar') {
+            return (
+                <VStack align="stretch" gap={3} h="100%" minH="0">
+                    {zoneTypes.map((zoneType) => renderPivotZone(zoneType, layout))}
+                </VStack>
+            );
+        }
+        return (
+            <HStack align="stretch" gap={4}>
+                {zoneTypes.map((zoneType) => renderPivotZone(zoneType, layout))}
+            </HStack>
+        );
+    };
+
+    const renderQueryActions = () => (
+        <VStack align="stretch" gap={2} w="100%">
+            <HStack gap={2} w="100%">
+                {import.meta.env.DEV && (
+                    <Button
+                        flex="1"
+                        size="sm"
+                        onClick={onSaveModalOpen}
+                        bg="var(--color-btn-save-bg)"
+                        color="var(--color-btn-save-text)"
+                        _hover={{ bg: 'var(--color-btn-save-hover)' }}
+                    >
+                        Save Query
+                    </Button>
+                )}
+                <Button
+                    flex="1"
+                    size="sm"
+                    onClick={onLoadModalOpen}
+                    bg="var(--color-btn-load-bg)"
+                    color="var(--color-btn-load-text)"
+                    _hover={{ bg: 'var(--color-btn-load-hover)' }}
+                >
+                    Load Query
+                </Button>
+                <Button
+                    flex="1"
+                    size="sm"
+                    onClick={generatePivot}
+                    loading={isGenerating}
+                    variant="solid"
+                    bg="var(--color-primary)"
+                    color="var(--color-primary-text)"
+                    _hover={{ bg: 'var(--color-primary-hover)', color: 'var(--color-primary-text)' }}
+                >
+                    Execute
+                </Button>
+            </HStack>
+            {isGenerating && (
+                <VStack align="stretch" gap={1}>
+                    <HStack justify="space-between" gap={3}>
+                        <Text fontSize="xs" color="var(--color-text-info)" fontWeight="medium">
+                            Running query…
+                        </Text>
+                        <Text fontSize="xs" color="var(--color-text-muted)" fontFamily="mono" whiteSpace="nowrap">
+                            {(elapsedMs / 1000).toFixed(1)}s / {PIVOT_TIMEOUT_MS / 1000}s timeout
+                        </Text>
+                    </HStack>
+                    <Progress.Root
+                        value={Math.min(100, (elapsedMs / PIVOT_TIMEOUT_MS) * 100)}
+                        size="sm"
+                        colorPalette={elapsedMs / PIVOT_TIMEOUT_MS > 0.8 ? 'orange' : 'blue'}
+                    >
+                        <Progress.Track>
+                            <Progress.Range />
+                        </Progress.Track>
+                    </Progress.Root>
+                </VStack>
+            )}
+            {executionTime !== null && !isGenerating && (
+                <HStack gap={1}>
+                    <Text fontSize="xs" color="var(--color-text-success)" fontWeight="semibold">
+                        ✓
+                    </Text>
+                    <Text fontSize="xs" color="var(--color-text-muted)" fontWeight="medium">
+                        {executionTime < 1000 ? `${executionTime.toFixed(0)}ms` : `${(executionTime / 1000).toFixed(2)}s`}
+                    </Text>
+                </HStack>
+            )}
+        </VStack>
+    );
+
+    const renderAvailableFieldsPanel = () => (
+        <VStack align="stretch" gap={4} h="calc(100vh - 170px)">
+            <Heading size="md" color="var(--color-text-muted)">Available Fields</Heading>
+            <Box
+                flex="1"
+                minH="0"
+                overflowY="auto"
+                bg="var(--color-bg-header)"
+                borderRadius="md"
+                p={3}
+                borderWidth={1}
+                borderColor="var(--color-border)"
+            >
+                <VStack align="stretch" gap={2}>
+                    {availableFields?.map((field: string) => (
+                        <Box
+                            key={field}
+                            p={3}
+                            bg="var(--color-input-bg)"
+                            borderWidth={1}
+                            borderColor="var(--color-border)"
+                            borderRadius="md"
+                            cursor="move"
+                            _hover={{
+                                bg: 'var(--color-bg-hover)',
+                                borderColor: 'var(--color-input-border)',
+                                transform: 'translateY(-1px)',
+                                boxShadow: 'sm',
+                            }}
+                            transition="all 0.2s"
+                            draggable
+                            onDragStart={(e) => e.dataTransfer.setData('text/plain', field)}
+                            overflowX="hidden"
+                            textOverflow="ellipsis"
+                            whiteSpace="nowrap"
+                            fontSize="sm"
+                            fontWeight="medium"
+                            color="var(--color-text)"
+                        >
+                            {field}
+                        </Box>
+                    ))}
+                </VStack>
+            </Box>
+        </VStack>
+    );
+
+    const renderBuilderPanel = (layout: PivotLayout) => (
+        <VStack align="stretch" gap={3} h={layout === 'sidebar' ? 'calc(100vh - 170px)' : undefined}>
+            {renderQueryActions()}
+            <Box flex={layout === 'sidebar' ? '1' : undefined} minH={layout === 'sidebar' ? '0' : undefined} overflow="hidden" display="flex" flexDirection="column">
+                {renderPivotBuilder(layout)}
+            </Box>
+        </VStack>
+    );
 
 
     const handleSaveQuery = async () => {
@@ -682,7 +1265,7 @@ export const PivotView = () => {
                                 newFields.push({
                                     field: value.field,
                                     type: 'value',
-                                    aggregators: value.aggregators || ['avg']
+                                    aggregators: [value.aggregators?.[0] || 'avg'],
                                 });
                             }
                         });
@@ -750,655 +1333,114 @@ export const PivotView = () => {
 
     return (
         <Box p={4} h="100vh" display="flex" flexDirection="column" bg="var(--color-bg-page)">
-            <HStack justify="space-between" mb={6}>
+            <HStack justify="space-between" mb={6} gap={3} flexWrap="wrap">
                 <Heading color="var(--color-text)">Pivot View</Heading>
-                <HStack gap={4}>
+                <HStack gap={2} flexWrap="wrap">
                     <Button
-                        onClick={onSaveModalOpen}
-                        bg="var(--color-btn-save-bg)"
-                        color="var(--color-btn-save-text)"
-                        _hover={{ bg: 'var(--color-btn-save-hover)' }}
+                        size="sm"
+                        onClick={resetPivot}
+                        variant="outline"
+                        color="var(--color-text)"
+                        borderColor="var(--color-border)"
+                        _hover={{ bg: 'var(--color-bg-hover)' }}
                     >
-                        Save Query
+                        Reset
                     </Button>
                     <Button
-                        onClick={onLoadModalOpen}
-                        bg="var(--color-btn-load-bg)"
-                        color="var(--color-btn-load-text)"
-                        _hover={{ bg: 'var(--color-btn-load-hover)' }}
+                        size="sm"
+                        variant={isRelativePivot ? 'solid' : 'outline'}
+                        onClick={() => handleRelativePivotChange(!isRelativePivot)}
+                        bg={isRelativePivot ? 'var(--color-btn-success)' : undefined}
+                        color={isRelativePivot ? 'var(--color-text-on-dark)' : 'var(--color-text)'}
+                        borderColor={isRelativePivot ? 'var(--color-btn-success)' : 'var(--color-border)'}
+                        _hover={{ bg: isRelativePivot ? 'var(--color-btn-success-hover)' : 'var(--color-bg-hover)' }}
                     >
-                        Load Query
+                        {!isRelativePivot ? 'Relative View' : 'Normal View'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant={previewEnabled ? 'solid' : 'outline'}
+                        onClick={() => setPreviewEnabled((enabled) => !enabled)}
+                        disabled={hasQueryResults}
+                        bg={previewEnabled ? 'var(--color-btn-success)' : undefined}
+                        color={previewEnabled ? 'var(--color-text-on-dark)' : 'var(--color-text)'}
+                        borderColor={previewEnabled ? 'var(--color-btn-success)' : 'var(--color-border)'}
+                        _hover={{
+                            bg: previewEnabled ? 'var(--color-btn-success-hover)' : 'var(--color-bg-hover)',
+                        }}
+                        title={
+                            hasQueryResults
+                                ? 'Preview is hidden while query results are displayed'
+                                : previewEnabled
+                                    ? 'Hide layout preview'
+                                    : 'Show layout preview'
+                        }
+                    >
+                        {previewEnabled ? 'Preview On' : 'Preview Off'}
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        color="var(--color-text)"
+                        borderColor="var(--color-border)"
+                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                        onClick={togglePivotLayout}
+                        title={pivotLayout === 'sidebar' ? 'Switch to classic layout with field list' : 'Switch to sidebar layout'}
+                    >
+                        {pivotLayout === 'sidebar' ? 'Classic Layout' : 'Sidebar Layout'}
                     </Button>
                 </HStack>
             </HStack>
 
-            <Grid templateColumns="360px 1fr" gap={6} templateRows="200px 50px auto" flex="1" minH="0" className="pivot-view-grid" width="99%">
-                {/* Fields Panel */}
-                <GridItem rowSpan={3} colSpan={1} className="pivot-fields">
-                    <VStack align="stretch" gap={4}>
-                        <Heading size="md" color="var(--color-text-muted)">Available Fields</Heading>
-                        <Box
-                            h="calc(100vh - 170px)"
-                            overflowY="auto"
-                            bg="var(--color-bg-header)"
-                            borderRadius="md"
-                            p={3}
-                            borderWidth={1}
-                            borderColor="var(--color-border)"
-                        >
-                            <VStack align="stretch" gap={2}>
-                                {availableFields?.map((field: string) => (
-                                    <Box
-                                        key={field}
-                                        p={3}
-                                        bg="var(--color-input-bg)"
-                                        borderWidth={1}
-                                        borderColor="var(--color-border)"
-                                        borderRadius="md"
-                                        cursor="move"
-                                        _hover={{
-                                            bg: "var(--color-bg-hover)",
-                                            borderColor: "var(--color-input-border)",
-                                            transform: 'translateY(-1px)',
-                                            boxShadow: "sm"
-                                        }}
-                                        transition="all 0.2s"
-                                        draggable
-                                        onDragStart={(e) => e.dataTransfer.setData('text/plain', field)}
-                                        overflowX="hidden"
-                                        textOverflow="ellipsis"
-                                        whiteSpace="nowrap"
-                                        fontSize="sm"
-                                        fontWeight="medium"
-                                        color="var(--color-text)"
-                                    >
-                                        {field}
-                                    </Box>
-                                ))}
-                            </VStack>
-                        </Box>
-                    </VStack>
+            <Grid
+                templateColumns="360px 1fr"
+                templateRows={pivotLayout === 'classic' ? 'auto 1fr' : '1fr'}
+                gap={6}
+                flex="1"
+                minH="0"
+                className="pivot-view-grid"
+                width="99%"
+            >
+                <GridItem rowSpan={pivotLayout === 'classic' ? 2 : 1} colSpan={1} className="pivot-sidebar">
+                    {pivotLayout === 'classic' ? renderAvailableFieldsPanel() : renderBuilderPanel('sidebar')}
                 </GridItem>
 
-                <GridItem colStart={2} rowSpan={1} className="pivot-builder">
-                    <HStack align="stretch" gap={4}>
-                        {/* Rows */}
-                        <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color="var(--color-pivot-row-heading)">Rows</Heading>
-                            <Box
-                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['row'] = el; }}
-                                p={4}
-                                bg="var(--color-pivot-row-bg)"
-                                borderWidth={2}
-                                borderStyle="dashed"
-                                borderColor="var(--color-pivot-row-border)"
-                                borderRadius="md"
-                                minH="150px"
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, 'row')}
-                                _hover={{
-                                    borderColor: "var(--color-pivot-row-border-hover)"
-                                }}
-                                transition="all 0.2s"
-                                data-drop-zone="row"
-                            >
-                                {fields
-                                    .filter((f) => f.type === 'row')
-                                    .map((field, index) => {
-                                        const globalIndex = fields.findIndex(f => f === field);
-                                        return (
-                                            <HStack key={`row-${index}`} align="center" gap={0}>
-                                                {/* Drop zone before field */}
-                                                <Box
-                                                    w={2}
-                                                    h="20px"
-                                                    onDragOver={handleFieldDragOver}
-                                                    onDragLeave={handleFieldDragLeave}
-                                                    onDrop={(e) => handleFieldDropZone(e, index, 'row')}
-                                                    cursor="pointer"
-                                                />
-                                                <Badge
-                                                    m={1}
-                                                    p={2}
-                                                    px={3}
-                                                    bg="var(--color-pivot-row-badge-bg)"
-                                                    color="var(--color-pivot-row-badge-text)"
-                                                    cursor="move"
-                                                    draggable
-                                                    onClick={() => removeField(globalIndex)}
-                                                    _hover={{
-                                                        bg: 'var(--color-pivot-row-heading)',
-                                                        transform: 'scale(1.05)'
-                                                    }}
-                                                    transition="all 0.2s"
-                                                    borderRadius="full"
-                                                    onDragStart={(e) => handleFieldDragStart(e, globalIndex, 'row')}
-                                                    onDragEnd={handleFieldDragEnd}
-                                                >
-                                                    {field.field} ×
-                                                </Badge>
-                                                {/* Drop zone after last field */}
-                                                {index === fields.filter((f) => f.type === 'row').length - 1 && (
-                                                    <Box
-                                                        w={2}
-                                                        h="20px"
-                                                        onDragOver={handleFieldDragOver}
-                                                        onDragLeave={handleFieldDragLeave}
-                                                        onDrop={(e) => handleFieldDropZone(e, index + 1, 'row')}
-                                                        cursor="pointer"
-                                                    />
-                                                )}
-                                            </HStack>
-                                        );
-                                    })}
-                                {fields.filter((f) => f.type === 'row').length === 0 && (
-                                    <Text color="var(--color-pivot-row-text)" fontSize="sm" textAlign="center" mt={8}>
-                                        Drop row fields here
-                                    </Text>
-                                )}
-                            </Box>
-                        </VStack>
+                {pivotLayout === 'classic' && (
+                    <GridItem colStart={2} rowSpan={1} className="pivot-builder">
+                        {renderBuilderPanel('classic')}
+                    </GridItem>
+                )}
 
-                        {/* Columns */}
-                        <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color="var(--color-pivot-col-heading)">Columns</Heading>
-                            <Box
-                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['column'] = el; }}
-                                p={4}
-                                bg="var(--color-pivot-col-bg)"
-                                borderWidth={2}
-                                borderStyle="dashed"
-                                borderColor="var(--color-pivot-col-border)"
-                                borderRadius="md"
-                                minH="150px"
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, 'column')}
-                                _hover={{
-                                    borderColor: "var(--color-pivot-col-border-hover)"
-                                }}
-                                transition="all 0.2s"
-                                data-drop-zone="column"
-                            >
-                                {fields
-                                    .filter((f) => f.type === 'column')
-                                    .map((field, index) => {
-                                        const globalIndex = fields.findIndex(f => f === field);
-                                        return (
-                                            <HStack key={`column-${index}`} align="center" gap={0}>
-                                                {/* Drop zone before field */}
-                                                <Box
-                                                    w={2}
-                                                    h="20px"
-                                                    onDragOver={handleFieldDragOver}
-                                                    onDragLeave={handleFieldDragLeave}
-                                                    onDrop={(e) => handleFieldDropZone(e, index, 'column')}
-                                                    cursor="pointer"
-                                                />
-                                                <Badge
-                                                    m={1}
-                                                    p={2}
-                                                    px={3}
-                                                    bg="var(--color-pivot-col-badge-bg)"
-                                                    color="var(--color-pivot-col-badge-text)"
-                                                    cursor="move"
-                                                    draggable
-                                                    onClick={() => removeField(globalIndex)}
-                                                    _hover={{
-                                                        bg: 'var(--color-pivot-col-heading)',
-                                                        transform: 'scale(1.05)'
-                                                    }}
-                                                    transition="all 0.2s"
-                                                    borderRadius="full"
-                                                    onDragStart={(e) => handleFieldDragStart(e, globalIndex, 'column')}
-                                                    onDragEnd={handleFieldDragEnd}
-                                                >
-                                                    {field.field} ×
-                                                </Badge>
-                                                {/* Drop zone after last field */}
-                                                {index === fields.filter((f) => f.type === 'column').length - 1 && (
-                                                    <Box
-                                                        w={2}
-                                                        h="20px"
-                                                        onDragOver={handleFieldDragOver}
-                                                        onDragLeave={handleFieldDragLeave}
-                                                        onDrop={(e) => handleFieldDropZone(e, index + 1, 'column')}
-                                                        cursor="pointer"
-                                                    />
-                                                )}
-                                            </HStack>
-                                        );
-                                    })}
-                                {fields.filter((f) => f.type === 'column').length === 0 && (
-                                    <Text color="var(--color-pivot-col-text)" fontSize="sm" textAlign="center" mt={8}>
-                                        Drop column fields here
-                                    </Text>
-                                )}
-                            </Box>
-                        </VStack>
-
-                        <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color="var(--color-pivot-value-heading)">Values</Heading>
-                            <Box
-                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['value'] = el; }}
-                                p={4}
-                                bg="var(--color-pivot-value-bg)"
-                                borderWidth={2}
-                                borderStyle="dashed"
-                                borderColor="var(--color-pivot-value-border)"
-                                borderRadius="md"
-                                minH="150px"
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, 'value')}
-                                _hover={{
-                                    borderColor: "var(--color-pivot-value-border-hover)"
-                                }}
-                                transition="all 0.2s"
-                                data-drop-zone="value"
-                            >
-                                {fields
-                                    .filter((f) => f.type === 'value')
-                                    .map((field, index) => {
-                                        const fieldIndex = fields.findIndex(f => f === field);
-                                        return (
-                                            <VStack key={`value-${index}`} align="stretch" gap={0}>
-                                                {/* Drop zone before field */}
-                                                <Box
-                                                    w="100%"
-                                                    h={2}
-                                                    onDragOver={handleFieldDragOver}
-                                                    onDragLeave={handleFieldDragLeave}
-                                                    onDrop={(e) => handleFieldDropZone(e, index, 'value')}
-                                                    cursor="pointer"
-                                                />
-                                                <Box
-                                                    m={1}
-                                                    p={2}
-                                                    bg="var(--color-input-bg)"
-                                                    borderRadius="md"
-                                                    borderWidth={1}
-                                                    borderColor="var(--color-pivot-value-border)"
-                                                    cursor="move"
-                                                    draggable
-                                                    _hover={{
-                                                        borderColor: "var(--color-pivot-value-border-hover)",
-                                                        bg: "var(--color-pivot-value-bg)"
-                                                    }}
-                                                    transition="all 0.2s"
-                                                    onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'value')}
-                                                    onDragEnd={handleFieldDragEnd}
-                                                >
-                                                    <VStack align="stretch" gap={2}>
-                                                        <HStack gap={2} justify="space-between">
-                                                            <Badge
-                                                                bg="var(--color-pivot-value-badge-bg)"
-                                                                color="var(--color-pivot-value-badge-text)"
-                                                                cursor="pointer"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleEditValue(fieldIndex);
-                                                                }}
-                                                                _hover={{
-                                                                    bg: 'var(--color-pivot-value-heading)',
-                                                                    transform: 'scale(1.05)'
-                                                                }}
-                                                                transition="all 0.2s"
-                                                                px={3}
-                                                                py={1}
-                                                                borderRadius="full"
-                                                            >
-                                                                📝 {field.field}
-                                                            </Badge>
-                                                            <Badge
-                                                                bg="var(--color-btn-danger)"
-                                                                color="var(--color-text-on-dark)"
-                                                                cursor="pointer"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    removeField(fieldIndex);
-                                                                }}
-                                                                _hover={{
-                                                                    bg: 'var(--color-btn-danger-hover)',
-                                                                    transform: 'scale(1.05)'
-                                                                }}
-                                                                transition="all 0.2s"
-                                                                borderRadius="full"
-                                                                w={6}
-                                                                h={6}
-                                                                display="flex"
-                                                                alignItems="center"
-                                                                justifyContent="center"
-                                                            >
-                                                                ×
-                                                            </Badge>
-                                                        </HStack>
-                                                        <HStack gap={1} flexWrap="wrap">
-                                                            {(field.aggregators || ['avg']).map((aggregator, aggIndex) => (
-                                                                <Badge
-                                                                    key={`${field.field}-${aggregator}-${aggIndex}`}
-                                                                    borderWidth={1}
-                                                                    borderColor="var(--color-pivot-value-border)"
-                                                                    color="var(--color-pivot-value-heading)"
-                                                                    bg="transparent"
-                                                                    fontSize="xs"
-                                                                    px={2}
-                                                                    py={1}
-                                                                    borderRadius="full"
-                                                                >
-                                                                    {aggregator.toUpperCase()}
-                                                                </Badge>
-                                                            ))}
-                                                        </HStack>
-                                                    </VStack>
-                                                </Box>
-                                                {/* Drop zone after last field */}
-                                                {index === fields.filter((f) => f.type === 'value').length - 1 && (
-                                                    <Box
-                                                        w="100%"
-                                                        h={2}
-                                                        onDragOver={handleFieldDragOver}
-                                                        onDragLeave={handleFieldDragLeave}
-                                                        onDrop={(e) => handleFieldDropZone(e, index + 1, 'value')}
-                                                        cursor="pointer"
-                                                    />
-                                                )}
-                                            </VStack>
-                                        );
-                                    })}
-                                {fields.filter((f) => f.type === 'value').length === 0 && (
-                                    <Text color="var(--color-pivot-value-text)" fontSize="sm" textAlign="center" mt={8}>
-                                        Drop value fields here
-                                    </Text>
-                                )}
-                            </Box>
-                        </VStack>
-
-                        <VStack align="stretch" flex="1" gap={2}>
-                            <Heading size="sm" color="var(--color-pivot-filter-heading)">Filters</Heading>
-                            <Box
-                                ref={(el: HTMLDivElement | null) => { dropZonesRef.current['filter'] = el; }}
-                                p={4}
-                                bg="var(--color-pivot-filter-bg)"
-                                borderWidth={2}
-                                borderStyle="dashed"
-                                borderColor="var(--color-pivot-filter-border)"
-                                borderRadius="md"
-                                minH="150px"
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, 'filter')}
-                                _hover={{
-                                    borderColor: "var(--color-pivot-filter-border-hover)"
-                                }}
-                                transition="all 0.2s"
-                                data-drop-zone="filter"
-                            >
-                                {fields
-                                    .filter((f) => f.type === 'filter')
-                                    .map((field, index) => {
-                                        const fieldIndex = fields.findIndex(f => f === field);
-                                        return (
-                                            <VStack key={`filter-${index}`} align="stretch" gap={0}>
-                                                {/* Drop zone before field */}
-                                                <Box
-                                                    w="100%"
-                                                    h={2}
-                                                    onDragOver={handleFieldDragOver}
-                                                    onDragLeave={handleFieldDragLeave}
-                                                    onDrop={(e) => handleFieldDropZone(e, index, 'filter')}
-                                                    cursor="pointer"
-                                                />
-                                                <Box
-                                                    m={1}
-                                                    p={2}
-                                                    bg="var(--color-input-bg)"
-                                                    borderRadius="md"
-                                                    borderWidth={1}
-                                                    borderColor="var(--color-pivot-filter-border)"
-                                                    cursor="move"
-                                                    draggable
-                                                    _hover={{
-                                                        borderColor: "var(--color-pivot-filter-border-hover)",
-                                                        bg: "var(--color-pivot-filter-bg)"
-                                                    }}
-                                                    transition="all 0.2s"
-                                                    onDragStart={(e) => handleFieldDragStart(e, fieldIndex, 'filter')}
-                                                    onDragEnd={handleFieldDragEnd}
-                                                >
-                                                    <HStack gap={2} justify="space-between">
-                                                        <Badge
-                                                            bg="var(--color-pivot-filter-badge-bg)"
-                                                            color="var(--color-pivot-filter-badge-text)"
-                                                            cursor="pointer"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleEditFilter(fieldIndex);
-                                                            }}
-                                                            _hover={{
-                                                                bg: 'var(--color-pivot-filter-heading)',
-                                                                transform: 'scale(1.05)'
-                                                            }}
-                                                            transition="all 0.2s"
-                                                            px={3}
-                                                            py={1}
-                                                            borderRadius="full"
-                                                        >
-                                                            🔍 {field.field} {field.operator} {field.value}
-                                                        </Badge>
-                                                        <Badge
-                                                            bg="var(--color-btn-danger)"
-                                                            color="var(--color-text-on-dark)"
-                                                            cursor="pointer"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                removeField(fieldIndex);
-                                                            }}
-                                                            _hover={{
-                                                                bg: 'var(--color-btn-danger-hover)',
-                                                                transform: 'scale(1.05)'
-                                                            }}
-                                                            transition="all 0.2s"
-                                                            borderRadius="full"
-                                                            w={6}
-                                                            h={6}
-                                                            display="flex"
-                                                            alignItems="center"
-                                                            justifyContent="center"
-                                                        >
-                                                            ×
-                                                        </Badge>
-                                                    </HStack>
-                                                </Box>
-                                                {/* Drop zone after last field */}
-                                                {index === fields.filter((f) => f.type === 'filter').length - 1 && (
-                                                    <Box
-                                                        w="100%"
-                                                        h={2}
-                                                        onDragOver={handleFieldDragOver}
-                                                        onDragLeave={handleFieldDragLeave}
-                                                        onDrop={(e) => handleFieldDropZone(e, index + 1, 'filter')}
-                                                        cursor="pointer"
-                                                    />
-                                                )}
-                                            </VStack>
-                                        );
-                                    })}
-                                {fields.filter((f) => f.type === 'filter').length === 0 && (
-                                    <Text color="var(--color-pivot-filter-text)" fontSize="sm" textAlign="center" mt={8}>
-                                        Drop filter fields here
-                                    </Text>
-                                )}
-                            </Box>
-                        </VStack>
-                    </HStack>
-                </GridItem>
-
-                <GridItem colStart={2} rowSpan={1} className="pivot-options">
-                    <HStack gap={4} align="stretch" flex="1">
-                        {import.meta.env.DEV && (
-                            <ButtonGroup size="sm" attached variant="outline">
-                                <Button
-                                    variant={viewMode === 'iframe' ? 'solid' : 'outline'}
-                                    onClick={() => handleModeChange('iframe')}
-                                    bg={viewMode === 'iframe' ? 'var(--color-primary)' : undefined}
-                                    color={viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                    borderColor={viewMode === 'iframe' ? 'var(--color-primary)' : 'var(--color-border)'}
-                                    _hover={{
-                                        bg: viewMode === 'iframe' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
-                                        color: viewMode === 'iframe' ? 'var(--color-primary-text)' : 'var(--color-text)'
-                                    }}
-                                >
-                                    Pandas
-                                </Button>
-                                <Button
-                                    variant={viewMode === 'table' ? 'solid' : 'outline'}
-                                    onClick={() => handleModeChange('table')}
-                                    bg={viewMode === 'table' ? 'var(--color-primary)' : undefined}
-                                    color={viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'}
-                                    borderColor={viewMode === 'table' ? 'var(--color-primary)' : 'var(--color-border)'}
-                                    _hover={{
-                                        bg: viewMode === 'table' ? 'var(--color-primary-hover)' : 'var(--color-bg-hover)',
-                                        color: viewMode === 'table' ? 'var(--color-primary-text)' : 'var(--color-text)'
-                                    }}
-                                >
-                                    SQL
-                                </Button>
-                            </ButtonGroup>
-                        )}
-                        <Button
-                            size="sm"
-                            onClick={resetPivot}
-                            variant="outline"
-                            color="var(--color-text)"
-                            borderColor="var(--color-border)"
-                            _hover={{ bg: "var(--color-bg-hover)" }}
-                        >
-                            Reset
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={isRelativePivot ? "solid" : "outline"}
-                            onClick={() => handleRelativePivotChange(!isRelativePivot)}
-                            bg={isRelativePivot ? "var(--color-btn-success)" : undefined}
-                            color={isRelativePivot ? "var(--color-text-on-dark)" : "var(--color-text)"}
-                            borderColor={isRelativePivot ? "var(--color-btn-success)" : "var(--color-border)"}
-                            _hover={{ bg: isRelativePivot ? "var(--color-btn-success-hover)" : "var(--color-bg-hover)" }}
-                        >
-                            {!isRelativePivot ? "Relative View" : "Normal View"}
-                        </Button>
-
-                        <Button
-                            size="sm"
-                            onClick={generatePivot}
-                            loading={isGenerating}
-                            variant="solid"
-                            bg="var(--color-primary)"
-                            color="var(--color-primary-text)"
-                            _hover={{ bg: 'var(--color-primary-hover)', color: 'var(--color-primary-text)' }}
-                        >
-                            Execute Query
-                        </Button>
-                        {executionTime !== null && (
-                            <HStack gap={1} ml={2}>
-                                <Text fontSize="sm" color="var(--color-text-success)" fontWeight="semibold">
-                                    ✓
-                                </Text>
-                                <Text fontSize="sm" color="var(--color-text-muted)" fontWeight="medium">
-                                    {executionTime < 1000 ? `${executionTime.toFixed(0)}ms` : `${(executionTime / 1000).toFixed(2)}s`}
-                                </Text>
-                            </HStack>
-                        )}
-                        {isGenerating && executionTime === null && (
-                            <HStack gap={1} ml={2}>
-                                <Text fontSize="sm" color="var(--color-text-info)" fontWeight="medium">
-                                    Generating...
-                                </Text>
-                            </HStack>
-                        )}
-                    </HStack>
-                </GridItem>
-
-                <GridItem colStart={2} rowSpan={1} className="pivot-result" overflow="auto">
-                    {viewMode === 'iframe' ? (
-                        <PivotIframeView
-                            fields={fields.map(f => f.field)}
-                            isRelativePivot={isRelativePivot}
-                            triggerGeneration={triggerGeneration}
-                            setTriggerGeneration={setTriggerGeneration}
-                            setIsGenerating={setIsGenerating}
-                            onGenerationComplete={handleGenerationComplete}
-                        />
-                    ) : (
-                        <PivotTableView
-                            fields={fields}
-                            isRelativePivot={isRelativePivot}
-                            triggerGeneration={triggerGeneration}
-                            setTriggerGeneration={setTriggerGeneration}
-                            setIsGenerating={setIsGenerating}
-                            onGenerationComplete={handleGenerationComplete}
-                        />
-                    )}
+                <GridItem colStart={2} rowSpan={1} className="pivot-result" overflow="auto" minH="0">
+                    <PivotTableView
+                        fields={fields}
+                        isRelativePivot={isRelativePivot}
+                        triggerGeneration={triggerGeneration}
+                        setTriggerGeneration={setTriggerGeneration}
+                        setIsGenerating={setIsGenerating}
+                        onGenerationComplete={handleGenerationComplete}
+                        previewEnabled={previewEnabled}
+                        onQueryResults={handleQueryResults}
+                        clearResultsToken={clearResultsToken}
+                    />
                 </GridItem>
             </Grid>
 
-            {/* Filter Dialog */}
-            <Dialog.Root open={isOpen} onOpenChange={(details) => setIsOpen(details.open)}>
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content>
-                        <Dialog.Header>
-                            <Dialog.Title>Add Filter</Dialog.Title>
-                            <Dialog.CloseTrigger />
-                        </Dialog.Header>
-                        <Dialog.Body>
-                            <VStack gap={4} pb={4}>
-                                <Select.Root
-                                    collection={operatorCollection.collection}
-                                    value={selectedField?.operator ? [selectedField.operator] : []}
-                                    onValueChange={(details) => setSelectedField({ ...selectedField!, operator: details.value[0] || '' })}
-                                >
-                                    <Select.HiddenSelect />
-                                    <Select.Control>
-                                        <Select.Trigger>
-                                            <Select.ValueText placeholder="Select operator" />
-                                        </Select.Trigger>
-                                        <Select.IndicatorGroup>
-                                            <Select.Indicator />
-                                        </Select.IndicatorGroup>
-                                    </Select.Control>
-                                    <Select.Positioner>
-                                        <Select.Content>
-                                            {operatorItems.map((item) => (
-                                                <Select.Item key={item.value} item={item}>
-                                                    <Select.ItemText>{item.label}</Select.ItemText>
-                                                </Select.Item>
-                                            ))}
-                                        </Select.Content>
-                                    </Select.Positioner>
-                                </Select.Root>
-                                <Input
-                                    placeholder="Enter filter value"
-                                    onChange={(e) => setSelectedField({ ...selectedField!, value: e.target.value })}
-                                />
-                                <Button
-                                    bg="var(--color-primary)"
-                                    color="var(--color-primary-text)"
-                                    _hover={{ bg: 'var(--color-primary-hover)' }}
-                                    onClick={() => {
-                                        if (selectedField?.operator && selectedField?.value) {
-                                            handleFilterApply(selectedField.operator, selectedField.value);
-                                        }
-                                    }}
-                                >
-                                    Apply Filter
-                                </Button>
-                            </VStack>
-                        </Dialog.Body>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
+            <PivotFieldPickerPanel
+                picker={fieldPicker}
+                availableFields={availableFields ?? []}
+                onClose={() => setFieldPicker(null)}
+                onSelect={handleFieldPickerSelect}
+            />
+
+            <PivotContextPanel
+                panel={contextPanel}
+                aggregatorItems={aggregatorItems}
+                operatorItems={operatorItems}
+                onClose={() => setContextPanel(null)}
+                onValueSelect={handleValueSelect}
+                onFilterApply={handleFilterApply}
+            />
 
             {/* Save Query Modal */}
             <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setSaveModalOpen(details.open)}>
@@ -1489,171 +1531,7 @@ export const PivotView = () => {
                 </Dialog.Positioner>
             </Dialog.Root>
 
-            {/* Edit Value Modal */}
-            <Dialog.Root open={isEditValueOpen} onOpenChange={(details) => setIsEditValueOpen(details.open)}>
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content>
-                        <Dialog.Header>
-                            <Dialog.Title>Edit Value Field</Dialog.Title>
-                            <Dialog.CloseTrigger />
-                        </Dialog.Header>
-                        <Dialog.Body pb={6}>
-                            <VStack gap={4}>
-                                <Field.Root>
-                                    <Field.Label>Field</Field.Label>
-                                    <Input
-                                        value={editableValue.field}
-                                        disabled
-                                        bg="var(--color-bg-hover)"
-                                    />
-                                </Field.Root>
-                                <Field.Root>
-                                    <Field.Label>Aggregator Functions</Field.Label>
-                                    <VStack gap={2} align="stretch">
-                                        {editableValue.aggregators.map((aggregator, index) => (
-                                            <HStack key={index} gap={2}>
-                                                <Select.Root
-                                                    collection={aggregatorCollection.collection}
-                                                    value={[aggregator]}
-                                                    onValueChange={(details) => {
-                                                        const newAggregators = [...editableValue.aggregators];
-                                                        newAggregators[index] = details.value[0] || 'avg';
-                                                        setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                                    }}
-                                                    flex="1"
-                                                >
-                                                    <Select.HiddenSelect />
-                                                    <Select.Control>
-                                                        <Select.Trigger>
-                                                            <Select.ValueText />
-                                                        </Select.Trigger>
-                                                        <Select.IndicatorGroup>
-                                                            <Select.Indicator />
-                                                        </Select.IndicatorGroup>
-                                                    </Select.Control>
-                                                    <Select.Positioner>
-                                                        <Select.Content>
-                                                            {aggregatorItems.map((item) => (
-                                                                <Select.Item key={item.value} item={item}>
-                                                                    <Select.ItemText>{item.label}</Select.ItemText>
-                                                                </Select.Item>
-                                                            ))}
-                                                        </Select.Content>
-                                                    </Select.Positioner>
-                                                </Select.Root>
-                                                <Button
-                                                    bg="var(--color-btn-danger)"
-                                                    color="var(--color-text-on-dark)"
-                                                    _hover={{ bg: 'var(--color-btn-danger-hover)' }}
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        const newAggregators = [...editableValue.aggregators];
-                                                        newAggregators.splice(index, 1);
-                                                        setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                                    }}
-                                                    disabled={editableValue.aggregators.length === 1}
-                                                >
-                                                    ×
-                                                </Button>
-                                            </HStack>
-                                        ))}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            color="var(--color-btn-success)"
-                                            borderColor="var(--color-btn-success)"
-                                            _hover={{ bg: 'var(--color-btn-success)', color: 'var(--color-text-on-dark)' }}
-                                            onClick={() => {
-                                                const newAggregators = [...editableValue.aggregators, 'avg'];
-                                                setEditableValue({ ...editableValue, aggregators: newAggregators });
-                                            }}
-                                        >
-                                            + Add Aggregator
-                                        </Button>
-                                    </VStack>
-                                </Field.Root>
-                                <HStack gap={4} width="100%">
-                                    <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleValueSave} width="100%">
-                                        Save
-                                    </Button>
-                                    <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onEditValueClose} width="100%">
-                                        Cancel
-                                    </Button>
-                                </HStack>
-                            </VStack>
-                        </Dialog.Body>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
-
-            {/* Edit Filter Modal */}
-            <Dialog.Root open={isEditFilterOpen} onOpenChange={(details) => setIsEditFilterOpen(details.open)}>
-                <Dialog.Backdrop />
-                <Dialog.Positioner>
-                    <Dialog.Content>
-                        <Dialog.Header>
-                            <Dialog.Title>Edit Filter</Dialog.Title>
-                            <Dialog.CloseTrigger />
-                        </Dialog.Header>
-                        <Dialog.Body pb={6}>
-                            <VStack gap={4}>
-                                <Field.Root>
-                                    <Field.Label>Field</Field.Label>
-                                    <Input
-                                        value={editableFilter.field}
-                                        disabled
-                                        bg="var(--color-bg-hover)"
-                                    />
-                                </Field.Root>
-                                <Field.Root>
-                                    <Field.Label>Operator</Field.Label>
-                                    <Select.Root
-                                        collection={operatorCollection.collection}
-                                        value={editableFilter.operator ? [editableFilter.operator] : []}
-                                        onValueChange={(details) => setEditableFilter({ ...editableFilter, operator: details.value[0] || '==' })}
-                                    >
-                                        <Select.HiddenSelect />
-                                        <Select.Control>
-                                            <Select.Trigger>
-                                                <Select.ValueText />
-                                            </Select.Trigger>
-                                            <Select.IndicatorGroup>
-                                                <Select.Indicator />
-                                            </Select.IndicatorGroup>
-                                        </Select.Control>
-                                        <Select.Positioner>
-                                            <Select.Content>
-                                                {operatorItems.map((item) => (
-                                                    <Select.Item key={item.value} item={item}>
-                                                        <Select.ItemText>{item.label}</Select.ItemText>
-                                                    </Select.Item>
-                                                ))}
-                                            </Select.Content>
-                                        </Select.Positioner>
-                                    </Select.Root>
-                                </Field.Root>
-                                <Field.Root>
-                                    <Field.Label>Value</Field.Label>
-                                    <Input
-                                        value={editableFilter.value}
-                                        onChange={(e) => setEditableFilter({ ...editableFilter, value: e.target.value })}
-                                        placeholder="Enter filter value"
-                                    />
-                                </Field.Root>
-                                <HStack gap={4} width="100%">
-                                    <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleFilterSave} width="100%">
-                                        Save
-                                    </Button>
-                                    <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onEditFilterClose} width="100%">
-                                        Cancel
-                                    </Button>
-                                </HStack>
-                            </VStack>
-                        </Dialog.Body>
-                    </Dialog.Content>
-                </Dialog.Positioner>
-            </Dialog.Root>
+            {/* Save Query Modal */}
         </Box>
     );
 };

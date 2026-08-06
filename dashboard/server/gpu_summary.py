@@ -130,9 +130,17 @@ def _live_query(sqlexec):
 
     pytorch_col = cast(Exec.meta["pytorch"]["torch"], TEXT).label("pytorch")
     arch_col = cast(Exec.meta["accelerators"]["arch"], TEXT).label("arch")
-    cuda_ver = cast(Exec.meta["pytorch"]["build_settings"]["CUDA_VERSION"], TEXT)
-    hip_ver = cast(Exec.meta["pytorch"]["build_settings"]["HIP_VERSION"], TEXT)
-    accel_col = func.coalesce(cuda_ver, hip_ver).label("accel_version")
+    # Prefer torch.version.cuda / .hip; build_settings often omit HIP_VERSION on ROCm.
+    # Drop empty / JSON-null-as-text so coalesce can fall through to hip.
+    def _accel_field(expr):
+        return func.nullif(func.nullif(cast(expr, TEXT), ""), "null")
+
+    accel_col = func.coalesce(
+        _accel_field(Exec.meta["pytorch"]["cuda"]),
+        _accel_field(Exec.meta["pytorch"]["hip"]),
+        _accel_field(Exec.meta["pytorch"]["build_settings"]["CUDA_VERSION"]),
+        _accel_field(Exec.meta["pytorch"]["build_settings"]["HIP_VERSION"]),
+    ).label("accel_version")
     mb_tag_col = cast(Exec.meta["milabench"]["tag"], TEXT).label("mb_tag")
     mb_commit_col = cast(Exec.meta["milabench"]["commit"], TEXT).label("mb_commit")
     contributor_col = cast(Exec.meta["contributor"], TEXT).label("contributor")

@@ -19,7 +19,12 @@ from dashboard.server.report_data import fetch_data, make_pivot_summary, fetch_d
 from milabench.report import make_report
 
 from .db import Database
-from .plot import pivot_query
+from .plot import (
+    pivot_query,
+    apply_pivot_statement_timeout,
+    is_statement_timeout,
+    PIVOT_TIMEOUT_MS,
+)
 from .utils import database_uri, page, make_selection_key, make_filters, cursor_to_json, cursor_to_dataframe
 from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
@@ -1272,10 +1277,18 @@ def view_server(config):
             print("No filters, returning empty to avoid crashing the database")
             return jsonify({})
 
-        with sqlexec() as sess:
-            query = pivot_query(sess, rows, cols, values, filters, profile)
-            cursor = sess.execute(query)
-            results = cursor_to_json(cursor)
+        try:
+            with sqlexec() as sess:
+                apply_pivot_statement_timeout(sess)
+                query = pivot_query(sess, rows, cols, values, filters, profile)
+                cursor = sess.execute(query)
+                results = cursor_to_json(cursor)
+        except sqlalchemy.exc.OperationalError as exc:
+            if is_statement_timeout(exc):
+                return jsonify({
+                    "error": f"Pivot query timed out after {PIVOT_TIMEOUT_MS // 1000}s",
+                }), 408
+            raise
 
         return results
 

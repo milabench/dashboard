@@ -156,7 +156,7 @@
   /* Vendor identity for plots (distinct from status success/danger).
    * Ramps span hue within the family so same-vendor GPUs stay separable. */
   --color-vendor-nvidia:      #76B900;
-  --color-vendor-amd:         #ED1C24;
+  --color-vendor-amd:         #DC2626;
   --color-vendor-intel:       #0071C5;
   --color-vendor-tenstorrent: #7C3AED;
 
@@ -169,7 +169,7 @@
   --color-nvidia-7: #84CC16;  /* yellow-green */
   --color-nvidia-8: #115E59;  /* dark teal */
 
-  --color-amd-1: #ED1C24;     /* brand red */
+  --color-amd-1: #DC2626;     /* brand red */
   --color-amd-2: #EA580C;     /* orange-red */
   --color-amd-3: #BE123C;     /* rose */
   --color-amd-4: #F97316;     /* bright orange */
@@ -345,7 +345,7 @@ html.dark {
 
   /* Vendor identity for plots — slightly brighter on dark backgrounds */
   --color-vendor-nvidia:      #9AD41A;
-  --color-vendor-amd:         #FF5A5F;
+  --color-vendor-amd:         #FF4444;
   --color-vendor-intel:       #38BDF8;
   --color-vendor-tenstorrent: #C084FC;
 
@@ -358,7 +358,7 @@ html.dark {
   --color-nvidia-7: #A3E635;
   --color-nvidia-8: #059669;
 
-  --color-amd-1: #FF5A5F;
+  --color-amd-1: #FF4444;
   --color-amd-2: #FB923C;
   --color-amd-3: #FB7185;
   --color-amd-4: #FDBA74;

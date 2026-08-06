@@ -12,7 +12,8 @@ import {
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { LuCopy, LuDownload } from 'react-icons/lu';
-import { api } from '../../services/api';
+import { getPivot } from '../../services/api';
+import { PivotPreviewTable } from './PivotPreviewTable';
 
 interface PivotField {
     field: string;
@@ -29,12 +30,30 @@ interface PivotTableViewProps {
     setTriggerGeneration: (trigger: boolean) => void;
     setIsGenerating: (generating: boolean) => void;
     onGenerationComplete: () => void;
+    previewEnabled?: boolean;
+    onQueryResults?: (rowCount: number) => void;
+    clearResultsToken?: number;
 }
 
-export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, setTriggerGeneration, setIsGenerating, onGenerationComplete }: PivotTableViewProps) => {
+export const PivotTableView = ({
+    fields,
+    isRelativePivot,
+    triggerGeneration,
+    setTriggerGeneration,
+    setIsGenerating,
+    onGenerationComplete,
+    previewEnabled = true,
+    onQueryResults,
+    clearResultsToken = 0,
+}: PivotTableViewProps) => {
     const [pivotData, setPivotData] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
+
+    useEffect(() => {
+        setPivotData([]);
+        setError(null);
+    }, [clearResultsToken]);
 
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
@@ -72,17 +91,21 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 params.append('filters', btoa(JSON.stringify(filters)));
             }
 
-            const response = await api.get(`/pivot?${params.toString()}`);
+            const response = await getPivot(params);
 
-            if (Array.isArray(response.data)) {
-                setPivotData(response.data);
+            if (Array.isArray(response)) {
+                setPivotData(response);
+                onQueryResults?.(response.length);
             } else {
                 setPivotData([]);
+                onQueryResults?.(0);
                 setError('Invalid data format received from server');
             }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const err = error as { message?: string };
+            const errorMessage = err?.message || (error instanceof Error ? error.message : 'Unknown error');
             setError(errorMessage);
+            onQueryResults?.(0);
             toaster.create({
                 title: 'Error generating pivot',
                 description: errorMessage,
@@ -432,7 +455,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
             if (isRelativePivot) {
                 return value.toFixed(2);
             }
-            return value.toLocaleString(undefined, {
+            return value.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             });
@@ -440,17 +463,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
         return value;
     };
 
-    const getCellStyle = (value: any, columnName?: string) => {
+    const getCellStyle = (value: any) => {
         if (isRelativePivot && typeof value === 'number') {
-            // Highlight baseline column
-            if (columnName === selectedBaselineColumn) {
-                return {
-                    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                    border: '2px solid rgba(59, 130, 246, 0.6)',
-                    fontWeight: 'bold'
-                };
-            }
-
             const intensity = Math.min(Math.abs(value - 1), 0.5) * 2;
             if (value > 1) {
                 return { backgroundColor: `rgba(34, 197, 94, ${intensity * 0.3})` };
@@ -760,7 +774,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                                         py={3}
                                                         borderWidth={1}
                                                         borderColor="var(--color-border)"
-                                                        bg={columnName === selectedBaselineColumn ? "var(--color-table-baseline-selected)" : "var(--color-table-baseline-bg)"}
+                                                        bg="var(--color-table-baseline-bg)"
                                                         position="relative"
                                                     >
                                                         {columnName === selectedBaselineColumn && (
@@ -814,6 +828,7 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                             <Table.Cell
                                                 key={`row-${colIndex}`}
                                                 fontSize="sm"
+                                                fontFamily={typeof row[rowColumn] === 'number' ? 'mono' : undefined}
                                                 fontWeight="semibold"
                                                 borderWidth={1}
                                                 borderColor="var(--color-border)"
@@ -834,7 +849,8 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                                             <Table.Cell
                                                 key={colIndex}
                                                 fontSize="sm"
-                                                style={getCellStyle(row[columnName], columnName)}
+                                                fontFamily="mono"
+                                                style={getCellStyle(row[columnName])}
                                                 fontWeight="medium"
                                                 borderWidth={1}
                                                 borderColor="var(--color-border)"
@@ -857,26 +873,25 @@ export const PivotTableView = ({ fields, isRelativePivot, triggerGeneration, set
                 </Box>
             )}
 
-            {sortedData.length === 0 && !error && (
+            {sortedData.length === 0 && !error && previewEnabled && (
+                <PivotPreviewTable fields={fields} />
+            )}
+
+            {sortedData.length === 0 && !error && !previewEnabled && (
                 <Box
                     display="flex"
                     justifyContent="center"
                     alignItems="center"
-                    h="300px"
+                    h="200px"
                     color="var(--color-table-empty-text)"
                     bg="var(--color-table-empty-bg)"
                     borderRadius="lg"
                     borderWidth={1}
                     borderColor="var(--color-border)"
                     borderStyle="dashed"
-                    flexDirection="column"
-                    gap={4}
                 >
-                    <Text fontSize="lg" fontWeight="medium" color="var(--color-text-muted)">
-                        No data available
-                    </Text>
-                    <Text fontSize="sm" color="var(--color-table-empty-text)" textAlign="center">
-                        Configure your pivot fields and press execute
+                    <Text fontSize="sm" color="var(--color-text-muted)" textAlign="center" px={4}>
+                        Preview hidden — enable Preview or execute query
                     </Text>
                 </Box>
             )}

@@ -175,6 +175,12 @@ export const getGpuSummary = async (): Promise<GpuSummary[]> => {
     }
 };
 
+/** Latest exec_id per distinct GPU — comma-separated for pivot `in` filters. */
+export const fetchLatestDistinctGPURunIds = async (): Promise<string> => {
+    const summary = await getGpuSummary();
+    return summary.map((row) => String(row.exec_id)).join(',');
+};
+
 export const getMetricsList = async (): Promise<string[]> => {
     try {
         const response = await api.get('/metrics/list');
@@ -298,6 +304,37 @@ export const exploreExecutions = async (filters?: ExploreFilters[]): Promise<any
         const response = await api.get('/exec/explore', { params });
         return response.data;
     } catch (error) {
+        return handleError(error);
+    }
+};
+
+/** Authoritative pivot limit (matches server statement_timeout). Shown in the UI. */
+export const PIVOT_TIMEOUT_MS = 30000;
+/** Client wait slightly longer so a server 408 can be received before axios aborts. */
+const PIVOT_CLIENT_TIMEOUT_MS = PIVOT_TIMEOUT_MS + 5000;
+
+export const getPivot = async (params: URLSearchParams): Promise<any[]> => {
+    try {
+        const response = await api.get(`/pivot?${params.toString()}`, {
+            timeout: PIVOT_CLIENT_TIMEOUT_MS,
+        });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            const data = error.response?.data as { error?: string } | undefined;
+            if (error.response?.status === 408 || data?.error) {
+                throw {
+                    message: data?.error || `Pivot query timed out after ${PIVOT_TIMEOUT_MS / 1000}s`,
+                    status: error.response?.status || 408,
+                } as ApiError;
+            }
+            if (error.code === 'ECONNABORTED') {
+                throw {
+                    message: `Pivot query timed out after ${PIVOT_TIMEOUT_MS / 1000}s`,
+                    status: 408,
+                } as ApiError;
+            }
+        }
         return handleError(error);
     }
 };

@@ -12,7 +12,7 @@ const VENDOR_ORDER: GpuVendor[] = ['nvidia', 'amd', 'intel', 'tenstorrent'];
 
 const VENDOR_BASE: Record<GpuVendor, { css: string; fallback: string }> = {
     nvidia: { css: '--color-vendor-nvidia', fallback: '#76B900' },
-    amd: { css: '--color-vendor-amd', fallback: '#ED1C24' },
+    amd: { css: '--color-vendor-amd', fallback: '#DC2626' },
     intel: { css: '--color-vendor-intel', fallback: '#0071C5' },
     tenstorrent: { css: '--color-vendor-tenstorrent', fallback: '#7C3AED' },
 };
@@ -68,7 +68,7 @@ const RAMP_FALLBACK: Record<GpuVendor, string[]> = {
         '#115E59',
     ],
     amd: [
-        '#ED1C24',
+        '#DC2626',
         '#EA580C',
         '#BE123C',
         '#F97316',

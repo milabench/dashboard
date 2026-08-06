@@ -15,10 +15,16 @@ import {
     Progress,
     Stat,
     SimpleGrid,
+    Link,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
 import { webSocketService, type MetricData } from '../../services/websocket';
 import type { BenchLogEntry } from '../../services/types';
+import {
+    isMilabenchCommit,
+    milabenchCommitUrl,
+    shortMilabenchCommit,
+} from '../../utils/milabench';
 
 
 interface MetricEntry {
@@ -327,7 +333,21 @@ export const RealtimeMetricsView: React.FC = () => {
                                             </Stat.Root>
                                             <Stat.Root size="sm">
                                                 <Stat.Label>Commit</Stat.Label>
-                                                <Stat.ValueText fontSize="md">{runMeta.milabench.commit?.slice(0, 8) || 'N/A'}</Stat.ValueText>
+                                                <Stat.ValueText fontSize="md">
+                                                    {isMilabenchCommit(runMeta.milabench.commit) ? (
+                                                        <Link
+                                                            href={milabenchCommitUrl(runMeta.milabench.commit)}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            color="blue.500"
+                                                            _hover={{ textDecoration: 'underline' }}
+                                                        >
+                                                            {shortMilabenchCommit(runMeta.milabench.commit)}
+                                                        </Link>
+                                                    ) : (
+                                                        'N/A'
+                                                    )}
+                                                </Stat.ValueText>
                                             </Stat.Root>
                                             <Stat.Root size="sm">
                                                 <Stat.Label>Date</Stat.Label>

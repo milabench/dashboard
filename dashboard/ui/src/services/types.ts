@@ -26,6 +26,10 @@ export interface Execution {
         };
         pytorch: {
             torch: string;
+            /** From torch.version.cuda — preferred over build_settings.CUDA_VERSION */
+            cuda?: string | null;
+            /** From torch.version.hip — preferred over build_settings.HIP_VERSION */
+            hip?: string | null;
             build_settings: {
                 TORCH_VERSION: string;
                 CUDA_VERSION?: string;
