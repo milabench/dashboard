@@ -1,6 +1,7 @@
 /** UI-friendly Vega-Lite transform steps for the pivot plot builder. */
 
 import type { ChartFieldMeta } from './pivotToChartData';
+import { sanitizeVegaFieldName } from './pivotToChartData';
 
 export type TransformStepType = 'aggregate' | 'filter' | 'calculate';
 
@@ -139,8 +140,9 @@ export function transformStepToVega(step: PivotTransformStep): Record<string, un
             return { filter: filterPredicate(step) };
         }
         case 'calculate': {
-            if (!step.as.trim() || !step.expr.trim()) return null;
-            return { calculate: step.expr.trim(), as: step.as.trim() };
+            const as = sanitizeVegaFieldName(step.as.trim());
+            if (!as || !step.expr.trim()) return null;
+            return { calculate: step.expr.trim(), as };
         }
     }
 }
@@ -157,6 +159,48 @@ export function hasActiveTransforms(steps: PivotTransformStep[]): boolean {
 
 function findField(fields: ChartFieldMeta[], name: string): ChartFieldMeta | undefined {
     return fields.find((f) => f.name === name);
+}
+
+/** Simple field copy/rename: datum.field or datum['field']. */
+const DATUM_FIELD_COPY_RE = /^\s*datum(?:\.([a-zA-Z_][a-zA-Z0-9_]*)|\[\s*['"]([^'"]+)['"]\s*\])\s*$/;
+
+function resolveFieldByDatumRef(
+    fields: ChartFieldMeta[],
+    ref: string,
+): ChartFieldMeta | undefined {
+    const trimmed = ref.trim();
+    if (!trimmed) return undefined;
+    const sanitized = sanitizeVegaFieldName(trimmed);
+    return fields.find((f) => f.name === trimmed || f.name === sanitized)
+        ?? fields.find((f) => f.sourceName === trimmed || sanitizeVegaFieldName(f.sourceName ?? '') === sanitized);
+}
+
+function inferCalculateFieldMeta(
+    step: CalculateTransformStep,
+    availableFields: ChartFieldMeta[],
+): ChartFieldMeta {
+    const as = sanitizeVegaFieldName(step.as.trim());
+    const expr = step.expr.trim();
+    const fallback: ChartFieldMeta = {
+        name: as,
+        label: step.as.trim() || as,
+        kind: 'measure',
+        vegaType: 'quantitative',
+    };
+
+    const match = expr.match(DATUM_FIELD_COPY_RE);
+    if (!match) return fallback;
+
+    const source = resolveFieldByDatumRef(availableFields, match[1] ?? match[2] ?? '');
+    if (!source) return fallback;
+
+    return {
+        name: as,
+        label: step.as.trim() || source.label || as,
+        kind: source.kind,
+        vegaType: source.vegaType,
+        sourceName: source.sourceName,
+    };
 }
 
 /** Fields available after applying a prefix of the transform pipeline. */
@@ -193,17 +237,16 @@ export function fieldsAfterTransforms(
         }
 
         if (step.type === 'calculate') {
-            const as = step.as.trim();
-            if (!as || !transformStepToVega(step) || byName.has(as)) continue;
-            current = [
-                ...current,
-                {
-                    name: as,
-                    label: as,
-                    kind: 'measure',
-                    vegaType: 'quantitative',
-                },
-            ];
+            const as = sanitizeVegaFieldName(step.as.trim());
+            if (!as) continue;
+
+            const meta = inferCalculateFieldMeta(step, current);
+
+            if (byName.has(as)) {
+                current = current.map((f) => (f.name === as ? meta : f));
+            } else {
+                current = [...current, meta];
+            }
         }
     }
 

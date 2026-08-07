@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Box,
@@ -16,52 +16,51 @@ import {
     VStack,
 } from '@chakra-ui/react';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { getAllSavedQueries, getPivot, saveQuery } from '../../services/api';
+import { getAllSavedQueries, getPivot, getPivotMelt, saveQuery } from '../../services/api';
 import {
     hasPivotApiFilters,
     hasPivotUrlConfig,
     parsePivotFieldsFromSearchParams,
     pivotApiSearchParams,
+    pivotMeltApiSearchParams,
+    pivotTableQueryKeyFromSearchParams,
     PIVOT_PLOT_SAVED_QUERY_URL,
     savedQueryParametersToSearchParams,
     searchParamsToSavedQueryParameters,
 } from '../../utils/pivotUrlParams';
+import { chartDataFromMeltRows } from '../../utils/pivotToChartData';
 import { toaster } from '../ui/toaster';
 import { PivotPlotView, PlotSidebarActionPanel, type PivotPlotPageActions } from './PivotPlotView';
-
-interface PivotPlotLocationState {
-    pivotData?: Record<string, unknown>[];
-}
+import { PivotShareActions } from './PivotShareActions';
 
 export function PivotPlotPage() {
     usePageTitle('Pivot Plot');
 
     const navigate = useNavigate();
-    const location = useLocation();
     const queryClient = useQueryClient();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [saveQueryName, setSaveQueryName] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [headerToolbar, setHeaderToolbar] = useState<ReactNode>(null);
+    const [plotShareSpec, setPlotShareSpec] = useState<Record<string, unknown> | null>(null);
+    const loadedSavedQueryName = searchParams.get('savedQuery')?.trim() || null;
     const { open: isSaveModalOpen, onOpen: onSaveModalOpen, onClose: onSaveModalClose, setOpen: setSaveModalOpen } = useDisclosure();
     const { open: isLoadModalOpen, onOpen: onLoadModalOpen, onClose: onLoadModalClose, setOpen: setLoadModalOpen } = useDisclosure();
 
-    const apiParams = useMemo(() => pivotApiSearchParams(searchParams), [searchParams]);
+    const meltApiParams = useMemo(() => pivotMeltApiSearchParams(searchParams), [searchParams]);
     const pivotFields = useMemo(
         () => parsePivotFieldsFromSearchParams(searchParams) ?? [],
         [searchParams],
     );
-    const pivotQueryKey = apiParams.toString();
+
+    const canSharePlot = Boolean(plotShareSpec);
+    const meltQueryKey = meltApiParams.toString();
     const backHref = `/pivot${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
     const canFetchPivot = hasPivotUrlConfig(searchParams) && hasPivotApiFilters(searchParams);
     const missingFilters = hasPivotUrlConfig(searchParams) && !hasPivotApiFilters(searchParams);
 
-    const navPivotData = (location.state as PivotPlotLocationState | null)?.pivotData;
-    if (navPivotData?.length && !queryClient.getQueryData(['pivotPlot', pivotQueryKey])) {
-        queryClient.setQueryData(['pivotPlot', pivotQueryKey], navPivotData);
-    }
-
-    const cachedRows = queryClient.getQueryData<Record<string, unknown>[]>(['pivotPlot', pivotQueryKey]);
-    const hasCachedRows = (cachedRows?.length ?? 0) > 0;
+    const cachedMelt = queryClient.getQueryData<Awaited<ReturnType<typeof getPivotMelt>>>(['pivotPlotMelt', meltQueryKey]);
+    const hasCachedMelt = (cachedMelt?.length ?? 0) > 0;
 
     const { data: savedQueries } = useQuery({
         queryKey: ['savedQueries'],
@@ -69,28 +68,93 @@ export function PivotPlotPage() {
     });
 
     const {
-        data: pivotData,
+        data: meltData,
         isLoading,
         isFetching,
         isError,
         error,
     } = useQuery({
-        queryKey: ['pivotPlot', pivotQueryKey],
-        queryFn: () => getPivot(apiParams),
-        enabled: canFetchPivot && !hasCachedRows,
+        queryKey: ['pivotPlotMelt', meltQueryKey],
+        queryFn: () => getPivotMelt(meltApiParams),
+        enabled: canFetchPivot && !hasCachedMelt,
         staleTime: 0,
         retry: 1,
     });
 
-    const pivotRows = Array.isArray(pivotData)
-        ? pivotData
-        : (cachedRows ?? []);
-    const hasPivotRows = pivotRows.length > 0;
+    const resolvedMelt = meltData ?? cachedMelt ?? null;
+    const chartData = useMemo(
+        () => chartDataFromMeltRows(resolvedMelt, pivotFields),
+        [resolvedMelt, pivotFields],
+    );
+    const hasChartRows = (chartData?.long.length ?? 0) > 0;
+
+    // Keep wide table rows in React Query so pivot → plot → pivot restores the table.
+    useEffect(() => {
+        if (!canFetchPivot || !resolvedMelt?.length) return;
+
+        const tableCacheKey = pivotTableQueryKeyFromSearchParams(searchParams);
+        if (queryClient.getQueryData(tableCacheKey)) return;
+
+        void getPivot(pivotApiSearchParams(searchParams)).then((rows) => {
+            if (rows.length > 0) {
+                queryClient.setQueryData(tableCacheKey, rows);
+            }
+        });
+    }, [canFetchPivot, resolvedMelt, searchParams, queryClient]);
+
+    const errorMessage = isError
+        ? (error as { message?: string })?.message ?? 'Failed to load pivot data'
+        : null;
+
+    const showEmptyState = !isLoading && !isFetching && !hasChartRows && !errorMessage;
+    const showSidebarShell = !hasChartRows || Boolean(errorMessage) || missingFilters || isLoading || showEmptyState;
+
+    const plotTopBarRight = useMemo(
+        () => (
+            <>
+                <PivotShareActions
+                    kind="plot"
+                    searchParams={searchParams}
+                    plotShareSpec={plotShareSpec}
+                    disabled={!canSharePlot}
+                    size="xs"
+                />
+                <Button
+                    asChild
+                    size="xs"
+                    variant="outline"
+                    borderColor="var(--color-border)"
+                    color="var(--color-text)"
+                    _hover={{ bg: 'var(--color-bg-hover)' }}
+                    flexShrink={0}
+                >
+                    <Link to={backHref}>Back to Pivot</Link>
+                </Button>
+            </>
+        ),
+        [searchParams, canSharePlot, backHref, plotShareSpec],
+    );
+
+    const handleRenderToolbar = useCallback((toolbar: ReactNode) => {
+        setHeaderToolbar(toolbar);
+    }, []);
+
+    useEffect(() => {
+        if (showSidebarShell) {
+            setHeaderToolbar(null);
+        }
+    }, [showSidebarShell]);
 
     const plotSavedQueries = useMemo(
         () => savedQueries?.filter((query: { query?: { url?: string } }) => query.query?.url === PIVOT_PLOT_SAVED_QUERY_URL) ?? [],
         [savedQueries],
     );
+
+    useEffect(() => {
+        if (isSaveModalOpen && loadedSavedQueryName && !saveQueryName.trim()) {
+            setSaveQueryName(loadedSavedQueryName);
+        }
+    }, [isSaveModalOpen, loadedSavedQueryName, saveQueryName]);
 
     const handleSaveQuery = async () => {
         if (!saveQueryName.trim()) {
@@ -104,26 +168,37 @@ export function PivotPlotPage() {
         }
 
         try {
+            const trimmedName = saveQueryName.trim();
             const queryData = {
                 url: PIVOT_PLOT_SAVED_QUERY_URL,
                 parameters: {
                     ...searchParamsToSavedQueryParameters(searchParams),
+                    savedQuery: trimmedName,
                     timestamp: new Date().toISOString(),
                 },
             };
 
-            await saveQuery(saveQueryName, queryData);
+            await saveQuery(trimmedName, queryData);
             queryClient.invalidateQueries({ queryKey: ['savedQueries'] });
 
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set('savedQuery', trimmedName);
+            setSearchParams(nextParams, { replace: true });
+
+            const isUpdate = loadedSavedQueryName === trimmedName;
             toaster.create({
-                title: 'Plot saved',
-                description: `"${saveQueryName}" saved with pivot config and plot settings`,
+                title: isUpdate ? 'Plot updated' : 'Plot saved',
+                description: isUpdate
+                    ? `"${trimmedName}" updated with current pivot config and plot settings`
+                    : `"${trimmedName}" saved with pivot config and plot settings`,
                 type: 'success',
                 duration: 3000,
             });
 
             onSaveModalClose();
-            setSaveQueryName('');
+            if (!loadedSavedQueryName) {
+                setSaveQueryName('');
+            }
         } catch (err) {
             toaster.create({
                 title: 'Error saving plot',
@@ -149,14 +224,14 @@ export function PivotPlotPage() {
 
         setIsRefreshing(true);
         try {
-            await queryClient.invalidateQueries({ queryKey: ['pivotPlot', pivotQueryKey] });
+            await queryClient.invalidateQueries({ queryKey: ['pivotPlotMelt', meltQueryKey] });
             const data = await queryClient.fetchQuery({
-                queryKey: ['pivotPlot', pivotQueryKey],
-                queryFn: () => getPivot(new URLSearchParams(apiParams)),
+                queryKey: ['pivotPlotMelt', meltQueryKey],
+                queryFn: () => getPivotMelt(new URLSearchParams(meltApiParams)),
                 staleTime: 0,
             });
-            queryClient.setQueryData(['pivotPlot', pivotQueryKey], data);
-            const rowCount = data.length;
+            queryClient.setQueryData(['pivotPlotMelt', meltQueryKey], data);
+            const rowCount = data?.length ?? 0;
             toaster.create({
                 title: 'Data refreshed',
                 description: rowCount > 0
@@ -183,11 +258,15 @@ export function PivotPlotPage() {
     const handleLoadQuery = (query: { name: string; query: { url: string; parameters: Record<string, unknown> } }) => {
         const { parameters } = query.query;
         const params = savedQueryParametersToSearchParams(parameters);
+        const savedName = String(parameters.savedQuery ?? query.name).trim();
+        if (savedName) {
+            params.set('savedQuery', savedName);
+        }
         navigate(`${PIVOT_PLOT_SAVED_QUERY_URL}?${params.toString()}`);
         onLoadModalClose();
         toaster.create({
             title: 'Plot loaded',
-            description: `"${query.name}" loaded successfully`,
+            description: `"${savedName || query.name}" loaded — use Update plot to save changes`,
             type: 'success',
             duration: 3000,
         });
@@ -199,6 +278,8 @@ export function PivotPlotPage() {
         onLoadData: handleLoadData,
         isLoadingData: isRefreshing || isFetching,
         showSavePlot: import.meta.env.DEV,
+        savePlotLabel: loadedSavedQueryName ? 'Update plot' : 'Save plot',
+        loadedSavedQueryName,
     };
 
     if (!hasPivotUrlConfig(searchParams)) {
@@ -216,14 +297,8 @@ export function PivotPlotPage() {
         );
     }
 
-    const errorMessage = isError
-        ? (error as { message?: string })?.message ?? 'Failed to load pivot data'
-        : null;
-
-    const showEmptyState = !isLoading && !isFetching && !hasPivotRows && !errorMessage;
-
     const renderMainPanel = () => {
-        if (isLoading || (isFetching && !hasPivotRows)) {
+        if (isLoading || (isFetching && !hasChartRows)) {
             return (
                 <Box display="flex" alignItems="center" justifyContent="center" flex="1" minH="320px">
                     <HStack gap={3}>
@@ -270,14 +345,17 @@ export function PivotPlotPage() {
             );
         }
 
-        if (hasPivotRows) {
+        if (hasChartRows && chartData) {
             return (
                 <Box flex="1" minH={0} opacity={isFetching && !isRefreshing ? 0.6 : 1} transition="opacity 0.15s">
                     <PivotPlotView
-                        pivotData={pivotRows}
+                        chartData={chartData}
                         pivotFields={pivotFields}
-                        pivotConfigKey={pivotQueryKey}
+                        pivotConfigKey={meltQueryKey}
                         pageActions={pageActions}
+                        topBarRight={plotTopBarRight}
+                        onRenderToolbar={handleRenderToolbar}
+                        onShareableSpecChange={setPlotShareSpec}
                     />
                 </Box>
             );
@@ -286,22 +364,35 @@ export function PivotPlotPage() {
         return null;
     };
 
-    const showSidebarShell = !hasPivotRows || Boolean(errorMessage) || missingFilters || isLoading || showEmptyState;
-
     return (
         <VStack align="stretch" gap={3} h="100%" minH={0} p={4}>
-            <HStack justify="space-between" flexWrap="wrap" gap={2} flexShrink={0}>
-                <Heading size="md" color="var(--color-text)">Pivot Plot</Heading>
-                <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
-                    borderColor="var(--color-border)"
-                    color="var(--color-text)"
-                    _hover={{ bg: 'var(--color-bg-hover)' }}
-                >
-                    <Link to={backHref}>Back to Pivot</Link>
-                </Button>
+            <HStack justify="space-between" gap={2} flexShrink={0} align="center" flexWrap="nowrap" minW={0}>
+                <Heading size="md" color="var(--color-text)" flexShrink={0}>Pivot Plot</Heading>
+                <HStack gap={2} flexWrap="nowrap" flexShrink={0} overflowX="auto" maxW="100%" justify="flex-end">
+                    {showSidebarShell ? (
+                        <>
+                            <PivotShareActions
+                                kind="plot"
+                                searchParams={searchParams}
+                                plotShareSpec={plotShareSpec}
+                                disabled={!canSharePlot}
+                            />
+                            <Button
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                borderColor="var(--color-border)"
+                                color="var(--color-text)"
+                                _hover={{ bg: 'var(--color-bg-hover)' }}
+                                flexShrink={0}
+                            >
+                                <Link to={backHref}>Back to Pivot</Link>
+                            </Button>
+                        </>
+                    ) : (
+                        headerToolbar
+                    )}
+                </HStack>
             </HStack>
 
             {showSidebarShell ? (
@@ -316,7 +407,9 @@ export function PivotPlotPage() {
                     {renderMainPanel()}
                 </Stack>
             ) : (
-                renderMainPanel()
+                <Box flex="1" minH={0} display="flex" flexDirection="column">
+                    {renderMainPanel()}
+                </Box>
             )}
 
             <Dialog.Root open={isSaveModalOpen} onOpenChange={(details) => setSaveModalOpen(details.open)}>
@@ -324,14 +417,21 @@ export function PivotPlotPage() {
                 <Dialog.Positioner>
                     <Dialog.Content>
                         <Dialog.Header>
-                            <Dialog.Title>Save Pivot Plot</Dialog.Title>
+                            <Dialog.Title>{loadedSavedQueryName ? 'Update Pivot Plot' : 'Save Pivot Plot'}</Dialog.Title>
                             <Dialog.CloseTrigger />
                         </Dialog.Header>
                         <Dialog.Body pb={6}>
                             <VStack gap={4}>
                                 <Text fontSize="sm" color="var(--color-text-muted)">
-                                    Saves the pivot query, plot template, field mappings, and transforms.
+                                    {loadedSavedQueryName
+                                        ? 'Updates the saved pivot query, plot template, field mappings, and transforms.'
+                                        : 'Saves the pivot query, plot template, field mappings, and transforms.'}
                                 </Text>
+                                {loadedSavedQueryName && (
+                                    <Text fontSize="sm" color="var(--color-text-muted)">
+                                        Currently editing: <Text as="span" fontWeight="semibold" color="var(--color-text)">{loadedSavedQueryName}</Text>
+                                    </Text>
+                                )}
                                 <Field.Root>
                                     <Field.Label>Name</Field.Label>
                                     <Input
@@ -348,7 +448,7 @@ export function PivotPlotPage() {
                                         onClick={handleSaveQuery}
                                         width="100%"
                                     >
-                                        Save
+                                        {loadedSavedQueryName ? 'Update' : 'Save'}
                                     </Button>
                                     <Button
                                         variant="outline"

@@ -41,7 +41,7 @@ export function PivotPreviewTable({ fields }: PivotPreviewTableProps) {
         );
     }
 
-    const { rowColumns, valueStructures, fieldRows, rows } = preview;
+    const { rowColumns, rowColumnLabels, valueStructures, fieldRows, rows } = preview;
     const valueColumnNames = valueStructures.map((vs) => vs.columnName);
 
     return (
@@ -98,23 +98,28 @@ export function PivotPreviewTable({ fields }: PivotPreviewTableProps) {
                                         py={2}
                                         borderWidth={1}
                                         borderColor="var(--color-border)"
-                                        bg={fieldRow.name === 'Aggregator'
+                                        bg={fieldRow.isAggregator
                                             ? 'var(--color-table-agg-bg)'
-                                            : 'var(--color-table-col-header-bg)'}
-                                        color={fieldRow.name === 'Aggregator'
+                                            : fieldRow.isValueField
+                                                ? 'var(--color-pivot-value-bg)'
+                                                : 'var(--color-table-col-header-bg)'}
+                                        color={fieldRow.isAggregator || fieldRow.isValueField
                                             ? 'var(--color-table-agg-text)'
                                             : 'var(--color-table-col-header-text)'}
                                         fontWeight="semibold"
                                         textAlign="left"
                                         minW="140px"
                                         borderRightWidth={2}
-                                        borderRightColor={fieldRow.name === 'Aggregator'
+                                        borderRightColor={fieldRow.isAggregator || fieldRow.isValueField
                                             ? 'var(--color-pivot-value-border)'
                                             : 'var(--color-pivot-col-border)'}
                                         fontFamily="mono"
+                                        title={fieldRow.sourceField && fieldRow.displayName !== fieldRow.sourceField
+                                            ? fieldRow.sourceField
+                                            : undefined}
                                     >
                                         <Text as="span" fontWeight="bold">
-                                            {fieldRow.name}
+                                            {fieldRow.displayName}
                                         </Text>
                                     </Table.ColumnHeader>
                                     {fieldRow.values.map((value, colIndex) => (
@@ -126,10 +131,12 @@ export function PivotPreviewTable({ fields }: PivotPreviewTableProps) {
                                             textAlign="center"
                                             borderWidth={1}
                                             borderColor="var(--color-border)"
-                                            bg={fieldRow.name === 'Aggregator'
+                                            bg={fieldRow.isAggregator
                                                 ? 'var(--color-pivot-value-bg)'
-                                                : 'var(--color-pivot-col-bg)'}
-                                            color={fieldRow.name === 'Aggregator'
+                                                : fieldRow.isValueField
+                                                    ? 'var(--color-pivot-value-bg)'
+                                                    : 'var(--color-pivot-col-bg)'}
+                                            color={fieldRow.isAggregator || fieldRow.isValueField
                                                 ? 'var(--color-table-agg-text)'
                                                 : 'var(--color-table-col-header-text)'}
                                             fontWeight="medium"
@@ -159,9 +166,12 @@ export function PivotPreviewTable({ fields }: PivotPreviewTableProps) {
                                             ? 'var(--color-pivot-row-border)'
                                             : 'var(--color-border)'}
                                         fontFamily="mono"
+                                        title={rowColumnLabels[colIndex] !== rowColumn.replace(/_/g, ':')
+                                            ? rowColumn.replace(/_/g, ':')
+                                            : undefined}
                                     >
                                         <Text as="span" fontWeight="bold">
-                                            {rowColumn.replace(/_/g, ':')}
+                                            {rowColumnLabels[colIndex]}
                                         </Text>
                                     </Table.ColumnHeader>
                                 ))}

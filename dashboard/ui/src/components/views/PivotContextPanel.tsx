@@ -15,6 +15,7 @@ export type PivotValueContextPanel = {
     field: string;
     fieldIndex?: number;
     selectedAggregator?: string;
+    label: string;
     x: number;
     y: number;
 };
@@ -29,7 +30,20 @@ export type PivotFilterContextPanel = {
     y: number;
 };
 
-export type PivotContextPanelState = PivotValueContextPanel | PivotFilterContextPanel;
+export type PivotFieldLabelContextPanel = {
+    kind: 'fieldLabel';
+    field: string;
+    fieldIndex: number;
+    zoneType: 'row' | 'column';
+    label: string;
+    x: number;
+    y: number;
+};
+
+export type PivotContextPanelState =
+    | PivotValueContextPanel
+    | PivotFilterContextPanel
+    | PivotFieldLabelContextPanel;
 
 const PANEL_MARGIN = 8;
 
@@ -63,8 +77,9 @@ interface PivotContextPanelProps {
     aggregatorItems: { label: string; value: string }[];
     operatorItems: { label: string; value: string }[];
     onClose: () => void;
-    onValueSelect: (aggregator: string) => void;
+    onValueSelect: (aggregator: string, displayLabel: string) => void;
     onFilterApply: (operator: string, value: string) => void;
+    onFieldLabelApply: (displayLabel: string) => void;
 }
 
 export function PivotContextPanel({
@@ -74,19 +89,26 @@ export function PivotContextPanel({
     onClose,
     onValueSelect,
     onFilterApply,
+    onFieldLabelApply,
 }: PivotContextPanelProps) {
     const panelRef = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState({ left: 0, top: 0 });
     const [filterOperator, setFilterOperator] = useState('==');
     const [filterValue, setFilterValue] = useState('');
+    const [displayLabel, setDisplayLabel] = useState('');
     const operatorCollection = useListCollection({ initialItems: operatorItems });
 
     useEffect(() => {
-        if (!panel || panel.kind !== 'filter') {
+        if (!panel) {
             return;
         }
-        setFilterOperator(panel.operator || '==');
-        setFilterValue(panel.value || '');
+        if (panel.kind === 'filter') {
+            setFilterOperator(panel.operator || '==');
+            setFilterValue(panel.value || '');
+        }
+        if (panel.kind === 'value' || panel.kind === 'fieldLabel') {
+            setDisplayLabel(panel.label || '');
+        }
     }, [panel]);
 
     useLayoutEffect(() => {
@@ -95,7 +117,7 @@ export function PivotContextPanel({
         }
         const rect = panelRef.current.getBoundingClientRect();
         setPosition(clampPosition(panel.x, panel.y, rect.width, rect.height));
-    }, [panel, filterOperator, filterValue]);
+    }, [panel, filterOperator, filterValue, displayLabel]);
 
     useEffect(() => {
         if (!panel) {
@@ -168,26 +190,76 @@ export function PivotContextPanel({
                     {panel.field}
                 </Text>
 
-                {panel.kind === 'value' ? (
-                    <VStack align="stretch" gap={0}>
-                        {aggregatorItems.map((item) => {
-                            const isSelected = item.value === selectedAggregator;
-                            return (
-                                <Button
-                                    key={item.value}
-                                    size="sm"
-                                    justifyContent="flex-start"
-                                    variant="ghost"
-                                    fontWeight={isSelected ? 'semibold' : 'normal'}
-                                    bg={isSelected ? 'var(--color-bg-hover)' : 'var(--color-bg-card)'}
-                                    color="var(--color-text)"
-                                    _hover={{ bg: 'var(--color-bg-hover)' }}
-                                    onClick={() => onValueSelect(item.value)}
-                                >
-                                    {item.label}
-                                </Button>
-                            );
-                        })}
+                {panel.kind === 'fieldLabel' ? (
+                    <VStack align="stretch" gap={2} p={1}>
+                        <Text fontSize="xs" color="var(--color-text-muted)">
+                            Display name
+                        </Text>
+                        <Input
+                            size="sm"
+                            value={displayLabel}
+                            bg="var(--color-bg-card)"
+                            onChange={(event) => setDisplayLabel(event.target.value)}
+                            placeholder={panel.field}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    onFieldLabelApply(displayLabel);
+                                }
+                            }}
+                        />
+                        <Button
+                            size="sm"
+                            bg="var(--color-primary)"
+                            color="var(--color-primary-text)"
+                            _hover={{ bg: 'var(--color-primary-hover)' }}
+                            onClick={() => onFieldLabelApply(displayLabel)}
+                        >
+                            Apply
+                        </Button>
+                        {displayLabel.trim() ? (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => onFieldLabelApply('')}
+                            >
+                                Reset to field name
+                            </Button>
+                        ) : null}
+                    </VStack>
+                ) : panel.kind === 'value' ? (
+                    <VStack align="stretch" gap={2}>
+                        <Box px={1}>
+                            <Text fontSize="xs" color="var(--color-text-muted)" mb={1}>
+                                Display name
+                            </Text>
+                            <Input
+                                size="sm"
+                                value={displayLabel}
+                                bg="var(--color-bg-card)"
+                                onChange={(event) => setDisplayLabel(event.target.value)}
+                                placeholder={panel.field}
+                            />
+                        </Box>
+                        <VStack align="stretch" gap={0}>
+                            {aggregatorItems.map((item) => {
+                                const isSelected = item.value === selectedAggregator;
+                                return (
+                                    <Button
+                                        key={item.value}
+                                        size="sm"
+                                        justifyContent="flex-start"
+                                        variant="ghost"
+                                        fontWeight={isSelected ? 'semibold' : 'normal'}
+                                        bg={isSelected ? 'var(--color-bg-hover)' : 'var(--color-bg-card)'}
+                                        color="var(--color-text)"
+                                        _hover={{ bg: 'var(--color-bg-hover)' }}
+                                        onClick={() => onValueSelect(item.value, displayLabel)}
+                                    >
+                                        {item.label}
+                                    </Button>
+                                );
+                            })}
+                        </VStack>
                     </VStack>
                 ) : (
                     <VStack align="stretch" gap={2} p={1}>

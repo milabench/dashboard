@@ -51,10 +51,10 @@ export function buildMetricValueKey(mc: ParsedMeasureColumn): string {
 
 export function metricFieldLabel(metricKey: string): string {
     const sep = metricKey.lastIndexOf('_');
-    if (sep <= 0) return shortLabel(metricKey);
+    if (sep <= 0) return displayFieldLabel(metricKey);
     const name = metricKey.slice(0, sep);
     const agg = metricKey.slice(sep + 1);
-    return `${shortLabel(name)} (${agg})`;
+    return `${displayFieldLabel(name)} (${agg})`;
 }
 
 function dimensionSignature(
@@ -73,6 +73,7 @@ export interface PivotFieldConfig {
     field: string;
     type: 'row' | 'column' | 'value' | 'filter';
     aggregators?: string[];
+    label?: string;
 }
 
 export interface ParsedMeasureColumn {
@@ -110,10 +111,30 @@ function fieldKey(field: string): string {
     return field.replace(/:/g, '_');
 }
 
+/** Pivot SQL alias (from rename_column) → Vega-safe JSON key. */
+export function meltColumnName(sqlAlias: string): string {
+    return sanitizeVegaFieldName(sqlAlias);
+}
 function shortLabel(field: string): string {
     const normalized = field.replace(/_/g, '.');
     const parts = normalized.split('.');
     return parts[parts.length - 1] || field;
+}
+
+/** Human-readable label for plot dropdowns and axis titles. */
+export function displayFieldLabel(field: string): string {
+    if (!field.trim()) return field;
+
+    const normalized = field.replace(/:/g, '_');
+    if (normalized.includes('.')) {
+        return normalized
+            .split('.')
+            .map((part) => part.replace(/_/g, ' ').trim())
+            .filter(Boolean)
+            .join(' › ');
+    }
+
+    return normalized.replace(/_/g, ' ').trim();
 }
 
 function unquote(value: string): string {
@@ -136,32 +157,6 @@ export function sanitizeVegaFieldName(name: string): string {
     return cleaned.slice(0, 96) || 'field';
 }
 
-function createVegaFieldMapper() {
-    const sourceToVega = new Map<string, string>();
-    const used = new Set<string>();
-
-    const toVegaName = (sourceName: string): string => {
-        const cached = sourceToVega.get(sourceName);
-        if (cached) return cached;
-
-        let base = sanitizeVegaFieldName(sourceName);
-        let candidate = base;
-        let suffix = 2;
-        while (used.has(candidate)) {
-            candidate = `${base}_${suffix}`;
-            suffix += 1;
-        }
-
-        used.add(candidate);
-        sourceToVega.set(sourceName, candidate);
-        return candidate;
-    };
-
-    return {
-        toVegaName,
-        sourceNames: () => new Map(sourceToVega),
-    };
-}
 
 /** True when a key is a pivoted measure column (contains `/` path segments). */
 export function isMeasureColumnKey(key: string): boolean {
@@ -217,8 +212,8 @@ export function parseMeasureColumn(colName: string): ParsedMeasureColumn {
         : valueFieldPart;
 
     const label = [
-        ...columnParts.map((p) => p.value || shortLabel(p.field)),
-        shortLabel(valueField),
+        ...columnParts.map((p) => p.value || displayFieldLabel(p.field)),
+        displayFieldLabel(valueField),
         aggregator,
     ].filter(Boolean).join(' · ');
 
@@ -292,12 +287,23 @@ export function quantitativeAxisFormat(values: unknown[]): string {
     return '.3f';
 }
 
-/** Infer encodable fields from converted chart row keys. */
+/** Infer encodable fields from melted chart row keys. */
 export function chartFieldsFromRows(
     rows: Record<string, unknown>[],
-    sourceNamesByVegaName?: Map<string, string>,
+    pivotFields: PivotFieldConfig[] = [],
 ): ChartFieldMeta[] {
     if (rows.length === 0) return [];
+
+    const rowByKey = new Map(
+        pivotFields
+            .filter((pf) => pf.type === 'row')
+            .map((pf) => [meltColumnName(fieldKey(pf.field)), pf] as const),
+    );
+    const colByKey = new Map(
+        pivotFields
+            .filter((pf) => pf.type === 'column')
+            .map((pf) => [meltColumnName(fieldKey(pf.field)), pf] as const),
+    );
 
     const keyOrder: string[] = [];
     const seen = new Set<string>();
@@ -314,16 +320,49 @@ export function chartFieldsFromRows(
     }
 
     return keyOrder.map((name) => {
-        const sourceName = sourceNamesByVegaName?.get(name) ?? name;
+        const pivotField = rowByKey.get(name) ?? colByKey.get(name);
+        const configField = pivotField?.field ?? name;
+        const labelSource = fieldKey(configField);
         const vegaType = inferColumnVegaType(name, rows);
         const isMeasure = vegaType === 'quantitative';
         return {
             name,
-            label: isMeasure ? metricFieldLabel(sourceName) : shortLabel(sourceName),
-            sourceName: sourceName !== name ? sourceName : undefined,
+            label: isMeasure ? metricFieldLabel(labelSource) : displayFieldLabel(labelSource),
+            sourceName: configField !== name ? configField : undefined,
             kind: isMeasure ? 'measure' : 'row',
             vegaType,
         };
+    });
+}
+
+function applyPivotFieldLabelsToChartFields(
+    fields: ChartFieldMeta[],
+    pivotFields: PivotFieldConfig[],
+): ChartFieldMeta[] {
+    const rowLabels = new Map<string, string>();
+    const colLabels = new Map<string, string>();
+
+    for (const pf of pivotFields) {
+        if (!pf.label?.trim()) continue;
+        const key = meltColumnName(fieldKey(pf.field));
+        if (pf.type === 'row') {
+            rowLabels.set(key, pf.label.trim());
+        }
+        if (pf.type === 'column') {
+            colLabels.set(key, pf.label.trim());
+        }
+    }
+
+    return fields.map((field) => {
+        const rowLabel = rowLabels.get(field.name);
+        if (rowLabel) {
+            return { ...field, label: rowLabel };
+        }
+        const colLabel = colLabels.get(field.name);
+        if (colLabel) {
+            return { ...field, label: colLabel };
+        }
+        return field;
     });
 }
 
@@ -381,22 +420,18 @@ export function filterPlotRows(
 }
 
 /**
- * Pivot API output → long/tidy chart rows.
- * Measure columns sharing the same row/column dimensions merge into one observation;
- * each metric value is stored under `{metric_name}_{aggregator}`.
+ * Wide pivot table rows → long/tidy JSON array (same shape as `/api/pivot/melt`).
  */
-export function convertPivotToChartData(
+export function meltPivotRows(
     pivotRows: Record<string, unknown>[],
     pivotFields: PivotFieldConfig[] = [],
-): PivotChartData | null {
-    if (!Array.isArray(pivotRows) || pivotRows.length === 0) return null;
+): Record<string, unknown>[] {
+    if (!Array.isArray(pivotRows) || pivotRows.length === 0) return [];
 
     const allKeys = Object.keys(pivotRows[0]);
     const rowColumns = resolveRowColumns(pivotRows, pivotFields);
     const measureKeys = allKeys.filter(isMeasureColumnKey);
     const measureColumns = measureKeys.map(parseMeasureColumn);
-
-    const fieldMapper = createVegaFieldMapper();
     const long: Record<string, unknown>[] = [];
 
     for (const row of pivotRows) {
@@ -411,35 +446,59 @@ export function convertPivotToChartData(
             if (!entry) {
                 entry = {};
                 rowColumns.forEach((col) => {
-                    entry![fieldMapper.toVegaName(col)] = row[col];
+                    entry![meltColumnName(col)] = row[col];
                 });
                 dimensionParts.forEach((part) => {
-                    entry![fieldMapper.toVegaName(part.field)] = part.value;
+                    entry![meltColumnName(part.field)] = part.value;
                 });
                 merged.set(signature, entry);
             }
 
-            entry[fieldMapper.toVegaName(metricKey)] = coerceNumeric(row[mc.originalName]);
+            entry[metricKey] = coerceNumeric(row[mc.originalName]);
         }
 
         merged.forEach((entry) => long.push(entry));
     }
 
-    const sourceNames = fieldMapper.sourceNames();
-    const vegaToSource = new Map<string, string>();
-    sourceNames.forEach((vegaName, sourceName) => {
-        vegaToSource.set(vegaName, sourceName);
-    });
+    return long;
+}
 
-    const fields = chartFieldsFromRows(long, vegaToSource);
+/** Plot-builder chart data from a `/api/pivot/melt` JSON array + URL pivot config. */
+export function chartDataFromMeltRows(
+    rows: Record<string, unknown>[] | null | undefined,
+    pivotFields: PivotFieldConfig[] = [],
+): PivotChartData | null {
+    if (!rows?.length) return null;
+
+    const fields = applyPivotFieldLabelsToChartFields(
+        chartFieldsFromRows(rows, pivotFields),
+        pivotFields,
+    );
+
+    const rowColumns = pivotFields
+        .filter((pf) => pf.type === 'row')
+        .map((pf) => meltColumnName(fieldKey(pf.field)))
+        .filter((col, index, cols) => cols.indexOf(col) === index && col in (rows[0] ?? {}));
 
     return {
-        long,
-        wide: long,
+        long: rows,
+        wide: rows,
         fields,
-        measureColumns,
+        measureColumns: [],
         rowColumns,
     };
+}
+
+/**
+ * Pivot API output → long/tidy chart rows + field metadata (client-side melt fallback).
+ */
+export function convertPivotToChartData(
+    pivotRows: Record<string, unknown>[],
+    pivotFields: PivotFieldConfig[] = [],
+): PivotChartData | null {
+    const long = meltPivotRows(pivotRows, pivotFields);
+    if (long.length === 0) return null;
+    return chartDataFromMeltRows(long, pivotFields);
 }
 
 /** Resolve an encoding field name from URL/plot state onto a converted chart field key. */

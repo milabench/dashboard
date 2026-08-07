@@ -131,7 +131,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'X', required: true, kind: 'any' },
             { id: 'y', label: 'Y', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Color', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -142,7 +143,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'X', required: true, kind: 'any' },
             { id: 'y', label: 'Y', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Series', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -153,7 +155,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'Category', required: true, kind: 'dimension' },
             { id: 'y', label: 'Value', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Color', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -163,7 +166,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
         slots: [
             { id: 'value', label: 'Value', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Color', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -174,7 +178,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'Category', required: true, kind: 'dimension' },
             { id: 'y', label: 'Value', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Color', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -185,7 +190,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'Columns', required: true, kind: 'dimension' },
             { id: 'y', label: 'Rows', required: true, kind: 'dimension' },
             { id: 'value', label: 'Value', required: true, kind: 'quantitative' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
     {
@@ -196,7 +202,8 @@ export const PLOT_TEMPLATES: PlotTemplate[] = [
             { id: 'x', label: 'X', required: true, kind: 'any' },
             { id: 'y', label: 'Y', required: true, kind: 'quantitative' },
             { id: 'color', label: 'Series', kind: 'dimension' },
-            { id: 'facet', label: 'Facet', kind: 'dimension' },
+            { id: 'facetColumn', label: 'Facet col', kind: 'dimension' },
+            { id: 'facetRow', label: 'Facet row', kind: 'dimension' },
         ],
     },
 ];
@@ -264,6 +271,12 @@ export interface BuildTemplateSpecOptions {
     width?: number;
     height?: number;
     facetLayout?: FacetLayoutOptions;
+    swapAxes?: boolean;
+}
+
+function swapXYEncoding(encoding: Record<string, unknown>): Record<string, unknown> {
+    if (!encoding.x || !encoding.y) return encoding;
+    return { ...encoding, x: encoding.y, y: encoding.x };
 }
 
 export function templateRequiredFieldsFilled(
@@ -287,6 +300,7 @@ export function buildTemplateSpec(options: BuildTemplateSpecOptions): Record<str
         width = 480,
         height = 360,
         facetLayout,
+        swapAxes = false,
     } = options;
 
     if (!templateRequiredFieldsFilled(templateId, fields)) return null;
@@ -298,7 +312,8 @@ export function buildTemplateSpec(options: BuildTemplateSpecOptions): Record<str
         return buildEncoding(field, fieldMeta.get(field), sample(field), extra);
     };
 
-    const facetField = fields.facet?.trim();
+    const facetColumnField = fields.facetColumn?.trim();
+    const facetRowField = fields.facetRow?.trim();
     const transform = transformsToVega(transforms);
     const config = {
         axis: { labelColor: textColor },
@@ -382,6 +397,13 @@ export function buildTemplateSpec(options: BuildTemplateSpecOptions): Record<str
             return null;
     }
 
+    if (swapAxes && core.encoding && typeof core.encoding === 'object') {
+        core = {
+            ...core,
+            encoding: swapXYEncoding(core.encoding as Record<string, unknown>),
+        };
+    }
+
     if (transform.length > 0) {
         core = { ...core, transform };
     }
@@ -394,18 +416,29 @@ export function buildTemplateSpec(options: BuildTemplateSpecOptions): Record<str
         config,
     };
 
-    if (facetField) {
-        const facetCount = uniqueFieldCount(rows, facetField);
+    if (facetColumnField || facetRowField) {
         const layout = facetLayout ?? { mode: 'wrap' as FacetLayoutMode };
-        const columns = resolveFacetColumns(layout.mode, facetCount, layout.columns);
-        const facetSpec: Record<string, unknown> = {
-            facet: buildEncoding(facetField, fieldMeta.get(facetField)),
-            spec: core,
-        };
-        if (columns !== undefined) {
-            facetSpec.columns = columns;
-        }
         const resolve = buildFacetResolve(layout.independentAxes);
+        const facetSpec: Record<string, unknown> = { spec: core };
+
+        if (facetColumnField && !facetRowField) {
+            const facetCount = uniqueFieldCount(rows, facetColumnField);
+            const columns = resolveFacetColumns(layout.mode, facetCount, layout.columns);
+            facetSpec.facet = buildEncoding(facetColumnField, fieldMeta.get(facetColumnField));
+            if (columns !== undefined) {
+                facetSpec.columns = columns;
+            }
+        } else {
+            const facetEnc: Record<string, unknown> = {};
+            if (facetRowField) {
+                facetEnc.row = buildEncoding(facetRowField, fieldMeta.get(facetRowField));
+            }
+            if (facetColumnField) {
+                facetEnc.column = buildEncoding(facetColumnField, fieldMeta.get(facetColumnField));
+            }
+            facetSpec.facet = facetEnc;
+        }
+
         if (resolve) {
             facetSpec.resolve = resolve;
         }
@@ -451,8 +484,11 @@ export function suggestTemplateFields(
             case 'color':
                 result.color = pick(suggested.color) || dimensions.find((d) => d.name !== result.x)?.name || '';
                 break;
-            case 'facet':
-                result.facet = names.includes('facet') ? 'facet' : '';
+            case 'facetColumn':
+                result.facetColumn = names.includes('facet') ? 'facet' : '';
+                break;
+            case 'facetRow':
+                result.facetRow = '';
                 break;
             default:
                 if (!result[slot.id]) {
@@ -504,6 +540,15 @@ export function injectPlotData(
     return { ...cleaned, data: { values: rows } };
 }
 
+export function injectPlotDataUrl(
+    spec: Record<string, unknown>,
+    url: string,
+): Record<string, unknown> {
+    const cleaned = stripInlinePlotData(spec);
+    if (isRemoteDataSource(cleaned.data)) return cleaned;
+    return { ...cleaned, data: { url } };
+}
+
 export function legacyMarkToTemplate(mark: string): PlotTemplateId {
     switch (mark) {
         case 'line':
@@ -526,7 +571,8 @@ export function migrateLegacyEncodings(
             x: encodings.x,
             y: encodings.y,
             color: encodings.color ?? '',
-            facet: encodings.facet ?? '',
+            facetColumn: encodings.facet ?? '',
+            facetRow: '',
         },
     };
 }

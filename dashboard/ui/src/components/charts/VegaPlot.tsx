@@ -92,6 +92,8 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
     const plotRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+    const [renderError, setRenderError] = useState<string | null>(null);
+    const usesDynamicSpec = typeof spec === 'function';
 
     useImperativeHandle(ref, () => ({
         isReady: () => !!viewRef.current,
@@ -104,6 +106,7 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
     }), []);
 
     useEffect(() => {
+        if (!usesDynamicSpec) return;
         const el = sizeRef.current;
         if (!el) return;
 
@@ -128,15 +131,15 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
             if (raf) cancelAnimationFrame(raf);
             observer.disconnect();
         };
-    }, []);
+    }, [usesDynamicSpec]);
 
     const resolvedSpec = useMemo(() => {
-        if (!dims) return null;
-        if (typeof spec === 'function') {
-            return spec(dims.w, dims.h);
+        if (usesDynamicSpec) {
+            if (!dims) return null;
+            return (spec as SpecBuilder)(dims.w, dims.h);
         }
-        return spec;
-    }, [spec, dims]);
+        return spec as Record<string, any>;
+    }, [spec, dims, usesDynamicSpec]);
 
     useEffect(() => {
         if (!isLoaded || !embed || !plotRef.current || !resolvedSpec) return;
@@ -146,6 +149,7 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
         const render = async () => {
             const el = plotRef.current as HTMLElement;
             const config = await buildConfig(el, colorMode, configOverrides);
+            setRenderError(null);
 
             try {
                 const result = await embed(el, resolvedSpec, {
@@ -160,6 +164,7 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
                 console.error('Vega render error:', err);
                 if (!cancelled) {
                     viewRef.current = null;
+                    setRenderError(err?.message ?? 'Failed to render chart');
                 }
             }
         };
@@ -189,13 +194,30 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
         );
     }
 
+    if (usesDynamicSpec && !dims) {
+        return (
+            <Box ref={sizeRef} position="relative" width="100%" height={height}>
+                <Box p={4} minH={height} display="flex" alignItems="center" justifyContent="center">
+                    <Spinner size="sm" />
+                    <Text fontSize="sm" color="var(--color-text-muted)" ml={2}>Sizing chart…</Text>
+                </Box>
+            </Box>
+        );
+    }
+
     return (
-        <Box ref={sizeRef} position="relative" width="100%" height={height}>
+        <Box ref={usesDynamicSpec ? sizeRef : undefined} position="relative" width="100%" height={height}>
+            {renderError && (
+                <Box p={4} bg="var(--color-btn-danger-subtle)" borderRadius="md" mb={2}>
+                    <Text color="var(--color-text-danger)" fontSize="sm">{renderError}</Text>
+                </Box>
+            )}
             <Box
                 ref={plotRef}
-                position="absolute"
-                inset="0"
-                overflow="hidden"
+                width="100%"
+                height={renderError ? `calc(${height} - 4rem)` : height}
+                minH={usesDynamicSpec ? height : '480px'}
+                overflow="auto"
             />
         </Box>
     );

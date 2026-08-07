@@ -10,6 +10,8 @@ import { Layout } from './components/layout/Layout';
 import { Executions } from './components/views/Executions';
 import { PivotView } from './components/views/PivotView';
 import { PivotPlotPage } from './components/views/PivotPlotPage';
+import { PivotTableSharePage } from './components/views/PivotTableSharePage';
+import { PivotPlotSharePage } from './components/views/PivotPlotSharePage';
 import { ExecutionReport } from './components/views/ExecutionReport';
 import { ExplorerView } from './components/views/ExplorerView';
 import { Profile } from './components/views/Profile';
@@ -73,6 +75,8 @@ function App() {
 
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />
+                <Route path="/pivot/view/table" element={<PivotTableSharePage />} />
+                <Route path="/pivot/view/plot" element={<PivotPlotSharePage />} />
                 <Route path="/pivot" element={<PivotView />} />
                 <Route path="/pivot/plot" element={<PivotPlotPage />} />
                 <Route path="/explorer" element={<ExplorerView />} />

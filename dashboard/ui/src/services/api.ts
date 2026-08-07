@@ -1,5 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse } from './types';
+import { meltPivotRows } from '../utils/pivotToChartData';
+import { parsePivotFieldsFromSearchParams, pivotApiSearchParams } from '../utils/pivotUrlParams';
 
 
 
@@ -334,11 +336,26 @@ export function normalizePivotResponse(data: unknown): Record<string, unknown>[]
 }
 
 export const getPivot = async (params: URLSearchParams): Promise<Record<string, unknown>[]> => {
+    const query = params.toString();
+    const paths = query ? [`/pivot/table?${query}`, `/pivot?${query}`] : ['/pivot/table', '/pivot'];
+
     try {
-        const response = await api.get(`/pivot?${params.toString()}`, {
-            timeout: PIVOT_CLIENT_TIMEOUT_MS,
-        });
-        return normalizePivotResponse(response.data);
+        let lastError: unknown;
+        for (const path of paths) {
+            try {
+                const response = await api.get(path, {
+                    timeout: PIVOT_CLIENT_TIMEOUT_MS,
+                });
+                return normalizePivotResponse(response.data);
+            } catch (error) {
+                lastError = error;
+                if (axios.isAxiosError(error) && error.response?.status === 404) {
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw lastError;
     } catch (error) {
         if (axios.isAxiosError(error)) {
             const data = error.response?.data as { error?: string } | undefined;
@@ -354,6 +371,67 @@ export const getPivot = async (params: URLSearchParams): Promise<Record<string, 
                     status: 408,
                 } as ApiError;
             }
+        }
+        return handleError(error);
+    }
+};
+
+export type PivotMeltRows = Record<string, unknown>[];
+
+export interface PivotSpecResponse {
+    spec: Record<string, unknown>;
+    dataUrl: string;
+    plot: Record<string, unknown>;
+}
+
+function normalizePivotMeltResponse(data: unknown): PivotMeltRows {
+    if (Array.isArray(data)) {
+        return data as PivotMeltRows;
+    }
+    if (data && typeof data === 'object' && Array.isArray((data as { rows?: unknown }).rows)) {
+        return (data as { rows: PivotMeltRows }).rows;
+    }
+    return [];
+}
+
+export const getPivotMelt = async (params: URLSearchParams): Promise<PivotMeltRows> => {
+    try {
+        const response = await api.get(`/pivot/melt?${params.toString()}`, {
+            timeout: PIVOT_CLIENT_TIMEOUT_MS,
+        });
+        return normalizePivotMeltResponse(response.data);
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+            const tableParams = pivotApiSearchParams(params);
+            const rows = await getPivot(tableParams);
+            return meltPivotRows(rows, parsePivotFieldsFromSearchParams(params) ?? []);
+        }
+        if (axios.isAxiosError(error)) {
+            const data = error.response?.data as { error?: string } | undefined;
+            if (error.response?.status === 408 || data?.error) {
+                throw {
+                    message: data?.error || `Pivot query timed out after ${PIVOT_TIMEOUT_MS / 1000}s`,
+                    status: error.response?.status || 408,
+                } as ApiError;
+            }
+        }
+        return handleError(error);
+    }
+};
+
+export const getPivotSpec = async (params: URLSearchParams): Promise<PivotSpecResponse> => {
+    try {
+        const response = await api.get(`/pivot/spec?${params.toString()}`, {
+            timeout: PIVOT_CLIENT_TIMEOUT_MS,
+        });
+        return response.data as PivotSpecResponse;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            const data = error.response?.data as { error?: string } | undefined;
+            throw {
+                message: data?.error || 'Failed to build pivot plot spec',
+                status: error.response?.status || 500,
+            } as ApiError;
         }
         return handleError(error);
     }

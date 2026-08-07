@@ -1,27 +1,25 @@
-import { useState, useEffect, type ChangeEvent } from 'react';
+import { useState, useEffect, type ChangeEvent, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tooltip } from "../../components/ui/tooltip"
 import {
     Box,
     Table,
     Text,
     VStack,
-    HStack,
-    IconButton,
+    Button,
     Alert,
     NativeSelect,
 } from '@chakra-ui/react';
 import { toaster } from '../ui/toaster';
-import { LuCopy, LuDownload } from 'react-icons/lu';
 import { getPivot } from '../../services/api';
 import { PivotPreviewTable } from './PivotPreviewTable';
-
-interface PivotField {
-    field: string;
-    type: 'row' | 'column' | 'value' | 'filter';
-    operator?: string;
-    value?: string;
-    aggregators?: string[];  // For value fields - multiple aggregators
-}
+import {
+    buildPivotApiParamsFromFields,
+    findPivotField,
+    pivotResultHeaderLabel,
+    pivotTableQueryKey,
+    type PivotField,
+} from '../../utils/pivotUrlParams';
 
 interface PivotTableViewProps {
     fields: PivotField[];
@@ -34,7 +32,25 @@ interface PivotTableViewProps {
     onQueryResults?: (rowCount: number) => void;
     onPivotDataChange?: (rows: Record<string, unknown>[]) => void;
     clearResultsToken?: number;
+    /** Read-only share page: no card chrome or nested scroll areas. */
+    shareView?: boolean;
 }
+
+const COPY_JSON_TOOLTIP = 'Copy raw pivot rows as JSON';
+const COPY_CSV_TOOLTIP = 'Copy the table as tab-separated values (TSV) with headers — paste into Excel or Google Sheets';
+
+const copyLinkStyle = {
+    variant: 'ghost' as const,
+    size: 'xs' as const,
+    height: 'auto',
+    minH: 0,
+    px: 1,
+    py: 0,
+    fontSize: 'xs',
+    fontWeight: 'medium',
+    color: 'var(--color-primary)',
+    _hover: { bg: 'transparent', textDecoration: 'underline' },
+};
 
 export const PivotTableView = ({
     fields,
@@ -47,7 +63,9 @@ export const PivotTableView = ({
     onQueryResults,
     onPivotDataChange,
     clearResultsToken = 0,
+    shareView = false,
 }: PivotTableViewProps) => {
+    const queryClient = useQueryClient();
     const [pivotData, setPivotData] = useState<any[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
@@ -58,43 +76,30 @@ export const PivotTableView = ({
         onPivotDataChange?.([]);
     }, [clearResultsToken, onPivotDataChange]);
 
+    // Restore cached table rows when remounting (e.g. pivot → plot → pivot).
+    useEffect(() => {
+        if (fields.length === 0) return;
+
+        const params = buildPivotApiParamsFromFields(fields);
+        if (!params.get('filters')) return;
+
+        const cached = queryClient.getQueryData<Record<string, unknown>[]>(pivotTableQueryKey(fields));
+        if (!cached) return;
+
+        setPivotData(cached);
+        onPivotDataChange?.(cached);
+        onQueryResults?.(cached.length);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- restore once on mount
+
     const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
         try {
             setIsGenerating(true);
             setError(null);
 
-            const params = new URLSearchParams();
-
-            const rows = fieldsToUse.filter(f => f.type === 'row').map(f => f.field);
-            const cols = fieldsToUse.filter(f => f.type === 'column').map(f => f.field);
-
-            // Handle values with aggregator functions
-            const valueFields = fieldsToUse.filter(f => f.type === 'value');
-            const valuesMap: { [key: string]: string[] } = {};
-
-            valueFields.forEach(field => {
-                const aggregators = field.aggregators || ['avg'];
-                if (!valuesMap[field.field]) {
-                    valuesMap[field.field] = [];
-                }
-                valuesMap[field.field].push(...aggregators);
-            });
-
-            params.append('rows', rows.join(','));
-            params.append('cols', cols.join(','));
-            params.append('values', btoa(JSON.stringify(valuesMap)));
-
-            const filters = fieldsToUse.filter(f => f.type === 'filter').map(f => ({
-                field: f.field,
-                operator: f.operator,
-                value: f.value
-            }));
-
-            if (filters.length > 0) {
-                params.append('filters', btoa(JSON.stringify(filters)));
-            }
+            const params = buildPivotApiParamsFromFields(fieldsToUse);
 
             const response = await getPivot(params);
+            queryClient.setQueryData(pivotTableQueryKey(fieldsToUse), response);
             setPivotData(response);
             onPivotDataChange?.(response);
             onQueryResults?.(response.length);
@@ -316,6 +321,33 @@ export const PivotTableView = ({
         return { rowColumns, valueColumns, headerLevels, backendValueStructures: backendValueStructures || [] };
     })();
 
+    const resultHeaderLabel = (
+        type: 'row' | 'column' | 'value',
+        apiKeyOrField: string,
+        fallback?: string,
+        aggregator?: string,
+    ) => pivotResultHeaderLabel(fields, type, apiKeyOrField, fallback, aggregator);
+
+    const resultColumnLabel = (apiColumnName: string) => {
+        if (columnStructure.rowColumns.includes(apiColumnName)) {
+            return resultHeaderLabel('row', apiColumnName, apiColumnName.replace(/_/g, ':'));
+        }
+        const structure = columnStructure.backendValueStructures.find((col) => col.columnName === apiColumnName);
+        if (structure) {
+            const match = findPivotField(fields, 'value', structure.fieldName, structure.aggregator);
+            if (match?.label?.trim()) {
+                const agg = structure.aggregator?.trim();
+                return agg && agg !== 'value' ? `${match.label.trim()} (${agg})` : match.label.trim();
+            }
+            const agg = structure.aggregator?.trim();
+            if (agg && agg !== 'value') {
+                return `${structure.valueField} (${agg})`;
+            }
+            return structure.valueField;
+        }
+        return apiColumnName.replace(/_/g, ':');
+    };
+
     // Process data for relative pivot
     const processedData = isRelativePivot && pivotData.length > 0 ?
         pivotData.map((row) => {
@@ -402,7 +434,7 @@ export const PivotTableView = ({
             }
 
             // Create CSV format
-            const headers = backendColumnNames.map(name => name.replace(/_/g, ':'));
+            const headers = backendColumnNames.map((name) => resultColumnLabel(name));
             const csvContent = [
                 headers.join('\t'), // Use tabs for better Excel compatibility
                 ...sortedData.map(row =>
@@ -436,7 +468,7 @@ export const PivotTableView = ({
 
             toaster.create({
                 title: 'Table copied to clipboard',
-                description: `${sortedData.length} rows copied as tab-separated values`,
+                description: `${sortedData.length} rows copied as tab-separated values — paste into Excel or Google Sheets`,
                 type: 'success',
                 duration: 3000,
             });
@@ -475,38 +507,56 @@ export const PivotTableView = ({
         return {};
     };
 
+    const TableScrollWrapper = shareView
+        ? ({ children }: { children: ReactNode }) => <>{children}</>
+        : Table.ScrollArea;
+
+    const renderCopyButtons = () => (
+        <Box
+            position="absolute"
+            top={2}
+            right={2}
+            zIndex={10}
+            display="flex"
+            alignItems="center"
+            gap={1}
+            px={2}
+            py={1}
+            borderRadius="md"
+            bg="var(--color-bg-card)"
+            boxShadow="sm"
+            borderWidth="1px"
+            borderColor="var(--color-border)"
+        >
+            <Tooltip content={COPY_JSON_TOOLTIP}>
+                <Button
+                    {...copyLinkStyle}
+                    onClick={copyJsonToClipboard}
+                    aria-label="Copy JSON"
+                >
+                    Copy JSON
+                </Button>
+            </Tooltip>
+            <Text fontSize="xs" color="var(--color-text-muted)" userSelect="none" aria-hidden>
+                |
+            </Text>
+            <Tooltip content={COPY_CSV_TOOLTIP}>
+                <Button
+                    {...copyLinkStyle}
+                    onClick={copyTableToClipboard}
+                    aria-label="Copy CSV"
+                >
+                    Copy CSV
+                </Button>
+            </Tooltip>
+        </Box>
+    );
+
     if (error) {
         return (
-            <Box h="100%" display="flex" flexDirection="column">
-                <HStack mb={4} justify="space-between">
-                    {sortedData.length > 0 && (
-                        <HStack gap={2}>
-                            <Tooltip content="Copy JSON data to clipboard">
-                                <IconButton
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="outline"
-                                    onClick={copyJsonToClipboard}
-                                    aria-label="Copy JSON to clipboard"
-                                >
-                                    <LuCopy />
-                                </IconButton>
-                            </Tooltip>
-                            <Tooltip content="Copy table data to clipboard">
-                                <IconButton
-                                    size="sm"
-                                    colorScheme="green"
-                                    variant="outline"
-                                    onClick={copyTableToClipboard}
-                                    aria-label="Copy table to clipboard"
-                                >
-                                    <LuDownload />
-                                </IconButton>
-                            </Tooltip>
-                        </HStack>
-                    )}
-                </HStack>
-                <Alert.Root status="error">
+            <Box h="100%" display="flex" flexDirection="column" position="relative">
+                {sortedData.length > 0 && renderCopyButtons()}
+                <Alert.Root status="error" mt={sortedData.length > 0 ? 10 : 0}>
                     <Alert.Indicator />
                     <Alert.Content>
                         <Alert.Description>{error}</Alert.Description>
@@ -549,7 +599,7 @@ export const PivotTableView = ({
                                     <option value="">Auto-select first numeric column</option>
                                     {columnStructure.valueColumns.map((columnName, index) => (
                                         <option key={index} value={columnName}>
-                                            {columnName.replace(/_/g, ':')}
+                                            {resultColumnLabel(columnName)}
                                         </option>
                                     ))}
                                 </NativeSelect.Field>
@@ -565,63 +615,28 @@ export const PivotTableView = ({
 
             {sortedData.length > 0 && (
                 <Box
-                    borderWidth={1}
-                    borderColor="var(--color-border)"
-                    borderRadius="lg"
-                    minH="400px"
-                    height="100%"
                     width="100%"
-                    bg="var(--color-bg-card)"
-                    boxShadow="sm"
-                    _hover={{
-                        boxShadow: "md"
-                    }}
-                    transition="box-shadow 0.2s"
                     position="relative"
+                    {...(shareView ? {} : {
+                        borderWidth: 1,
+                        borderColor: 'var(--color-border)',
+                        borderRadius: 'lg',
+                        minH: '400px',
+                        height: '100%',
+                        bg: 'var(--color-bg-card)',
+                        boxShadow: 'sm',
+                        _hover: {
+                            boxShadow: 'md',
+                        },
+                        transition: 'box-shadow 0.2s',
+                    })}
                 >
                     {/* Copy buttons */}
-                    <Box
-                        position="absolute"
-                        top={3}
-                        right={3}
-                        zIndex={10}
-                        display="flex"
-                        gap={2}
-                    >
-                        <Tooltip content="Copy JSON data to clipboard">
-                            <IconButton
-                                size="sm"
-                                colorScheme="blue"
-                                variant="outline"
-                                onClick={copyJsonToClipboard}
-                                aria-label="Copy JSON to clipboard"
-                                bg="var(--color-bg-card)"
-                                _hover={{
-                                    bg: "var(--color-info-bg)"
-                                }}
-                            >
-                                <LuCopy />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip content="Copy table data to clipboard">
-                            <IconButton
-                                size="sm"
-                                colorScheme="green"
-                                variant="outline"
-                                onClick={copyTableToClipboard}
-                                aria-label="Copy table to clipboard"
-                                bg="var(--color-bg-card)"
-                                _hover={{
-                                    bg: "var(--color-pivot-col-bg)"
-                                }}
-                            >
-                                <LuDownload />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
+                    {renderCopyButtons()}
 
-                    <Table.ScrollArea>
-                        <Table.Root variant="line" size="sm" width="auto" height="100%">
+                    <TableScrollWrapper>
+                        <Box pt={shareView ? 8 : 10}>
+                        <Table.Root variant="line" size="sm" width="auto" height={shareView ? undefined : '100%'}>
                             <Table.Body>
                                 {/* Create transposed header rows for column fields */}
                                 {(() => {
@@ -643,7 +658,7 @@ export const PivotTableView = ({
                                                             fontWeight="semibold"
                                                             textAlign="left"
                                                         >
-                                                            {columnName.replace(/_/g, ':')}
+                                                            {resultColumnLabel(columnName)}
                                                         </Table.ColumnHeader>
                                                     ))}
                                                 </Table.Row>
@@ -665,7 +680,13 @@ export const PivotTableView = ({
 
                                     // Create rows for each field type in the structured columns
                                     // First collect all unique field names from column structures
-                                    const fieldRows: Array<{ name: string, values: string[] }> = [];
+                                    const fieldRows: Array<{
+                                        name: string;
+                                        displayName: string;
+                                        values: string[];
+                                        isAggregator?: boolean;
+                                        isValueField?: boolean;
+                                    }> = [];
 
                                     // Extract field names from first column to determine structure
                                     if (columnStructure.backendValueStructures.length > 0) {
@@ -675,18 +696,49 @@ export const PivotTableView = ({
                                         firstCol.columnFields.forEach((field, index) => {
                                             fieldRows.push({
                                                 name: field.field,
+                                                displayName: resultHeaderLabel('column', field.field, field.field),
                                                 values: columnStructure.backendValueStructures.map(col =>
                                                     col.columnFields[index]?.value || ''
-                                                )
+                                                ),
                                             });
                                         });
+
+                                        const valueFieldNames = [
+                                            ...new Set(columnStructure.backendValueStructures.map((col) => col.fieldName)),
+                                        ];
+                                        const showValueRow = firstCol.columnFields.length === 0
+                                            || valueFieldNames.some((name) =>
+                                                Boolean(findPivotField(fields, 'value', name)?.label?.trim()),
+                                            );
+                                        if (showValueRow) {
+                                            const valueRowTitle = valueFieldNames.length === 1
+                                                ? resultHeaderLabel('value', valueFieldNames[0], valueFieldNames[0])
+                                                : 'Value';
+                                            fieldRows.push({
+                                                name: '__value__',
+                                                displayName: valueRowTitle,
+                                                isValueField: true,
+                                                values: valueFieldNames.length === 1
+                                                    ? columnStructure.backendValueStructures.map(() => '')
+                                                    : columnStructure.backendValueStructures.map((col) =>
+                                                        resultHeaderLabel(
+                                                            'value',
+                                                            col.fieldName,
+                                                            col.valueField,
+                                                            col.aggregator,
+                                                        ),
+                                                    ),
+                                            });
+                                        }
 
                                         // Add aggregator row last
                                         fieldRows.push({
                                             name: 'Aggregator',
+                                            displayName: 'Aggregator',
+                                            isAggregator: true,
                                             values: columnStructure.backendValueStructures.map(col =>
                                                 col.aggregator.toUpperCase()
-                                            )
+                                            ),
                                         });
                                     }
 
@@ -702,15 +754,16 @@ export const PivotTableView = ({
                                                         py={3}
                                                         borderWidth={1}
                                                         borderColor="var(--color-border)"
-                                                        bg={fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-bg)' : 'var(--color-table-col-header-bg)'}
-                                                        color={fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-text)' : 'var(--color-table-col-header-text)'}
+                                                        bg={fieldRow.isAggregator ? 'var(--color-table-agg-bg)' : fieldRow.isValueField ? 'var(--color-pivot-value-bg)' : 'var(--color-table-col-header-bg)'}
+                                                        color={fieldRow.isAggregator ? 'var(--color-table-agg-text)' : fieldRow.isValueField ? 'var(--color-table-agg-text)' : 'var(--color-table-col-header-text)'}
                                                         fontWeight="semibold"
                                                         textAlign="left"
                                                         minW="140px"
                                                         borderRightWidth={2}
-                                                        borderRightColor={fieldRow.name === 'Aggregator' ? 'var(--color-pivot-value-border)' : 'var(--color-pivot-col-border)'}
+                                                        borderRightColor={fieldRow.isAggregator ? 'var(--color-pivot-value-border)' : fieldRow.isValueField ? 'var(--color-pivot-value-border)' : 'var(--color-pivot-col-border)'}
+                                                        title={fieldRow.displayName !== fieldRow.name ? fieldRow.name : undefined}
                                                     >
-                                                        {fieldRow.name}
+                                                        {fieldRow.displayName}
                                                     </Table.ColumnHeader>
 
                                                     {/* Values for this field across all columns */}
@@ -724,16 +777,18 @@ export const PivotTableView = ({
                                                             borderWidth={1}
                                                             borderColor="var(--color-border)"
                                                             bg={
-                                                                fieldRow.name === 'Aggregator' ? 'var(--color-pivot-value-bg)' :
+                                                                fieldRow.isAggregator ? 'var(--color-pivot-value-bg)' :
+                                                                    fieldRow.isValueField ? 'var(--color-pivot-value-bg)' :
                                                                     'var(--color-pivot-col-bg)'
                                                             }
                                                             color={
-                                                                fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-text)' :
+                                                                fieldRow.isAggregator ? 'var(--color-table-agg-text)' :
+                                                                    fieldRow.isValueField ? 'var(--color-table-agg-text)' :
                                                                     'var(--color-table-col-header-text)'
                                                             }
                                                             fontWeight="medium"
                                                             _hover={{
-                                                                bg: fieldRow.name === 'Aggregator' ? 'var(--color-table-agg-bg)' : 'var(--color-table-col-header-bg)'
+                                                                bg: fieldRow.isAggregator || fieldRow.isValueField ? 'var(--color-table-agg-bg)' : 'var(--color-table-col-header-bg)'
                                                             }}
                                                             transition="background-color 0.2s"
                                                         >
@@ -760,8 +815,15 @@ export const PivotTableView = ({
                                                         textAlign="left"
                                                         borderRightWidth={colIndex === columnStructure.rowColumns.length - 1 ? 2 : 1}
                                                         borderRightColor={colIndex === columnStructure.rowColumns.length - 1 ? "var(--color-pivot-row-border)" : "var(--color-border)"}
+                                                        title={(() => {
+                                                            const rowField = fields.find((f) =>
+                                                                f.type === 'row'
+                                                                && (f.field.replace(/:/g, '_') === rowColumn || f.field === rowColumn),
+                                                            );
+                                                            return rowField?.label?.trim() ? rowField.field : undefined;
+                                                        })()}
                                                     >
-                                                        {rowColumn.replace(/_/g, ':')}
+                                                        {resultHeaderLabel('row', rowColumn, rowColumn.replace(/_/g, ':'))}
                                                     </Table.ColumnHeader>
                                                 ))}
 
@@ -869,7 +931,8 @@ export const PivotTableView = ({
                                 ))}
                             </Table.Body>
                         </Table.Root>
-                    </Table.ScrollArea>
+                        </Box>
+                    </TableScrollWrapper>
                 </Box>
             )}
 

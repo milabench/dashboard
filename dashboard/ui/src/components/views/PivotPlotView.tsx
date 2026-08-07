@@ -22,6 +22,7 @@ import {
     convertPivotToChartData,
     filterPlotRows,
     type ChartFieldMeta,
+    type PivotChartData,
     type PivotFieldConfig,
 } from '../../utils/pivotToChartData';
 import {
@@ -31,6 +32,7 @@ import {
     fieldsForSlot,
     getPlotTemplate,
     injectPlotData,
+    injectPlotDataUrl,
     PLOT_TEMPLATES,
     stripInlinePlotData,
     suggestTemplateFields,
@@ -41,17 +43,30 @@ import {
     type PlotTemplateId,
 } from '../../utils/pivotPlotTemplates';
 import type { PivotTransformStep } from '../../utils/pivotPlotTransforms';
-import { fieldsAfterTransforms, ensureGroupbyForPlotField, hasActiveTransforms, plotSelectableFields } from '../../utils/pivotPlotTransforms';
+import { fieldsAfterTransforms, ensureGroupbyForPlotField, hasActiveTransforms, plotSelectableFields, derivedTransformFields } from '../../utils/pivotPlotTransforms';
 import {
     encodePivotPlotState,
+    hasPlotFacetFields,
     isPlotStateShareable,
+    legendConfigFromOptions,
     normalizePlotAxisOptions,
+    normalizePlotLegendOptions,
+    normalizePlotSizeOptions,
     parsePivotPlotFromSearchParams,
+    PLOT_LEGEND_DIRECTION_OPTIONS,
+    PLOT_LEGEND_PLACEMENT_OPTIONS,
     validatePlotFields,
     type PivotPlotUrlState,
     type PlotAxisOptions,
+    type PlotLegendDirection,
+    type PlotLegendOptions,
+    type PlotLegendPlacement,
+    type PlotSizeOptions,
 } from '../../utils/pivotPlotUrlParams';
+import { LuInfo } from 'react-icons/lu';
+import { Tooltip } from '../ui/tooltip';
 import { PivotTransformBuilder } from './PivotTransformBuilder';
+import { pivotMeltApiUrl } from '../../utils/pivotUrlParams';
 
 export interface PivotPlotPageActions {
     onSavePlot?: () => void;
@@ -59,13 +74,26 @@ export interface PivotPlotPageActions {
     onLoadData?: () => void;
     isLoadingData?: boolean;
     showSavePlot?: boolean;
+    savePlotLabel?: string;
+    loadedSavedQueryName?: string | null;
 }
 
 export interface PivotPlotViewProps {
-    pivotData: Record<string, unknown>[];
+    /** Pre-melted chart data from `/api/pivot/melt` (preferred). */
+    chartData?: PivotChartData | null;
+    /** Wide pivot table rows — converted client-side when `chartData` is omitted. */
+    pivotData?: Record<string, unknown>[];
     pivotFields: PivotFieldConfig[];
     pivotConfigKey: string;
     pageActions?: PivotPlotPageActions;
+    /** Extra actions rendered before copy/export controls in the top toolbar. */
+    topBarRight?: ReactNode;
+    /** When set, toolbar is rendered by the parent (e.g. on the page title row). */
+    onRenderToolbar?: (toolbar: ReactNode) => void;
+    /** Called when a shareable Vega-Lite spec (remote melt URL) is available. */
+    onShareableSpecChange?: (spec: Record<string, unknown> | null) => void;
+    /** When `chart-only`, hide builder sidebar and editing controls. */
+    viewMode?: 'builder' | 'chart-only';
 }
 
 export const PIVOT_PLOT_SIDEBAR_PROPS = {
@@ -78,34 +106,43 @@ export function PlotSidebarTopActions({
     onSavePlot,
     onLoadPlot,
     showSavePlot = false,
-}: Pick<PivotPlotPageActions, 'onSavePlot' | 'onLoadPlot' | 'showSavePlot'>) {
+    savePlotLabel = 'Save plot',
+    loadedSavedQueryName,
+}: Pick<PivotPlotPageActions, 'onSavePlot' | 'onLoadPlot' | 'showSavePlot' | 'savePlotLabel' | 'loadedSavedQueryName'>) {
     return (
-        <HStack gap={2} w="100%" flexShrink={0}>
-            {showSavePlot && onSavePlot && (
-                <Button
-                    flex="1"
-                    size="sm"
-                    onClick={onSavePlot}
-                    bg="var(--color-btn-save-bg)"
-                    color="var(--color-btn-save-text)"
-                    _hover={{ bg: 'var(--color-btn-save-hover)' }}
-                >
-                    Save plot
-                </Button>
+        <VStack align="stretch" gap={2} w="100%" flexShrink={0}>
+            <HStack gap={2} w="100%">
+                {showSavePlot && onSavePlot && (
+                    <Button
+                        flex="1"
+                        size="sm"
+                        onClick={onSavePlot}
+                        bg="var(--color-btn-save-bg)"
+                        color="var(--color-btn-save-text)"
+                        _hover={{ bg: 'var(--color-btn-save-hover)' }}
+                    >
+                        {savePlotLabel}
+                    </Button>
+                )}
+                {onLoadPlot && (
+                    <Button
+                        flex="1"
+                        size="sm"
+                        onClick={onLoadPlot}
+                        bg="var(--color-btn-load-bg)"
+                        color="var(--color-btn-load-text)"
+                        _hover={{ bg: 'var(--color-btn-load-hover)' }}
+                    >
+                        Load plot
+                    </Button>
+                )}
+            </HStack>
+            {loadedSavedQueryName && (
+                <Text fontSize="xs" color="var(--color-text-muted)" px={1}>
+                    Editing saved plot: <Text as="span" fontWeight="semibold" color="var(--color-text)">{loadedSavedQueryName}</Text>
+                </Text>
             )}
-            {onLoadPlot && (
-                <Button
-                    flex="1"
-                    size="sm"
-                    onClick={onLoadPlot}
-                    bg="var(--color-btn-load-bg)"
-                    color="var(--color-btn-load-text)"
-                    _hover={{ bg: 'var(--color-btn-load-hover)' }}
-                >
-                    Load plot
-                </Button>
-            )}
-        </HStack>
+        </VStack>
     );
 }
 
@@ -151,6 +188,8 @@ export function PlotSidebarActionPanel({
                     onSavePlot={pageActions.onSavePlot}
                     onLoadPlot={pageActions.onLoadPlot}
                     showSavePlot={pageActions.showSavePlot}
+                    savePlotLabel={pageActions.savePlotLabel}
+                    loadedSavedQueryName={pageActions.loadedSavedQueryName}
                 />
             )}
             {children ? (
@@ -177,7 +216,6 @@ const PLOT_CONFIG_OVERRIDES_BASE = {
         direction: 'vertical' as const,
         labelLimit: 260,
         titleLimit: 180,
-        columns: 1,
         padding: 8,
         labelFontSize: 11,
     },
@@ -187,9 +225,23 @@ const PLOT_CONFIG_OVERRIDES_BASE = {
     },
 };
 
-function buildPlotConfigOverrides(axisOptions: Required<PlotAxisOptions>) {
+function buildPlotConfigOverrides(
+    axisOptions: Required<PlotAxisOptions>,
+    legendOptions: Required<PlotLegendOptions>,
+) {
+    const legendOverrides = legendConfigFromOptions(legendOptions);
+    const legend = {
+        ...PLOT_CONFIG_OVERRIDES_BASE.legend,
+        ...legendOverrides,
+    };
+    // Explicitly drop columns for row flow — a stale columns value forces one entry per row.
+    if (legendOptions.placement !== 'none' && legendOptions.direction === 'horizontal') {
+        delete (legend as Record<string, unknown>).columns;
+    }
+
     return {
         ...PLOT_CONFIG_OVERRIDES_BASE,
+        legend,
         axisX: {
             labelPadding: axisOptions.xLabelPadding,
             titlePadding: axisOptions.xTitlePadding,
@@ -203,25 +255,54 @@ function buildPlotConfigOverrides(axisOptions: Required<PlotAxisOptions>) {
 
 const PLOT_FORM_LABEL_W = '88px';
 
+function PlotFormHintIcon({ content }: { content: string }) {
+    if (!content.trim()) return null;
+
+    return (
+        <Tooltip content={content} showArrow positioning={{ placement: 'top', offset: { mainAxis: 6 } }}>
+            <Box
+                as="span"
+                display="inline-flex"
+                alignItems="center"
+                cursor="help"
+                color="var(--color-text-muted)"
+                aria-label="Help"
+                _hover={{ color: 'var(--color-text)' }}
+            >
+                <LuInfo size={14} />
+            </Box>
+        </Tooltip>
+    );
+}
+
 function PlotFormRow({
     label,
+    hint,
     children,
 }: {
     label: ReactNode;
+    hint?: string;
     children: ReactNode;
 }) {
     return (
         <HStack gap={2} align="center" w="100%">
-            <Text
-                fontSize="xs"
-                fontWeight="semibold"
-                color="var(--color-text-muted)"
+            <HStack
+                gap={1}
                 flexShrink={0}
                 w={PLOT_FORM_LABEL_W}
-                textAlign="right"
+                justify="flex-end"
+                align="center"
             >
-                {label}
-            </Text>
+                <Text
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    color="var(--color-text-muted)"
+                    textAlign="right"
+                >
+                    {label}
+                </Text>
+                {hint ? <PlotFormHintIcon content={hint} /> : null}
+            </HStack>
             <Box flex="1" minW={0}>
                 {children}
             </Box>
@@ -229,16 +310,25 @@ function PlotFormRow({
     );
 }
 
-function plotFormHint(text: string) {
+function PlotFormSection({
+    title,
+    hint,
+    children,
+}: {
+    title: string;
+    hint?: string;
+    children: ReactNode;
+}) {
     return (
-        <Text
-            fontSize="xs"
-            color="var(--color-text-muted)"
-            mt={1}
-            pl={`calc(${PLOT_FORM_LABEL_W} + 8px)`}
-        >
-            {text}
-        </Text>
+        <Box pt={1}>
+            <HStack gap={1} mb={2} align="center">
+                <Text fontSize="xs" fontWeight="semibold" color="var(--color-text-muted)">
+                    {title}
+                </Text>
+                {hint ? <PlotFormHintIcon content={hint} /> : null}
+            </HStack>
+            {children}
+        </Box>
     );
 }
 
@@ -287,6 +377,9 @@ function PlotAxisDialRow({
 
 const DEFAULT_FACET_LAYOUT: FacetLayoutOptions = { mode: 'wrap' };
 
+/** Transform outputs only belong on data-mapping slots, not color/facet encodings. */
+const TRANSFORM_PLOT_SLOTS = new Set(['x', 'y', 'value']);
+
 function slotFieldsUsed(templateId: PlotTemplateId, fields: Record<string, string>): string[] {
     const template = getPlotTemplate(templateId);
     return template.slots
@@ -294,7 +387,18 @@ function slotFieldsUsed(templateId: PlotTemplateId, fields: Record<string, strin
         .filter((f): f is string => Boolean(f));
 }
 
-export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActions }: PivotPlotViewProps) {
+export function PivotPlotView({
+    chartData: chartDataProp,
+    pivotData,
+    pivotFields,
+    pivotConfigKey,
+    pageActions,
+    topBarRight,
+    onRenderToolbar,
+    onShareableSpecChange,
+    viewMode = 'builder',
+}: PivotPlotViewProps) {
+    const chartOnly = viewMode === 'chart-only';
     const plotRef = useRef<VegaPlotHandle>(null);
     const [exportingPng, setExportingPng] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -305,10 +409,15 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
     const lastSyncedPlotParamRef = useRef<string | null>(searchParams.get('plot'));
     const prevPivotConfigKeyRef = useRef(pivotConfigKey);
 
-    const chartData = useMemo(
-        () => convertPivotToChartData(pivotData, pivotFields),
-        [pivotData, pivotFields],
-    );
+    const chartData = useMemo((): PivotChartData | null => {
+        if (chartDataProp !== undefined) {
+            return chartDataProp;
+        }
+        if (!pivotData?.length) {
+            return null;
+        }
+        return convertPivotToChartData(pivotData, pivotFields);
+    }, [chartDataProp, pivotData, pivotFields]);
 
     const [templateId, setTemplateId] = useState<PlotTemplateId>(
         plotFromUrl?.template ?? 'scatter',
@@ -325,6 +434,12 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
     );
     const [axisOptions, setAxisOptions] = useState<Required<PlotAxisOptions>>(
         normalizePlotAxisOptions(plotFromUrl?.axisOptions),
+    );
+    const [plotSize, setPlotSize] = useState<Required<PlotSizeOptions>>(
+        normalizePlotSizeOptions(plotFromUrl?.plotSize),
+    );
+    const [legendOptions, setLegendOptions] = useState<Required<PlotLegendOptions>>(
+        normalizePlotLegendOptions(plotFromUrl?.legendOptions),
     );
     const [initialized, setInitialized] = useState(false);
     const [customSpec, setCustomSpec] = useState<Record<string, unknown> | null>(null);
@@ -385,6 +500,8 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                 hideNulls: plotFromUrl.hideNulls ?? true,
                 facetLayout: normalizeFacetLayout(plotFromUrl.facetLayout),
                 axisOptions: normalizePlotAxisOptions(plotFromUrl.axisOptions),
+                plotSize: normalizePlotSizeOptions(plotFromUrl.plotSize),
+                legendOptions: normalizePlotLegendOptions(plotFromUrl.legendOptions),
             };
             lastSyncedPlotParamRef.current = searchParams.get('plot');
         } else {
@@ -396,6 +513,8 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                 hideNulls: true,
                 facetLayout: DEFAULT_FACET_LAYOUT,
                 axisOptions: normalizePlotAxisOptions(),
+                plotSize: normalizePlotSizeOptions(),
+                legendOptions: normalizePlotLegendOptions(),
             };
         }
 
@@ -405,6 +524,8 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         setHideNulls(nextState.hideNulls ?? true);
         setFacetLayout(normalizeFacetLayout(nextState.facetLayout));
         setAxisOptions(normalizePlotAxisOptions(nextState.axisOptions));
+        setPlotSize(normalizePlotSizeOptions(nextState.plotSize));
+        setLegendOptions(normalizePlotLegendOptions(nextState.legendOptions));
         setInitialized(true);
         if (isPlotStateShareable(nextState)) {
             syncPlotToUrl(nextState);
@@ -424,10 +545,12 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
             fields: plotFields,
             transforms,
             hideNulls,
-            facetLayout: plotFields.facet?.trim() ? facetLayout : undefined,
+            facetLayout: hasPlotFacetFields(plotFields) ? facetLayout : undefined,
             axisOptions,
+            plotSize,
+            legendOptions,
         }),
-        [templateId, plotFields, transforms, hideNulls, facetLayout, axisOptions],
+        [templateId, plotFields, transforms, hideNulls, facetLayout, axisOptions, plotSize, legendOptions],
     );
 
     useEffect(() => {
@@ -453,16 +576,34 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         setHideNulls(fromUrl.hideNulls ?? true);
         setFacetLayout(normalizeFacetLayout(fromUrl.facetLayout));
         setAxisOptions(normalizePlotAxisOptions(fromUrl.axisOptions));
+        setPlotSize(normalizePlotSizeOptions(fromUrl.plotSize));
+        setLegendOptions(normalizePlotLegendOptions(fromUrl.legendOptions));
         lastSyncedPlotParamRef.current = plotParam;
     }, [searchParams, initialized, chartData]);
 
     const plotConfigOverrides = useMemo(
-        () => buildPlotConfigOverrides(axisOptions),
-        [axisOptions],
+        () => buildPlotConfigOverrides(axisOptions, legendOptions),
+        [axisOptions, legendOptions],
     );
 
     const handleAxisOptionChange = (key: keyof PlotAxisOptions, value: number) => {
+        setCustomSpec(null);
         setAxisOptions((prev) => normalizePlotAxisOptions({ ...prev, [key]: value }));
+    };
+
+    const handlePlotSizeChange = (key: keyof PlotSizeOptions, value: number) => {
+        setCustomSpec(null);
+        setPlotSize((prev) => normalizePlotSizeOptions({ ...prev, [key]: value }));
+    };
+
+    const handleLegendPlacementChange = (placement: PlotLegendPlacement) => {
+        setCustomSpec(null);
+        setLegendOptions((prev) => normalizePlotLegendOptions({ ...prev, placement }));
+    };
+
+    const handleLegendDirectionChange = (direction: PlotLegendDirection) => {
+        setCustomSpec(null);
+        setLegendOptions((prev) => normalizePlotLegendOptions({ ...prev, direction }));
     };
 
     const rows = chartData?.long ?? [];
@@ -474,6 +615,11 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
 
     const postTransformFields = useMemo(
         () => fieldsAfterTransforms(transforms, chartData?.fields ?? []),
+        [transforms, chartData?.fields],
+    );
+
+    const derivedPlotFields = useMemo(
+        () => derivedTransformFields(transforms, chartData?.fields ?? []),
         [transforms, chartData?.fields],
     );
 
@@ -490,8 +636,6 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         if (!hideNulls) return rows;
         return filterPlotRows(rows, usedFields);
     }, [rows, usedFields, hideNulls]);
-
-    const hiddenNullCount = rows.length - plotRows.length;
 
     const fieldMeta = useMemo(() => {
         const map = new Map<string, ChartFieldMeta>();
@@ -511,11 +655,12 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
             transforms,
             rows: dataRows,
             textColor: cssColor('--color-text', '#1a202c'),
-            width: Math.min(640, Math.max(360, _w - 24)),
-            height: Math.min(480, Math.max(280, _h - 24)),
-            facetLayout: plotFields.facet?.trim() ? facetLayout : undefined,
+            width: plotSize.width,
+            height: plotSize.height,
+            facetLayout: hasPlotFacetFields(plotFields) ? facetLayout : undefined,
+            swapAxes: axisOptions.swapAxes,
         });
-    }, [chartData, templateId, plotFields, fieldMeta, transforms, rows, plotRows, facetLayout]);
+    }, [chartData, templateId, plotFields, fieldMeta, transforms, rows, plotRows, facetLayout, axisOptions.swapAxes, plotSize]);
 
     const plotSpecWithData = useCallback((_w: number, _h: number) => {
         const base = customSpec ?? specBuilder(_w, _h);
@@ -527,6 +672,28 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
     const canRenderPlot = customSpec
         ? true
         : Boolean(chartData && templateRequiredFieldsFilled(templateId, plotFields));
+
+    const shareableSpec = useMemo(() => {
+        if (!canRenderPlot) return null;
+        const base = customSpec ?? specBuilder(800, 500);
+        if (!base) return null;
+
+        const withDataUrl = injectPlotDataUrl(base, pivotMeltApiUrl(searchParams));
+        const configOverrides = buildPlotConfigOverrides(axisOptions, legendOptions);
+        const existingConfig = withDataUrl.config && typeof withDataUrl.config === 'object' && !Array.isArray(withDataUrl.config)
+            ? withDataUrl.config as Record<string, unknown>
+            : {};
+
+        return {
+            ...withDataUrl,
+            $schema: withDataUrl.$schema ?? 'https://vega.github.io/schema/vega-lite/v5.json',
+            config: { ...existingConfig, ...configOverrides },
+        };
+    }, [canRenderPlot, customSpec, specBuilder, searchParams, axisOptions, legendOptions]);
+
+    useEffect(() => {
+        onShareableSpecChange?.(shareableSpec);
+    }, [shareableSpec, onShareableSpecChange]);
 
     const handleFacetLayoutModeChange = (mode: FacetLayoutMode) => {
         setCustomSpec(null);
@@ -557,6 +724,11 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         });
     };
 
+    const handleSwapAxesChange = (checked: boolean) => {
+        setCustomSpec(null);
+        setAxisOptions((prev) => normalizePlotAxisOptions({ ...prev, swapAxes: checked }));
+    };
+
     const handleFacetWrapColumnsChange = (value: string) => {
         setCustomSpec(null);
         const columns = value ? Number.parseInt(value, 10) : undefined;
@@ -567,7 +739,7 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         }));
     };
 
-    const hasFacetField = Boolean(plotFields.facet?.trim());
+    const hasFacetField = hasPlotFacetFields(plotFields);
 
     const handleTemplateChange = (nextTemplate: PlotTemplateId) => {
         if (!chartData) return;
@@ -730,6 +902,68 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         }
     };
 
+    const toolbar = useMemo(
+        () => (
+            <HStack
+                gap={2}
+                flexWrap="nowrap"
+                flexShrink={0}
+                overflowX="auto"
+                maxW="100%"
+                justify="flex-end"
+                align="center"
+            >
+                {topBarRight}
+                {topBarRight ? (
+                    <Box w="1px" h="18px" bg="var(--color-border)" flexShrink={0} aria-hidden />
+                ) : null}
+                <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopyLink} flexShrink={0}>
+                    Copy builder link
+                </Button>
+                <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleExportPng} disabled={!canRenderPlot || exportingPng} flexShrink={0}>
+                    {exportingPng ? 'Saving…' : 'Save PNG'}
+                </Button>
+                <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopyData} disabled={rows.length === 0} flexShrink={0}>
+                    Copy data
+                </Button>
+                <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={openSpecEditor} flexShrink={0}>
+                    Edit spec
+                </Button>
+                <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopySpec} flexShrink={0}>
+                    Copy spec
+                </Button>
+                {customSpec && (
+                    <Badge
+                        bg="var(--color-pivot-filter-bg)"
+                        color="var(--color-pivot-filter-heading)"
+                        fontSize="xs"
+                        px={2}
+                        py={1}
+                        borderRadius="md"
+                        cursor="pointer"
+                        onClick={handleResetCustomSpec}
+                        flexShrink={0}
+                    >
+                        Custom spec ×
+                    </Badge>
+                )}
+            </HStack>
+        ),
+        [
+            topBarRight,
+            canRenderPlot,
+            exportingPng,
+            rows.length,
+            customSpec,
+        ],
+    );
+
+    useEffect(() => {
+        if (!onRenderToolbar) return;
+        onRenderToolbar(toolbar);
+        return () => onRenderToolbar(null);
+    }, [onRenderToolbar, toolbar]);
+
     if (!chartData) {
         return (
             <Box p={8} textAlign="center">
@@ -738,45 +972,45 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
         );
     }
 
+    if (chartOnly) {
+        return (
+            <Box
+                flex="1"
+                minH="320px"
+                borderWidth="1px"
+                borderColor="var(--color-border)"
+                borderRadius="md"
+                overflow="auto"
+                bg="var(--color-bg-card)"
+                p={2}
+            >
+                {!canRenderPlot ? (
+                    <Box display="flex" alignItems="center" justifyContent="center" h="100%" minH="200px">
+                        <Text color="var(--color-text-muted)">
+                            Plot configuration is incomplete for the current data.
+                        </Text>
+                    </Box>
+                ) : !customSpec && plotRows.length === 0 && rows.length > 0 ? (
+                    <Box display="flex" alignItems="center" justifyContent="center" h="100%" minH="200px" p={4}>
+                        <Text color="var(--color-text-muted)" textAlign="center">
+                            All rows are null for the selected fields.
+                        </Text>
+                    </Box>
+                ) : (
+                    <VegaPlot
+                        ref={plotRef}
+                        spec={plotSpecWithData}
+                        height="100%"
+                        configOverrides={plotConfigOverrides}
+                    />
+                )}
+            </Box>
+        );
+    }
+
     return (
         <VStack align="stretch" gap={3} h="100%" minH={0}>
-            <HStack justify="space-between" flexWrap="wrap" gap={2} flexShrink={0}>
-                <Text fontSize="sm" color="var(--color-text-muted)">
-                    {plotRows.length.toLocaleString()} rows
-                    {hiddenNullCount > 0 ? ` · ${hiddenNullCount.toLocaleString()} nulls hidden` : ''}
-                </Text>
-                <HStack gap={2} flexWrap="wrap">
-                    <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopyLink}>
-                        Copy link
-                    </Button>
-                    <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleExportPng} disabled={!canRenderPlot || exportingPng}>
-                        {exportingPng ? 'Saving…' : 'Save PNG'}
-                    </Button>
-                    <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopyData} disabled={rows.length === 0}>
-                        Copy data
-                    </Button>
-                    <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={openSpecEditor}>
-                        Edit spec
-                    </Button>
-                    <Button size="xs" variant="outline" borderColor="var(--color-border)" color="var(--color-text)" onClick={handleCopySpec}>
-                        Copy spec
-                    </Button>
-                    {customSpec && (
-                        <Badge
-                            bg="var(--color-pivot-filter-bg)"
-                            color="var(--color-pivot-filter-heading)"
-                            fontSize="xs"
-                            px={2}
-                            py={1}
-                            borderRadius="md"
-                            cursor="pointer"
-                            onClick={handleResetCustomSpec}
-                        >
-                            Custom spec ×
-                        </Badge>
-                    )}
-                </HStack>
-            </HStack>
+            {!onRenderToolbar && toolbar}
 
             <Stack
                 direction={{ base: 'column', lg: 'row' }}
@@ -799,6 +1033,8 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                             onSavePlot={pageActions.onSavePlot}
                             onLoadPlot={pageActions.onLoadPlot}
                             showSavePlot={pageActions.showSavePlot}
+                            savePlotLabel={pageActions.savePlotLabel}
+                            loadedSavedQueryName={pageActions.loadedSavedQueryName}
                         />
                     )}
 
@@ -829,28 +1065,27 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                         </Text>
 
                         <VStack align="stretch" gap={2}>
-                            <Box>
-                                <PlotFormRow label="Type">
-                                    <NativeSelect.Root size="sm">
-                                        <NativeSelect.Field
-                                            value={templateId}
-                                            onChange={(e) => handleTemplateChange(e.target.value as PlotTemplateId)}
-                                            bg="var(--color-bg-card)"
-                                            borderColor="var(--color-border)"
-                                            color="var(--color-text)"
-                                        >
-                                            {PLOT_TEMPLATES.map((t) => (
-                                                <option key={t.id} value={t.id}>{t.label}</option>
-                                            ))}
-                                        </NativeSelect.Field>
-                                    </NativeSelect.Root>
-                                </PlotFormRow>
-                                {plotFormHint(template.description)}
-                            </Box>
+                            <PlotFormRow label="Type" hint={template.description}>
+                                <NativeSelect.Root size="sm">
+                                    <NativeSelect.Field
+                                        value={templateId}
+                                        onChange={(e) => handleTemplateChange(e.target.value as PlotTemplateId)}
+                                        bg="var(--color-bg-card)"
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                    >
+                                        {PLOT_TEMPLATES.map((t) => (
+                                            <option key={t.id} value={t.id}>{t.label}</option>
+                                        ))}
+                                    </NativeSelect.Field>
+                                </NativeSelect.Root>
+                            </PlotFormRow>
 
                             {template.slots.map((slot) => {
                                 const options = fieldsForSlot(availablePlotFields, slot.kind);
-                                const transformed = options.filter((f) => !baseFieldNames.has(f.name));
+                                const transformed = TRANSFORM_PLOT_SLOTS.has(slot.id)
+                                    ? fieldsForSlot(derivedPlotFields, slot.kind)
+                                    : [];
                                 const pivot = options.filter((f) => baseFieldNames.has(f.name));
                                 const inactive = pivot.filter(
                                     (f) => !postTransformFields.some((pf) => pf.name === f.name),
@@ -899,7 +1134,10 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
 
                             {hasFacetField && (
                                 <Box>
-                                    <PlotFormRow label="Layout">
+                                    <PlotFormRow
+                                        label="Layout"
+                                        hint={FACET_LAYOUT_OPTIONS.find((o) => o.value === facetLayout.mode)?.description ?? ''}
+                                    >
                                         <NativeSelect.Root size="sm">
                                             <NativeSelect.Field
                                                 value={facetLayout.mode}
@@ -916,9 +1154,6 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                                             </NativeSelect.Field>
                                         </NativeSelect.Root>
                                     </PlotFormRow>
-                                    {plotFormHint(
-                                        FACET_LAYOUT_OPTIONS.find((o) => o.value === facetLayout.mode)?.description ?? '',
-                                    )}
                                     {facetLayout.mode === 'wrap' && (
                                         <Box mt={2}>
                                             <PlotFormRow label="Columns">
@@ -941,7 +1176,10 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                                         </Box>
                                     )}
                                     <Box mt={2}>
-                                        <PlotFormRow label="Indep. axes">
+                                        <PlotFormRow
+                                            label="Indep. axes"
+                                            hint="Checked axes use a separate scale per facet"
+                                        >
                                             <HStack gap={4} flexWrap="wrap">
                                                 <Checkbox.Root
                                                     size="sm"
@@ -964,9 +1202,22 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                                             </HStack>
                                         </PlotFormRow>
                                     </Box>
-                                    {plotFormHint('Checked axes use a separate scale per facet')}
                                 </Box>
                             )}
+
+                            <PlotFormRow
+                                label="Swap X/Y"
+                                hint="Exchange X and Y encodings on plots with both axes"
+                            >
+                                <Checkbox.Root
+                                    size="sm"
+                                    checked={axisOptions.swapAxes}
+                                    onCheckedChange={(e) => handleSwapAxesChange(Boolean(e.checked))}
+                                >
+                                    <Checkbox.HiddenInput />
+                                    <Checkbox.Control />
+                                </Checkbox.Root>
+                            </PlotFormRow>
 
                             <PlotFormRow label="Hide nulls">
                                 <Checkbox.Root
@@ -979,10 +1230,84 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                                 </Checkbox.Root>
                             </PlotFormRow>
 
-                            <Box pt={1}>
-                                <Text fontSize="xs" fontWeight="semibold" color="var(--color-text-muted)" mb={2}>
-                                    Axis spacing
-                                </Text>
+                            <PlotFormRow
+                                label="Legend"
+                                hint={
+                                    PLOT_LEGEND_PLACEMENT_OPTIONS.find(
+                                        (option) => option.value === legendOptions.placement,
+                                    )?.description ?? ''
+                                }
+                            >
+                                <NativeSelect.Root size="sm">
+                                    <NativeSelect.Field
+                                        value={legendOptions.placement}
+                                        onChange={(e) => handleLegendPlacementChange(e.target.value as PlotLegendPlacement)}
+                                        bg="var(--color-bg-card)"
+                                        borderColor="var(--color-border)"
+                                        color="var(--color-text)"
+                                    >
+                                        {PLOT_LEGEND_PLACEMENT_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </NativeSelect.Field>
+                                </NativeSelect.Root>
+                            </PlotFormRow>
+
+                            {legendOptions.placement !== 'none' && (
+                                <PlotFormRow
+                                    label="Legend flow"
+                                    hint={
+                                        PLOT_LEGEND_DIRECTION_OPTIONS.find(
+                                            (option) => option.value === legendOptions.direction,
+                                        )?.description ?? ''
+                                    }
+                                >
+                                    <NativeSelect.Root size="sm">
+                                        <NativeSelect.Field
+                                            value={legendOptions.direction}
+                                            onChange={(e) => handleLegendDirectionChange(e.target.value as PlotLegendDirection)}
+                                            bg="var(--color-bg-card)"
+                                            borderColor="var(--color-border)"
+                                            color="var(--color-text)"
+                                        >
+                                            {PLOT_LEGEND_DIRECTION_OPTIONS.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </NativeSelect.Field>
+                                    </NativeSelect.Root>
+                                </PlotFormRow>
+                            )}
+
+                            <PlotFormSection
+                                title="Plot size"
+                                hint="Base size in pixels for each plot panel (facets use this per cell)"
+                            >
+                                <VStack align="stretch" gap={2}>
+                                    <PlotAxisDialRow
+                                        label="Width"
+                                        value={plotSize.width}
+                                        min={200}
+                                        max={1200}
+                                        onChange={(value) => handlePlotSizeChange('width', value)}
+                                    />
+                                    <PlotAxisDialRow
+                                        label="Height"
+                                        value={plotSize.height}
+                                        min={50}
+                                        max={900}
+                                        onChange={(value) => handlePlotSizeChange('height', value)}
+                                    />
+                                </VStack>
+                            </PlotFormSection>
+
+                            <PlotFormSection
+                                title="Axis spacing"
+                                hint="Increase title spacing when tick values overlap the axis name"
+                            >
                                 <VStack align="stretch" gap={2}>
                                     <PlotAxisDialRow
                                         label="X values"
@@ -1013,8 +1338,7 @@ export function PivotPlotView({ pivotData, pivotFields, pivotConfigKey, pageActi
                                         onChange={(value) => handleAxisOptionChange('yTitlePadding', value)}
                                     />
                                 </VStack>
-                                {plotFormHint('Increase title spacing when tick values overlap the axis name')}
-                            </Box>
+                            </PlotFormSection>
                         </VStack>
                     </Box>
                     </VStack>

@@ -2,6 +2,7 @@ export interface PivotPreviewField {
     field: string;
     type: 'row' | 'column' | 'value' | 'filter';
     aggregators?: string[];
+    label?: string;
 }
 
 export interface PivotPreviewColumnField {
@@ -19,8 +20,15 @@ export interface PivotPreviewValueStructure {
 
 export interface PivotPreviewModel {
     rowColumns: string[];
+    rowColumnLabels: string[];
     valueStructures: PivotPreviewValueStructure[];
-    fieldRows: Array<{ name: string; values: string[] }>;
+    fieldRows: Array<{
+        displayName: string;
+        sourceField?: string;
+        values: string[];
+        isAggregator?: boolean;
+        isValueField?: boolean;
+    }>;
     rows: Array<Record<string, string | number>>;
 }
 
@@ -51,6 +59,10 @@ function sampleValuesForField(field: string): string[] {
     return [`${label}_a`, `${label}_b`];
 }
 
+function previewFieldLabel(field: Pick<PivotPreviewField, 'field' | 'label'>): string {
+    return field.label?.trim() || field.field;
+}
+
 function cartesian<T>(arrays: T[][]): T[][] {
     if (arrays.length === 0) return [[]];
     return arrays.reduce<T[][]>(
@@ -70,6 +82,7 @@ export function buildPivotPreview(fields: PivotPreviewField[]): PivotPreviewMode
     }
 
     const rowColumns = rowFields.map((f) => fieldKey(f.field));
+    const rowColumnLabels = rowFields.map((f) => previewFieldLabel(f));
 
     const rowSamples = cartesian(
         rowFields.map((f) => sampleValuesForField(f.field)),
@@ -126,12 +139,15 @@ export function buildPivotPreview(fields: PivotPreviewField[]): PivotPreviewMode
         });
     }
 
-    const fieldRows: Array<{ name: string; values: string[] }> = [];
+    const fieldRows: PivotPreviewModel['fieldRows'] = [];
 
     if (valueStructures[0]?.columnFields.length) {
-        valueStructures[0].columnFields.forEach((cf, index) => {
+        valueStructures[0].columnFields.forEach((_cf, index) => {
+            const colField = colFields[index];
+            if (!colField) return;
             fieldRows.push({
-                name: cf.field,
+                displayName: previewFieldLabel(colField),
+                sourceField: colField.field,
                 values: valueStructures.map(
                     (vs) => vs.columnFields[index]?.value ?? '',
                 ),
@@ -139,8 +155,30 @@ export function buildPivotPreview(fields: PivotPreviewField[]): PivotPreviewMode
         });
     }
 
+    const valueFieldNames = [...new Set(valueStructures.map((vs) => vs.valueField))];
+    const showValueRow = colFields.length === 0
+        || valueFields.some((vf) => Boolean(vf.label?.trim()));
+    if (showValueRow && valueFieldNames.length > 0 && valueFieldNames[0] !== '…') {
+        const matchingValueField = valueFields.find((vf) => vf.field === valueFieldNames[0]) ?? valueFields[0];
+        const valueRowTitle = valueFieldNames.length === 1 && matchingValueField
+            ? previewFieldLabel(matchingValueField)
+            : 'Value';
+        fieldRows.push({
+            displayName: valueRowTitle,
+            sourceField: matchingValueField?.field,
+            isValueField: true,
+            values: valueFieldNames.length === 1
+                ? valueStructures.map(() => '')
+                : valueStructures.map((vs) => {
+                    const vf = valueFields.find((field) => field.field === vs.valueField);
+                    return vf ? previewFieldLabel(vf) : vs.valueField;
+                }),
+        });
+    }
+
     fieldRows.push({
-        name: 'Aggregator',
+        displayName: 'Aggregator',
+        isAggregator: true,
         values: valueStructures.map((vs) => vs.aggregator.toUpperCase()),
     });
 
@@ -157,6 +195,7 @@ export function buildPivotPreview(fields: PivotPreviewField[]): PivotPreviewMode
 
     return {
         rowColumns,
+        rowColumnLabels,
         valueStructures,
         fieldRows,
         rows,

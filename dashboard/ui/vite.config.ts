@@ -8,6 +8,12 @@ export default defineConfig({
     port: 5173,
     host: "0.0.0.0",
     proxy: {
+      '^/api/pivot/table': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/pivot\/table/, '/api/pivot'),
+      },
       '^/api/.*': {
         target: 'http://localhost:5000',
         changeOrigin: true,

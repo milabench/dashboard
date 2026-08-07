@@ -25,6 +25,7 @@ from .plot import (
     is_statement_timeout,
     PIVOT_TIMEOUT_MS,
 )
+from .pivot_api import fetch_pivot_melt, fetch_pivot_spec, fetch_pivot_table
 from .utils import database_uri, page, make_selection_key, make_filters, cursor_to_json, cursor_to_dataframe
 from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
@@ -1240,57 +1241,23 @@ def view_server(config):
         return pandas_to_html(df)
 
     @app.route('/api/pivot')
-    def api_pivot():
-        profile = request.cookies.get('scoreProfile')
-        args = request.args
+    @app.route('/api/pivot/table')
+    def api_pivot_table():
+        profile = request.cookies.get('scoreProfile') or 'default'
+        payload, status = fetch_pivot_table(sqlexec, request.args, profile)
+        return jsonify(payload), status
 
-        if profile is None:
-            print("PROFILE is none")
-            profile = 'default'
+    @app.route('/api/pivot/melt')
+    def api_pivot_melt():
+        profile = request.cookies.get('scoreProfile') or 'default'
+        payload, status = fetch_pivot_melt(sqlexec, request.args, profile)
+        return jsonify(payload), status
 
-        i = 0
-        def counter():
-            nonlocal i
-            i += 1
-            return i
-
-        def rename_column(col):
-            if 'as' in col:
-                return col
-            else:
-                return f"{col} as {col.replace(':', '_')}"
-
-        rows = args.get('rows', '').split(',') if args.get('rows') else ["run", "gpu", "pytorch", "bench"]
-        rows = [rename_column(r) for i, r in enumerate(rows)]
-
-        cols = args.get('cols', '').split(',') if args.get('cols') else ["metric"]
-        cols = [rename_column(r) for i, r in enumerate(cols)]
-
-        values = json.loads(base64.b64decode(args.get('values', '{}')))
-        values = {rename_column(k): v for k, v in values.items()}
-
-        filters = []
-        if args.get('filters'):
-            filters = json.loads(base64.b64decode(args.get('filters')))
-
-        if len(filters) == 0:
-            print("No filters, returning empty to avoid crashing the database")
-            return jsonify({})
-
-        try:
-            with sqlexec() as sess:
-                apply_pivot_statement_timeout(sess)
-                query = pivot_query(sess, rows, cols, values, filters, profile)
-                cursor = sess.execute(query)
-                results = cursor_to_json(cursor)
-        except sqlalchemy.exc.OperationalError as exc:
-            if is_statement_timeout(exc):
-                return jsonify({
-                    "error": f"Pivot query timed out after {PIVOT_TIMEOUT_MS // 1000}s",
-                }), 408
-            raise
-
-        return results
+    @app.route('/api/pivot/spec')
+    def api_pivot_spec():
+        profile = request.cookies.get('scoreProfile') or 'default'
+        payload, status = fetch_pivot_spec(sqlexec, request.args, profile)
+        return jsonify(payload), status
 
     # Serve the built React SPA when bundled in the wheel
     _static_dir = os.path.join(

@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { LuTrash2, LuExternalLink } from 'react-icons/lu';
 import { getAllSavedQueries, deleteSavedQuery } from '../../services/api';
+import { PIVOT_PLOT_SAVED_QUERY_URL, PIVOT_SAVED_QUERY_URL } from '../../utils/pivotUrlParams';
 import { toaster } from '../ui/toaster';
 interface SavedQuery {
     _id: number;
@@ -84,6 +85,13 @@ const SavedQueriesView: React.FC = () => {
                 params.set(key, String(value));
             }
         });
+
+        if (url === PIVOT_PLOT_SAVED_QUERY_URL && !params.get('savedQuery')) {
+            params.set('savedQuery', query.name);
+        }
+        if (url === PIVOT_SAVED_QUERY_URL && !params.get('savedQuery')) {
+            params.set('savedQuery', query.name);
+        }
 
         const fullUrl = `${url}?${params.toString()}`;
         navigate(fullUrl);

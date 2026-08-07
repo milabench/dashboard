@@ -29,9 +29,13 @@ import {
     hasPivotUrlConfig,
     parsePivotFieldsFromSearchParams,
     encodePivotValuesForApi,
-    pivotApiSearchParams,
+    encodePivotFieldLabels,
+    savedQueryParametersToSearchParams,
+    PIVOT_SAVED_QUERY_URL,
+    pivotFieldDisplayLabel,
     type PivotField,
 } from '../../utils/pivotUrlParams';
+import { PivotShareActions } from './PivotShareActions';
 
 type PivotZoneType = PivotField['type'];
 type PivotLayout = 'sidebar' | 'classic';
@@ -69,19 +73,23 @@ function pivotBoldFieldName(name: string) {
     return <Box as="span" fontWeight="bold">{name}</Box>;
 }
 
-function renderSimplePivotBadge(fieldName: string) {
+function renderSimplePivotBadge(field: PivotField) {
+    const display = pivotFieldDisplayLabel(field);
+    const hasCustomLabel = Boolean(field.label?.trim());
     return (
-        <Box as="span" {...PIVOT_BADGE_FONT}>
-            {pivotBoldFieldName(fieldName)}
+        <Box as="span" {...PIVOT_BADGE_FONT} title={hasCustomLabel ? field.field : undefined}>
+            {pivotBoldFieldName(display)}
         </Box>
     );
 }
 
 function renderValuePivotBadge(field: PivotField) {
     const aggregator = field.aggregators?.[0] || 'avg';
+    const display = pivotFieldDisplayLabel(field);
+    const hasCustomLabel = Boolean(field.label?.trim());
     return (
-        <Box as="span" {...PIVOT_BADGE_FONT}>
-            {aggregator}({pivotBoldFieldName(field.field)})
+        <Box as="span" {...PIVOT_BADGE_FONT} title={hasCustomLabel ? field.field : 'Change aggregation or rename'}>
+            {aggregator}({pivotBoldFieldName(display)})
         </Box>
     );
 }
@@ -102,6 +110,7 @@ export const PivotView = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const loadedSavedQueryName = searchParams.get('savedQuery')?.trim() || null;
     const hasUrlConfig = hasPivotUrlConfig(searchParams);
 
     const { data: defaultExecIds, isFetched: defaultExecIdsFetched } = useQuery({
@@ -136,7 +145,6 @@ export const PivotView = () => {
     const [elapsedMs, setElapsedMs] = useState(0);
     const [previewEnabled, setPreviewEnabled] = useState(true);
     const [hasQueryResults, setHasQueryResults] = useState(false);
-    const [lastPivotRows, setLastPivotRows] = useState<Record<string, unknown>[]>([]);
     const [clearResultsToken, setClearResultsToken] = useState(0);
     const generationStartRef = useRef<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
@@ -201,6 +209,7 @@ export const PivotView = () => {
     // Load defaults from URL or wait for latest GPU exec ids before first URL sync.
     useEffect(() => {
         const fromUrl = parsePivotFieldsFromSearchParams(searchParams);
+        setIsRelativePivot(searchParams.get('relative') === 'true');
         if (fromUrl) {
             setFields(fromUrl);
             setHasInitialized(true);
@@ -214,6 +223,12 @@ export const PivotView = () => {
         setFields(buildDefaultPivotFields(defaultExecIds));
         setHasInitialized(true);
     }, [searchParams, defaultExecIdsFetched, defaultExecIds]);
+
+    useEffect(() => {
+        if (isSaveModalOpen && loadedSavedQueryName && !saveQueryName.trim()) {
+            setSaveQueryName(loadedSavedQueryName);
+        }
+    }, [isSaveModalOpen, loadedSavedQueryName, saveQueryName]);
 
     // Auto-update URL when fields change (but not on initial load)
     useEffect(() => {
@@ -238,6 +253,7 @@ export const PivotView = () => {
         event?: React.DragEvent | React.MouseEvent,
         fieldIndex?: number,
         selectedAggregator?: string,
+        label = '',
     ) => {
         setFieldPicker(null);
         const { x, y } = getPointerPosition(event);
@@ -246,6 +262,25 @@ export const PivotView = () => {
             field,
             fieldIndex,
             selectedAggregator: selectedAggregator || 'avg',
+            label,
+            x,
+            y,
+        });
+    };
+
+    const openFieldLabelPanel = (fieldIndex: number, event: React.MouseEvent) => {
+        const field = fields[fieldIndex];
+        if (field.type !== 'row' && field.type !== 'column') {
+            return;
+        }
+        setFieldPicker(null);
+        const { x, y } = getPointerPosition(event);
+        setContextPanel({
+            kind: 'fieldLabel',
+            field: field.field,
+            fieldIndex,
+            zoneType: field.type,
+            label: field.label ?? '',
             x,
             y,
         });
@@ -281,25 +316,51 @@ export const PivotView = () => {
         }
     };
 
-    const handleValueSelect = (aggregator: string) => {
+    const handleValueSelect = (aggregator: string, displayLabel: string) => {
         if (!contextPanel || contextPanel.kind !== 'value') {
             return;
         }
 
+        const trimmedLabel = displayLabel.trim();
         if (contextPanel.fieldIndex !== undefined) {
             const newFields = [...fields];
-            newFields[contextPanel.fieldIndex] = {
+            const updated: PivotField = {
                 ...newFields[contextPanel.fieldIndex],
                 aggregators: [aggregator],
             };
+            if (trimmedLabel) {
+                updated.label = trimmedLabel;
+            } else {
+                delete updated.label;
+            }
+            newFields[contextPanel.fieldIndex] = updated;
             setFields(newFields);
         } else {
             setFields([...fields, {
                 field: contextPanel.field,
                 type: 'value',
                 aggregators: [aggregator],
+                ...(trimmedLabel ? { label: trimmedLabel } : {}),
             }]);
         }
+        setContextPanel(null);
+    };
+
+    const handleFieldLabelApply = (displayLabel: string) => {
+        if (!contextPanel || contextPanel.kind !== 'fieldLabel') {
+            return;
+        }
+
+        const trimmedLabel = displayLabel.trim();
+        const newFields = [...fields];
+        const updated: PivotField = { ...newFields[contextPanel.fieldIndex] };
+        if (trimmedLabel) {
+            updated.label = trimmedLabel;
+        } else {
+            delete updated.label;
+        }
+        newFields[contextPanel.fieldIndex] = updated;
+        setFields(newFields);
         setContextPanel(null);
     };
 
@@ -329,7 +390,13 @@ export const PivotView = () => {
 
     const handleEditValue = (index: number, event: React.MouseEvent) => {
         const field = fields[index];
-        openValuePanel(field.field, event, index, field.aggregators?.[0] || 'avg');
+        openValuePanel(
+            field.field,
+            event,
+            index,
+            field.aggregators?.[0] || 'avg',
+            field.label ?? '',
+        );
     };
 
     const handleEditFilter = (index: number, event: React.MouseEvent) => {
@@ -398,22 +465,8 @@ export const PivotView = () => {
 
     const openPlotView = () => {
         const query = searchParams.toString();
-        const apiKey = pivotApiSearchParams(searchParams).toString();
-        if (lastPivotRows.length > 0) {
-            queryClient.setQueryData(['pivotPlot', apiKey], lastPivotRows);
-        }
-        navigate(query ? `/pivot/plot?${query}` : '/pivot/plot', {
-            state: lastPivotRows.length > 0 ? { pivotData: lastPivotRows } : undefined,
-        });
+        navigate(query ? `/pivot/plot?${query}` : '/pivot/plot');
     };
-
-    const handlePivotDataChange = useCallback((rows: Record<string, unknown>[]) => {
-        setLastPivotRows(rows);
-        const apiKey = pivotApiSearchParams(searchParams).toString();
-        if (rows.length > 0) {
-            queryClient.setQueryData(['pivotPlot', apiKey], rows);
-        }
-    }, [queryClient, searchParams]);
 
     const removeField = (index: number) => {
         const newFields = [...fields];
@@ -441,6 +494,11 @@ export const PivotView = () => {
             params.append('filters', btoa(JSON.stringify(filters)));
         }
 
+        const fieldLabels = encodePivotFieldLabels(fields);
+        if (fieldLabels) {
+            params.append('fieldLabels', fieldLabels);
+        }
+
         if (isRelativePivot) {
             params.append('relative', 'true');
         }
@@ -448,6 +506,11 @@ export const PivotView = () => {
         const plot = searchParams.get('plot');
         if (plot) {
             params.set('plot', plot);
+        }
+
+        const savedQuery = searchParams.get('savedQuery');
+        if (savedQuery) {
+            params.set('savedQuery', savedQuery);
         }
 
         setSearchParams(params);
@@ -480,7 +543,6 @@ export const PivotView = () => {
         setIsRelativePivot(false);
         setPreviewEnabled(true);
         setHasQueryResults(false);
-        setLastPivotRows([]);
         setClearResultsToken((token) => token + 1);
         setSearchParams(new URLSearchParams());
     };
@@ -904,7 +966,7 @@ export const PivotView = () => {
                             e.stopPropagation();
                             handleEditValue(fieldIndex, e);
                         }}
-                        title="Change aggregation"
+                        title="Change aggregation or rename"
                     >
                         {renderValuePivotBadge(field)}
                     </Box>
@@ -925,7 +987,19 @@ export const PivotView = () => {
                     </Box>
                 );
             }
-            return renderSimplePivotBadge(field.field);
+            return (
+                <Box
+                    as="span"
+                    cursor="pointer"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openFieldLabelPanel(fieldIndex, e);
+                    }}
+                    title="Rename field"
+                >
+                    {renderSimplePivotBadge(field)}
+                </Box>
+            );
         };
 
         return (
@@ -998,7 +1072,7 @@ export const PivotView = () => {
                         color="var(--color-btn-save-text)"
                         _hover={{ bg: 'var(--color-btn-save-hover)' }}
                     >
-                        Save Query
+                        {loadedSavedQueryName ? 'Update Query' : 'Save Query'}
                     </Button>
                 )}
                 <Button
@@ -1127,38 +1201,52 @@ export const PivotView = () => {
         }
 
         try {
-            // Create the query object with current pivot configuration
+            const trimmedName = saveQueryName.trim();
+            const fieldLabels = encodePivotFieldLabels(fields);
             const queryData = {
-                url: '/pivot',
+                url: PIVOT_SAVED_QUERY_URL,
                 parameters: {
                     rows: fields.filter(f => f.type === 'row').map(f => f.field).join(','),
                     cols: fields.filter(f => f.type === 'column').map(f => f.field).join(','),
                     values: btoa(JSON.stringify(fields.filter(f => f.type === 'value').map(f => ({
                         field: f.field,
-                        aggregators: f.aggregators || ['avg']
+                        aggregators: f.aggregators || ['avg'],
                     })))),
-                    filters: fields.filter(f => f.type === 'filter').length > 0 ?
-                        btoa(JSON.stringify(fields.filter(f => f.type === 'filter').map(f => ({
+                    filters: fields.filter(f => f.type === 'filter').length > 0
+                        ? btoa(JSON.stringify(fields.filter(f => f.type === 'filter').map(f => ({
                             field: f.field,
                             operator: f.operator,
-                            value: f.value
-                        })))) : '',
+                            value: f.value,
+                        }))))
+                        : '',
+                    ...(fieldLabels ? { fieldLabels } : {}),
                     isRelativePivot: isRelativePivot,
-                    timestamp: new Date().toISOString()
-                }
+                    savedQuery: trimmedName,
+                    timestamp: new Date().toISOString(),
+                },
             };
 
-            await saveQuery(saveQueryName, queryData);
+            await saveQuery(trimmedName, queryData);
+            queryClient.invalidateQueries({ queryKey: ['savedQueries'] });
 
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set('savedQuery', trimmedName);
+            setSearchParams(nextParams, { replace: true });
+
+            const isUpdate = loadedSavedQueryName === trimmedName;
             toaster.create({
-                title: 'Query saved successfully',
-                description: `Your query "${saveQueryName}" has been saved`,
+                title: isUpdate ? 'Query updated' : 'Query saved',
+                description: isUpdate
+                    ? `"${trimmedName}" updated with current pivot configuration`
+                    : `"${trimmedName}" saved successfully`,
                 type: 'success',
                 duration: 3000,
             });
 
             onSaveModalClose();
-            setSaveQueryName('');
+            if (!loadedSavedQueryName) {
+                setSaveQueryName('');
+            }
         } catch (error) {
             toaster.create({
                 title: 'Error saving query',
@@ -1169,88 +1257,30 @@ export const PivotView = () => {
         }
     };
 
-    const handleLoadQuery = (query: any) => {
+    const handleLoadQuery = (query: { name: string; query: { url: string; parameters: Record<string, unknown> } }) => {
         const { url, parameters } = query.query;
 
-        if (url === '/pivot') {
-            // Load pivot-specific parameters
-            const newFields: PivotField[] = [];
-
-            // Load rows
-            if (parameters.rows) {
-                parameters.rows.split(',').forEach((field: string) => {
-                    if (field.trim()) {
-                        newFields.push({ field: field.trim(), type: 'row' });
-                    }
-                });
+        if (url === PIVOT_SAVED_QUERY_URL) {
+            const params = savedQueryParametersToSearchParams(parameters);
+            const savedName = String(parameters.savedQuery ?? query.name).trim();
+            if (savedName) {
+                params.set('savedQuery', savedName);
             }
-
-            // Load columns
-            if (parameters.cols) {
-                parameters.cols.split(',').forEach((field: string) => {
-                    if (field.trim()) {
-                        newFields.push({ field: field.trim(), type: 'column' });
-                    }
-                });
-            }
-
-            // Load values
-            if (parameters.values) {
-                try {
-                    const decodedValues = JSON.parse(atob(parameters.values));
-                    if (Array.isArray(decodedValues)) {
-                        decodedValues.forEach((value: any) => {
-                            if (value.field) {
-                                newFields.push({
-                                    field: value.field,
-                                    type: 'value',
-                                    aggregators: [value.aggregators?.[0] || 'avg'],
-                                });
-                            }
-                        });
-                    }
-                } catch (error) {
-                    // Fallback to old format (comma-separated string)
-                    parameters.values.split(',').forEach((field: string) => {
-                        if (field.trim()) {
-                            newFields.push({
-                                field: field.trim(),
-                                type: 'value',
-                                aggregators: ['avg']
-                            });
-                        }
-                    });
-                }
-            }
-
-            // Load filters
-            if (parameters.filters) {
-                try {
-                    const decodedFilters = JSON.parse(atob(parameters.filters));
-                    decodedFilters.forEach((filter: any) => {
-                        newFields.push({
-                            field: filter.field,
-                            type: 'filter',
-                            operator: filter.operator,
-                            value: filter.value
-                        });
-                    });
-                } catch (error) {
-                    console.error('Error parsing filters from saved query:', error);
-                }
-            }
-
-            // Set fields and view type
-            setFields(newFields);
             if (parameters.isRelativePivot !== undefined) {
-                setIsRelativePivot(parameters.isRelativePivot);
+                const relative = parameters.isRelativePivot === true || parameters.isRelativePivot === 'true';
+                if (relative) {
+                    params.set('relative', 'true');
+                } else {
+                    params.delete('relative');
+                }
             }
-
-            // Fields are automatically used by child components
+            params.delete('isRelativePivot');
+            params.delete('timestamp');
+            setSearchParams(params);
 
             toaster.create({
                 title: 'Query loaded',
-                description: `"${query.name}" has been loaded successfully`,
+                description: `"${savedName || query.name}" loaded — use Update Query to save changes`,
                 type: 'success',
                 duration: 3000,
             });
@@ -1273,7 +1303,17 @@ export const PivotView = () => {
     return (
         <Box p={4} h="100vh" display="flex" flexDirection="column" bg="var(--color-bg-page)">
             <HStack justify="space-between" mb={6} gap={3} flexWrap="wrap">
-                <Heading color="var(--color-text)">Pivot View</Heading>
+                <VStack align="start" gap={0}>
+                    <Heading color="var(--color-text)">Pivot View</Heading>
+                    {loadedSavedQueryName && (
+                        <Text fontSize="sm" color="var(--color-text-muted)">
+                            Editing saved query:{' '}
+                            <Text as="span" fontWeight="semibold" color="var(--color-text)">
+                                {loadedSavedQueryName}
+                            </Text>
+                        </Text>
+                    )}
+                </VStack>
                 <HStack gap={2} flexWrap="wrap">
                     <Button
                         size="sm"
@@ -1344,6 +1384,11 @@ export const PivotView = () => {
                     >
                         Plot
                     </Button>
+                    <PivotShareActions
+                        kind="table"
+                        searchParams={searchParams}
+                        disabled={!hasPivotUrlConfig(searchParams)}
+                    />
                 </HStack>
             </HStack>
 
@@ -1376,7 +1421,6 @@ export const PivotView = () => {
                         onGenerationComplete={handleGenerationComplete}
                         previewEnabled={previewEnabled}
                         onQueryResults={handleQueryResults}
-                        onPivotDataChange={handlePivotDataChange}
                         clearResultsToken={clearResultsToken}
                     />
                 </GridItem>
@@ -1396,6 +1440,7 @@ export const PivotView = () => {
                 onClose={() => setContextPanel(null)}
                 onValueSelect={handleValueSelect}
                 onFilterApply={handleFilterApply}
+                onFieldLabelApply={handleFieldLabelApply}
             />
 
             {/* Save Query Modal */}
@@ -1404,11 +1449,24 @@ export const PivotView = () => {
                 <Dialog.Positioner>
                     <Dialog.Content>
                         <Dialog.Header>
-                            <Dialog.Title>Save Query</Dialog.Title>
+                            <Dialog.Title>{loadedSavedQueryName ? 'Update Pivot Query' : 'Save Pivot Query'}</Dialog.Title>
                             <Dialog.CloseTrigger />
                         </Dialog.Header>
                         <Dialog.Body pb={6}>
                             <VStack gap={4}>
+                                <Text fontSize="sm" color="var(--color-text-muted)">
+                                    {loadedSavedQueryName
+                                        ? 'Updates the saved pivot rows, columns, values, filters, and field labels.'
+                                        : 'Saves the current pivot configuration for later reuse.'}
+                                </Text>
+                                {loadedSavedQueryName && (
+                                    <Text fontSize="sm" color="var(--color-text-muted)">
+                                        Currently editing:{' '}
+                                        <Text as="span" fontWeight="semibold" color="var(--color-text)">
+                                            {loadedSavedQueryName}
+                                        </Text>
+                                    </Text>
+                                )}
                                 <Field.Root>
                                     <Field.Label>Query Name</Field.Label>
                                     <Input
@@ -1419,7 +1477,7 @@ export const PivotView = () => {
                                 </Field.Root>
                                 <HStack gap={4} width="100%">
                                     <Button bg="var(--color-primary)" color="var(--color-primary-text)" _hover={{ bg: 'var(--color-primary-hover)' }} onClick={handleSaveQuery} width="100%">
-                                        Save
+                                        {loadedSavedQueryName ? 'Update' : 'Save'}
                                     </Button>
                                     <Button variant="outline" color="var(--color-text)" borderColor="var(--color-border)" _hover={{ bg: 'var(--color-bg-hover)' }} onClick={onSaveModalClose} width="100%">
                                         Cancel
@@ -1444,7 +1502,7 @@ export const PivotView = () => {
                             <VStack gap={4} align="stretch">
                                 {savedQueries && savedQueries.length > 0 ? (
                                     savedQueries
-                                        .filter((query: any) => query.query.url === '/pivot')
+                                        .filter((query: { query: { url: string } }) => query.query.url === PIVOT_SAVED_QUERY_URL)
                                         .map((query: any) => (
                                             <Box
                                                 key={query._id}
@@ -1476,7 +1534,7 @@ export const PivotView = () => {
                                         No saved queries found
                                     </Text>
                                 )}
-                                {savedQueries && savedQueries.filter((query: any) => query.query.url === '/pivot').length === 0 && savedQueries.length > 0 && (
+                                {savedQueries && savedQueries.filter((query: { query: { url: string } }) => query.query.url === PIVOT_SAVED_QUERY_URL).length === 0 && savedQueries.length > 0 && (
                                     <Text color={"var(--color-text-muted)"} textAlign="center">
                                         No saved pivot queries found. Save queries from this view to see them here.
                                     </Text>
