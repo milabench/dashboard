@@ -30,7 +30,6 @@ export const getTitleForRoute = (pathname: string): string => {
     if (pathname === '/pivot/plot') return 'Pivot Plot';
     if (pathname === '/explorer') return 'Explorer';
     if (pathname === '/scaling') return 'Scaling';
-    if (pathname === '/grouped') return 'Grouped View';
     if (pathname === '/profile') return 'Profiles';
     if (pathname === '/saved-queries') return 'Saved Queries';
     if (pathname.startsWith('/jobrunner/')) return 'Job Details';

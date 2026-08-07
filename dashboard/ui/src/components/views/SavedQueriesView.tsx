@@ -103,8 +103,6 @@ const SavedQueriesView: React.FC = () => {
 
     const getQueryType = (url: string) => {
         switch (url) {
-            case '/grouped':
-                return 'Grouped View';
             case '/pivot':
                 return 'Pivot View';
             case '/pivot/plot':

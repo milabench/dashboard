@@ -798,19 +798,6 @@ export const ExplorerView = () => {
                                         <Text>Compare</Text>
                                     </HStack>
                                 </Button>
-                                <Button
-                                    asChild
-                                    bg="var(--color-btn-success)"
-                                    variant="solid"
-                                    color="var(--color-primary-text)"
-                                    disabled={!executions || executions.length === 0}
-                                    _hover={{ color: 'var(--color-primary-text)', bg: 'var(--color-btn-success-hover)' }}
-                                    _disabled={{ opacity: 0.6, color: 'var(--color-primary-text)', bg: 'var(--color-btn-success)' }}
-                                >
-                                    <Link to={`/grouped?exec_ids=${executions?.map((e: Execution) => e._id).join(',')}&more=Exec:name as run&color=run`}>
-                                        Plot
-                                    </Link>
-                                </Button>
                             </HStack>
                         </HStack>
                         {isQueryLoading ? (

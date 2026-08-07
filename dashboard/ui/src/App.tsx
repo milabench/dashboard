@@ -16,7 +16,6 @@ import { ExecutionReport } from './components/views/ExecutionReport';
 import { ExplorerView } from './components/views/ExplorerView';
 import { Profile } from './components/views/Profile';
 import Scaling from './components/views/Scaling';
-import GroupedView from './components/views/GroupedView';
 import SavedQueriesView from './components/views/SavedQueriesView';
 import { DashboardView } from './components/views/Dashboard';
 import { JobSubmitView } from './components/views/JobSubmitView';
@@ -80,7 +79,6 @@ function App() {
                 <Route path="/pivot" element={<PivotView />} />
                 <Route path="/pivot/plot" element={<PivotPlotPage />} />
                 <Route path="/explorer" element={<ExplorerView />} />
-                <Route path="/grouped" element={<GroupedView />} />
                 <Route path="/scaling" element={<Scaling />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/saved-queries" element={<SavedQueriesView />} />
