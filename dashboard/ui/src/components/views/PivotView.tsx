@@ -29,6 +29,7 @@ import {
     hasPivotUrlConfig,
     parsePivotFieldsFromSearchParams,
     encodePivotValuesForApi,
+    pivotApiSearchParams,
     type PivotField,
 } from '../../utils/pivotUrlParams';
 
@@ -135,6 +136,7 @@ export const PivotView = () => {
     const [elapsedMs, setElapsedMs] = useState(0);
     const [previewEnabled, setPreviewEnabled] = useState(true);
     const [hasQueryResults, setHasQueryResults] = useState(false);
+    const [lastPivotRows, setLastPivotRows] = useState<Record<string, unknown>[]>([]);
     const [clearResultsToken, setClearResultsToken] = useState(0);
     const generationStartRef = useRef<number | null>(null);
     const [hasInitialized, setHasInitialized] = useState(false);
@@ -396,8 +398,22 @@ export const PivotView = () => {
 
     const openPlotView = () => {
         const query = searchParams.toString();
-        navigate(query ? `/pivot/plot?${query}` : '/pivot/plot');
+        const apiKey = pivotApiSearchParams(searchParams).toString();
+        if (lastPivotRows.length > 0) {
+            queryClient.setQueryData(['pivotPlot', apiKey], lastPivotRows);
+        }
+        navigate(query ? `/pivot/plot?${query}` : '/pivot/plot', {
+            state: lastPivotRows.length > 0 ? { pivotData: lastPivotRows } : undefined,
+        });
     };
+
+    const handlePivotDataChange = useCallback((rows: Record<string, unknown>[]) => {
+        setLastPivotRows(rows);
+        const apiKey = pivotApiSearchParams(searchParams).toString();
+        if (rows.length > 0) {
+            queryClient.setQueryData(['pivotPlot', apiKey], rows);
+        }
+    }, [queryClient, searchParams]);
 
     const removeField = (index: number) => {
         const newFields = [...fields];
@@ -464,6 +480,7 @@ export const PivotView = () => {
         setIsRelativePivot(false);
         setPreviewEnabled(true);
         setHasQueryResults(false);
+        setLastPivotRows([]);
         setClearResultsToken((token) => token + 1);
         setSearchParams(new URLSearchParams());
     };
@@ -1359,6 +1376,7 @@ export const PivotView = () => {
                         onGenerationComplete={handleGenerationComplete}
                         previewEnabled={previewEnabled}
                         onQueryResults={handleQueryResults}
+                        onPivotDataChange={handlePivotDataChange}
                         clearResultsToken={clearResultsToken}
                     />
                 </GridItem>

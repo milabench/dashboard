@@ -47,6 +47,10 @@ export function encodePivotValuesForApi(fields: PivotField[]): string {
     return btoa(JSON.stringify(map));
 }
 
+export function hasPivotApiFilters(params: URLSearchParams): boolean {
+    return Boolean(pivotApiSearchParams(params).get('filters'));
+}
+
 /** Query params sent to `/pivot` API (drops UI-only keys like `relative`). */
 export function pivotApiSearchParams(params: URLSearchParams): URLSearchParams {
     const apiParams = new URLSearchParams();
@@ -151,3 +155,29 @@ export function parsePivotFieldsFromSearchParams(params: URLSearchParams): Pivot
 
     return newFields.length > 0 ? newFields : null;
 }
+
+/** Serialize URL search params for saved-query storage. */
+export function searchParamsToSavedQueryParameters(
+    params: URLSearchParams,
+): Record<string, string> {
+    const out: Record<string, string> = {};
+    params.forEach((value, key) => {
+        out[key] = value;
+    });
+    return out;
+}
+
+/** Restore URL search params from a saved query payload. */
+export function savedQueryParametersToSearchParams(
+    parameters: Record<string, unknown>,
+): URLSearchParams {
+    const params = new URLSearchParams();
+    Object.entries(parameters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            params.set(key, String(value));
+        }
+    });
+    return params;
+}
+
+export const PIVOT_PLOT_SAVED_QUERY_URL = '/pivot/plot';

@@ -99,6 +99,8 @@ const SavedQueriesView: React.FC = () => {
                 return 'Grouped View';
             case '/pivot':
                 return 'Pivot View';
+            case '/pivot/plot':
+                return 'Pivot Plot';
             case '/explorer':
                 return 'Explorer View';
             default:

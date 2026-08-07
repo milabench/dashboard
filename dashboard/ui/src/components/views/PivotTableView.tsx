@@ -95,15 +95,11 @@ export const PivotTableView = ({
             }
 
             const response = await getPivot(params);
-
-            if (Array.isArray(response)) {
-                setPivotData(response);
-                onPivotDataChange?.(response as Record<string, unknown>[]);
-                onQueryResults?.(response.length);
-            } else {
-                setPivotData([]);
-                onQueryResults?.(0);
-                setError('Invalid data format received from server');
+            setPivotData(response);
+            onPivotDataChange?.(response);
+            onQueryResults?.(response.length);
+            if (response.length === 0 && !params.get('filters')) {
+                setError('Pivot query requires at least one filter');
             }
         } catch (error) {
             const err = error as { message?: string };

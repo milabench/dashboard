@@ -7,9 +7,10 @@ import Editor from '@monaco-editor/react';
 export const MonacoEditor: React.FC<{
     value: string;
     onChange: (value: string) => void;
-    onMount: (editor: any) => void;
+    onMount?: (editor: any) => void;
     height?: string;
-}> = ({ value, onChange, onMount, height = "400px" }) => {
+    language?: string;
+}> = ({ value, onChange, onMount, height = "400px", language = 'shell' }) => {
     const { colorMode } = useColorMode();
     const isDark = colorMode === 'dark';
     const containerRef = React.useRef<HTMLDivElement>(null);
@@ -100,7 +101,8 @@ export const MonacoEditor: React.FC<{
             <Box flex={1} minH={0} overflow="hidden" height="100%">
                 <Editor
                     height={editorHeight}
-                    defaultLanguage="shell"
+                    defaultLanguage={language}
+                    language={language}
                     value={value}
                     onChange={(value) => onChange(value || '')}
                     theme={isDark ? 'vs-dark' : 'light'}

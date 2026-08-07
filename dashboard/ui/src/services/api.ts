@@ -313,12 +313,32 @@ export const PIVOT_TIMEOUT_MS = 30000;
 /** Client wait slightly longer so a server 408 can be received before axios aborts. */
 const PIVOT_CLIENT_TIMEOUT_MS = PIVOT_TIMEOUT_MS + 5000;
 
-export const getPivot = async (params: URLSearchParams): Promise<any[]> => {
+export function normalizePivotResponse(data: unknown): Record<string, unknown>[] {
+    if (Array.isArray(data)) {
+        return data as Record<string, unknown>[];
+    }
+    if (data && typeof data === 'object') {
+        const obj = data as Record<string, unknown>;
+        if (typeof obj.error === 'string') {
+            throw {
+                message: obj.error,
+                status: 408,
+            } as ApiError;
+        }
+        // Server returns `{}` when no filters are provided.
+        if (Object.keys(obj).length === 0) {
+            return [];
+        }
+    }
+    return [];
+}
+
+export const getPivot = async (params: URLSearchParams): Promise<Record<string, unknown>[]> => {
     try {
         const response = await api.get(`/pivot?${params.toString()}`, {
             timeout: PIVOT_CLIENT_TIMEOUT_MS,
         });
-        return response.data;
+        return normalizePivotResponse(response.data);
     } catch (error) {
         if (axios.isAxiosError(error)) {
             const data = error.response?.data as { error?: string } | undefined;
