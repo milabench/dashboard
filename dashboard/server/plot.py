@@ -76,11 +76,52 @@ def average_drop_min_max(exec_ids, visibility=0):
     )
 
 
-def perf_per_bench_query(exec_ids, profile="default", drop_min_max=True, visibility=0):
-    if drop_min_max:
-        average_perf_per_pack = average_drop_min_max(exec_ids, visibility=visibility)
-    else:
+def median_perf(exec_ids, visibility=0):
+    return (
+        select(
+            Metric.pack_id,
+            Metric.exec_id,
+            func.percentile_cont(0.5).within_group(Metric.value).label("perf"),
+            func.stddev(Metric.value).label("std"),
+        )
+        .join(Exec, Exec._id == Metric.exec_id)
+        .where(
+            Exec.visibility == visibility,
+            Metric.name == "rate",
+            Metric.exec_id.in_(exec_ids),
+        )
+        .group_by(Metric.pack_id, Metric.exec_id)
+    )
+
+
+PERF_AGG_METHODS = frozenset({"median", "mean", "mean_drop_min_max"})
+
+
+def resolve_perf_agg(perf_agg: str | None = None, *, drop_min_max: bool | None = None) -> str:
+    """Resolve benchmark perf aggregation; ``drop_min_max`` kept for legacy callers."""
+    if perf_agg:
+        method = perf_agg.strip().lower()
+        if method in PERF_AGG_METHODS:
+            return method
+    if drop_min_max is None:
+        return "mean_drop_min_max"
+    return "mean_drop_min_max" if drop_min_max else "mean"
+
+
+def perf_per_bench_query(
+    exec_ids,
+    profile="default",
+    drop_min_max=True,
+    perf_agg: str | None = None,
+    visibility=0,
+):
+    method = resolve_perf_agg(perf_agg, drop_min_max=drop_min_max)
+    if method == "median":
+        average_perf_per_pack = median_perf(exec_ids, visibility=visibility)
+    elif method == "mean":
         average_perf_per_pack = regular_average(exec_ids, visibility=visibility)
+    else:
+        average_perf_per_pack = average_drop_min_max(exec_ids, visibility=visibility)
 
     sub = average_perf_per_pack.subquery()
 
@@ -108,8 +149,8 @@ def perf_per_bench_query(exec_ids, profile="default", drop_min_max=True, visibil
     return perf_per_bench
 
 
-def weighted_perf_per_bench_query(exec_ids, profile="default", drop_min_max=True):
-    perf_per_bench = perf_per_bench_query(exec_ids, profile, drop_min_max)
+def weighted_perf_per_bench_query(exec_ids, profile="default", drop_min_max=True, perf_agg: str | None = None):
+    perf_per_bench = perf_per_bench_query(exec_ids, profile, drop_min_max, perf_agg=perf_agg)
 
     # This gives the raw score per bench before weighting
     sub = perf_per_bench.subquery()
@@ -144,23 +185,33 @@ def weighted_perf_per_bench_query(exec_ids, profile="default", drop_min_max=True
     return weighted_perf_per_bench
 
 
-def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None):
+def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None, benches=None, perf_agg: str | None = None):
     """Use SQL to directly compute the report from the metrics.
 
     But we lose a bit of flexibility when it comes to how things get computed.
     But it is much faster.
+
+    When ``benches`` is set, only those pack names are included (``bench IN benches``).
     """
     if more is None:
         more = []
 
-    weighted_perf_per_bench = weighted_perf_per_bench_query(exec_ids, profile, drop_min_max)
+    weighted_perf_per_bench = weighted_perf_per_bench_query(
+        exec_ids, profile, drop_min_max, perf_agg=perf_agg
+    )
 
     sub = weighted_perf_per_bench.subquery()
 
-    weight_total = select(func.sum(Weight.weight * Weight.enabled.cast(Integer))).where(Weight.profile == profile).scalar_subquery()
+    weight_filters = [Weight.profile == profile]
+    if benches:
+        weight_filters.append(Weight.pack.in_(benches))
+    weight_total = (
+        select(func.sum(Weight.weight * Weight.enabled.cast(Integer)))
+        .where(*weight_filters)
+        .scalar_subquery()
+    )
 
-    # All (bench, exec_id) pairs that actually ran
-    pack_benches = (
+    pack_benches_stmt = (
         select(
             Pack.name.label("bench"),
             Pack.exec_id,
@@ -173,8 +224,10 @@ def sql_direct_report(exec_ids, profile="default", drop_min_max=True, more=None)
             ).label("fail"),
         )
         .where(Pack.exec_id.in_(exec_ids))
-        .group_by(Pack.name, Pack.exec_id)
-    ).subquery()
+    )
+    if benches:
+        pack_benches_stmt = pack_benches_stmt.where(Pack.name.in_(benches))
+    pack_benches = pack_benches_stmt.group_by(Pack.name, Pack.exec_id).subquery()
 
     # Final query to consolidate all the data into the report table we know
     perf_per_group = (

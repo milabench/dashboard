@@ -1,4 +1,4 @@
-"""Delete benchmark runs (execs) and dependent rows.
+"""Delete benchmark runs (execs) and dependent rows, or manage visibility.
 
 Cascade order (FKs are not ``ON DELETE CASCADE`` in the schema)::
 
@@ -20,6 +20,15 @@ Examples::
 
     # delete by run name (must be unique)
     dashboard db runs delete --name my-run-2026-03-01 --yes
+
+    # release a private run to public
+    dashboard db runs release 48
+
+    # mark a run private (generates share token if missing)
+    dashboard db runs set-visibility 48 --private
+
+    # promote all runs past their release_at timestamp
+    dashboard db runs release-due
 """
 
 from __future__ import annotations
@@ -28,7 +37,7 @@ from argklass.command import Command, newparser
 
 
 class Runs(Command):
-    """Show or cascade-delete benchmark runs (execs)."""
+    """Show, delete, or manage visibility of benchmark runs (execs)."""
 
     name: str = "runs"
 
@@ -37,7 +46,7 @@ class Runs(Command):
         parser = newparser(subparsers, Runs)
         parser.add_argument(
             "action",
-            choices=["delete", "show"],
+            choices=["delete", "show", "release", "set-visibility", "release-due"],
             help="Action to perform",
         )
         parser.add_argument(
@@ -68,6 +77,22 @@ class Runs(Command):
             "--refresh-views",
             action="store_true",
             help="Refresh materialized views after a successful delete",
+        )
+        parser.add_argument(
+            "--private",
+            action="store_true",
+            help="With set-visibility: mark run private",
+        )
+        parser.add_argument(
+            "--public",
+            action="store_true",
+            help="With set-visibility: mark run public",
+        )
+        parser.add_argument(
+            "--release-at",
+            type=str,
+            default=None,
+            help="With set-visibility --private: scheduled auto-release datetime",
         )
         parser.add_argument(
             "--secrets",
@@ -101,6 +126,9 @@ class Runs(Command):
         engine = create_engine(uri)
 
         with Session(engine) as sess:
+            if args.action == "release-due":
+                return _action_release_due(sess, args)
+
             try:
                 exec_id = _resolve_exec_id(sess, args.exec_id, args.name)
             except LookupError as err:
@@ -116,6 +144,12 @@ class Runs(Command):
 
             if args.action == "show":
                 return 0
+
+            if args.action == "release":
+                return _action_release(sess, exec_id, summary)
+
+            if args.action == "set-visibility":
+                return _action_set_visibility(sess, exec_id, args)
 
             # action == delete
             if args.dry_run:
@@ -208,6 +242,8 @@ def _run_summary(sess, exec_id):
         "status": run.status,
         "created_time": run.created_time,
         "visibility": run.visibility,
+        "share_token": run.share_token,
+        "release_at": run.release_at,
         "gpu": gpu,
         "packs": int(n_packs),
         "metrics": int(n_metrics),
@@ -222,6 +258,10 @@ def _print_summary(summary):
     print(f"  status:       {summary['status']}")
     print(f"  created:      {summary['created_time']}")
     print(f"  visibility:   {summary['visibility']}")
+    if summary.get("share_token"):
+        print(f"  share_path:   /share/{summary['share_token']}")
+    if summary.get("release_at"):
+        print(f"  release_at:   {summary['release_at']}")
     print(f"  gpu:          {summary['gpu']}")
     print(f"  packs:        {summary['packs']}")
     print(f"  metrics:      {summary['metrics']}")
@@ -255,6 +295,88 @@ def cascade_delete_exec(sess, exec_id: int) -> dict[str, int]:
         "execs": _count_delete(Exec, Exec._id == exec_id),
     }
     return counts
+
+
+def _action_release(sess, exec_id, summary):
+    from dashboard.server.database.models import Exec
+    from dashboard.server.visibility import VISIBILITY_PUBLIC
+
+    run = sess.get(Exec, exec_id)
+    if run.visibility == VISIBILITY_PUBLIC:
+        print(f"[runs] Exec {exec_id} is already public.")
+        return 0
+
+    run.visibility = VISIBILITY_PUBLIC
+    sess.commit()
+    print(f"[runs] Released exec {exec_id} ({summary['name']}) to public.")
+    return 0
+
+
+def _action_set_visibility(sess, exec_id, args):
+    import secrets
+
+    from dashboard.server.database.models import Exec
+    from dashboard.server.visibility import (
+        VISIBILITY_PRIVATE,
+        VISIBILITY_PUBLIC,
+        parse_release_at,
+        share_url_for,
+    )
+
+    if args.private and args.public:
+        print("[runs] Pass only one of --private or --public")
+        return 1
+    if not args.private and not args.public:
+        print("[runs] Pass --private or --public")
+        return 1
+
+    run = sess.get(Exec, exec_id)
+    if run is None:
+        print(f"[runs] No exec with _id={exec_id}")
+        return 1
+
+    if args.public:
+        run.visibility = VISIBILITY_PUBLIC
+        sess.commit()
+        print(f"[runs] Exec {exec_id} is now public.")
+        return 0
+
+    run.visibility = VISIBILITY_PRIVATE
+    if not run.share_token:
+        run.share_token = secrets.token_urlsafe(32)
+    if args.release_at:
+        try:
+            run.release_at = parse_release_at(args.release_at)
+        except ValueError as err:
+            print(f"[runs] {err}")
+            return 1
+    sess.commit()
+    print(f"[runs] Exec {exec_id} is now private.")
+    print(f"[runs] Share path: {share_url_for(run.share_token)}")
+    if run.release_at:
+        print(f"[runs] Scheduled release: {run.release_at}")
+    return 0
+
+
+def _action_release_due(sess, args):
+    from dashboard.server.visibility import release_due_runs
+    from dashboard.server.materialized_views import GPU_SUMMARY_VIEW
+
+    count = release_due_runs(sess)
+    if count:
+        sess.commit()
+    else:
+        print("[runs] No embargoed runs due for release.")
+        return 0
+
+    if args.refresh_views:
+        from dashboard.cli.database.views import refresh_views
+
+        print(f"[runs] Refreshing {GPU_SUMMARY_VIEW}…")
+        refresh_views(sess, [GPU_SUMMARY_VIEW])
+
+    print(f"[runs] Released {count} run(s) to public.")
+    return 0
 
 
 COMMANDS = Runs

@@ -132,16 +132,21 @@ export function pivotValuesToApiMap(decoded: unknown): Record<string, string[]> 
     return {};
 }
 
+/** URL/saved-query format: one entry per value slot (preserves duplicate fields + aggregators). */
+export function encodePivotValuesParam(fields: PivotField[]): string {
+    const values = fields
+        .filter((f) => f.type === 'value')
+        .map((f) => ({
+            field: f.field,
+            aggregators: f.aggregators?.length ? f.aggregators : ['avg'],
+            ...(f.label?.trim() ? { label: f.label.trim() } : {}),
+        }));
+    return btoa(JSON.stringify(values));
+}
+
+/** @deprecated Use encodePivotValuesParam; API map conversion happens in pivotApiSearchParams. */
 export function encodePivotValuesForApi(fields: PivotField[]): string {
-    const map: Record<string, string[]> = {};
-    fields.filter((f) => f.type === 'value').forEach((field) => {
-        const aggregators = field.aggregators?.length ? field.aggregators : ['avg'];
-        if (!map[field.field]) {
-            map[field.field] = [];
-        }
-        map[field.field].push(...aggregators);
-    });
-    return btoa(JSON.stringify(map));
+    return encodePivotValuesParam(fields);
 }
 
 export function hasPivotApiFilters(params: URLSearchParams): boolean {
@@ -181,7 +186,7 @@ export function buildPivotApiParamsFromFields(fields: PivotField[]): URLSearchPa
     params.set('rows', rows.join(','));
     params.set('cols', cols.join(','));
 
-    params.set('values', encodePivotValuesForApi(fields));
+    params.set('values', encodePivotValuesParam(fields));
 
     const filters = fields
         .filter((f) => f.type === 'filter')
@@ -268,10 +273,13 @@ export function parsePivotFieldsFromSearchParams(params: URLSearchParams): Pivot
                 });
             } else if (decodedValues && typeof decodedValues === 'object') {
                 Object.entries(decodedValues as Record<string, string[]>).forEach(([field, aggregators]) => {
-                    newFields.push({
-                        field,
-                        type: 'value',
-                        aggregators: aggregators?.length ? aggregators : ['avg'],
+                    const aggs = aggregators?.length ? aggregators : ['avg'];
+                    aggs.forEach((aggregator) => {
+                        newFields.push({
+                            field,
+                            type: 'value',
+                            aggregators: [aggregator],
+                        });
                     });
                 });
             }

@@ -47,11 +47,13 @@ class Exec(Base):
     #  1= private
     # We could also have a moving "public" visibility as time move older results become available
     visibility = Column(Integer, default=0)
-
+    share_token = Column(String(64), nullable=True, unique=True)
+    release_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
         Index("exec_name", "name"),
         Index("exec_visibility", "visibility"),
+        Index("exec_share_token", "share_token", unique=True),
         Index(
             'execs_meta_gpus_0_product_idx',
             text("(meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product')"),
@@ -80,15 +82,21 @@ class Exec(Base):
         # )
     )
 
-    def as_dict(self):
-        return {
+    def as_dict(self, *, include_private_fields=False):
+        data = {
             "_id": self._id,
             "name": self.name,
             "namespace": self.namespace,
             "created_time": self.created_time,
             "meta": self.meta,
-            "status": self.status
+            "status": self.status,
         }
+        if include_private_fields:
+            data["visibility"] = self.visibility
+            data["release_at"] = (
+                self.release_at.isoformat() if self.release_at is not None else None
+            )
+        return data
 
 
 class Pack(Base):

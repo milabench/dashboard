@@ -17,7 +17,7 @@ import {
 import { toaster } from '../ui/toaster';
 import { Tooltip } from '../ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
-import { getExecution, getPacks } from '../../services/api';
+import { getExecution, getPacks, getSharedExecution, getSharedPacks } from '../../services/api';
 import type { Execution, Pack } from '../../services/types';
 import { DataTable } from '../common/Table';
 import type { Column } from '../common/Table';
@@ -58,25 +58,38 @@ const copyCurrentURL = () => {
  * - Set cookie 'feature_db_report=false' or remove cookie to use HTML endpoint (/html/report/{id})
  * - The button will show which method is currently active
  */
-export const ExecutionReport = () => {
+export const ExecutionReport = ({ shareToken }: { shareToken?: string } = {}) => {
     const { id } = useParams<{ id: string }>();
-    usePageTitle(`Execution Report - ${id || 'Unknown'}`);
+    const isShareMode = Boolean(shareToken);
+    usePageTitle(
+        isShareMode
+            ? 'Private Execution Report'
+            : `Execution Report - ${id || 'Unknown'}`
+    );
 
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedPack, setSelectedPack] = useState<Pack | null>(null);
     const [sideView, setSideView] = useState('NONE');
 
     const { data: execution, isLoading: isLoadingExecution } = useQuery<Execution>({
-        queryKey: ['execution', id],
-        queryFn: () => getExecution(Number(id)),
-        enabled: !!id,
+        queryKey: ['execution', shareToken ?? id],
+        queryFn: () =>
+            shareToken
+                ? getSharedExecution(shareToken)
+                : getExecution(Number(id)),
+        enabled: Boolean(shareToken || id),
     });
 
     const { data: packs, isLoading: isLoadingPacks } = useQuery<Pack[]>({
-        queryKey: ['packs', id],
-        queryFn: () => getPacks(Number(id)),
-        enabled: !!id,
+        queryKey: ['packs', shareToken ?? id],
+        queryFn: () =>
+            shareToken
+                ? getSharedPacks(shareToken)
+                : getPacks(Number(id)),
+        enabled: Boolean(shareToken || id),
     });
+
+    const executionId = execution?._id;
 
     // Handle URL parameters for shared report links
     useEffect(() => {
@@ -255,7 +268,17 @@ export const ExecutionReport = () => {
                 <Box p={4} className="execution-details" maxW="500px" height="100%">
                     <VStack align="stretch" gap={6} overflow="hidden" height="100%">
                         <HStack justify="space-between" overflow="hidden" height="10%">
-                            <Heading size="lg">Execution Report</Heading>
+                            <HStack>
+                                <Heading size="lg">Execution Report</Heading>
+                                {execution.visibility === 1 && (
+                                    <Badge colorPalette="orange">Private — shared link</Badge>
+                                )}
+                                {execution.release_at && (
+                                    <Badge colorPalette="purple">
+                                        Release: {new Date(execution.release_at).toLocaleString()}
+                                    </Badge>
+                                )}
+                            </HStack>
                             <HStack>
                                 <Button
                                     variant="solid"
@@ -444,7 +467,8 @@ export const ExecutionReport = () => {
                             </HStack>
                             <MetricsView
                                 selectedPack={selectedPack!}
-                                executionId={Number(id)}
+                                executionId={Number(executionId)}
+                                shareToken={shareToken}
                             />
                         </VStack>
                     )}
@@ -473,7 +497,8 @@ export const ExecutionReport = () => {
                                 </HStack>
                             </HStack>
                             <FastReportView
-                                executionId={Number(id)}
+                                executionId={Number(executionId)}
+                                shareToken={shareToken}
                                 onClose={closeSidePanel}
                             />
                         </VStack>
@@ -503,7 +528,7 @@ export const ExecutionReport = () => {
                                 </HStack>
                             </HStack>
                             <HtmlReportView
-                                executionId={Number(id)}
+                                executionId={Number(executionId)}
                                 onClose={closeSidePanel}
                             />
                         </VStack>

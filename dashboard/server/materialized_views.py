@@ -71,7 +71,8 @@ register_view(
             (SELECT count(*) FROM json_object_keys(meta -> 'accelerators' -> 'gpus')) AS gpu_count,
             (meta -> 'accelerators' -> 'gpus' -> '0' -> 'memory' ->> 'total')::float AS gpu_memory
         FROM execs
-        WHERE (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') IS NOT NULL
+        WHERE visibility = 0
+          AND (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') IS NOT NULL
           AND (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') != 'null'
     ),
     latest_per_gpu AS (

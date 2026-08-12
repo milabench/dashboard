@@ -40,6 +40,7 @@ INDEXES = {
     "execs": [
         ("exec_name", "CREATE INDEX IF NOT EXISTS exec_name ON execs (name)"),
         ("exec_visibility", "CREATE INDEX IF NOT EXISTS exec_visibility ON execs (visibility)"),
+        ("exec_share_token", "CREATE UNIQUE INDEX IF NOT EXISTS exec_share_token ON execs (share_token)"),
         ("execs_meta_gpus_0_product_idx", "CREATE INDEX IF NOT EXISTS execs_meta_gpus_0_product_idx ON execs ((meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product'))"),
     ],
     "weights": [

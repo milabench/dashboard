@@ -30,6 +30,9 @@ from .utils import database_uri, page, make_selection_key, make_filters, cursor_
 from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
 from .push import push_routes
+from .share import share_routes
+from .embargo import register_embargo_scheduler
+from .visibility import public_exec_filter, require_public_exec
 from .report import datafile_processor
 from .metal import baremetal_server
 from .sync import sync_routes
@@ -279,6 +282,8 @@ def view_server(config):
         return wrapper
 
     push_routes(app, database)
+    share_routes(app, sqlexec)
+    register_embargo_scheduler(app, database)
 
     @app.route('/api/ping')
     def api_ping():
@@ -361,7 +366,12 @@ def view_server(config):
     @app.route('/api/exec/list')
     @app.route('/api/exec/list/<int:limit>')
     def api_exec_list(limit=25):
-        stmt = sqlalchemy.select(Exec).order_by(Exec._id.desc()).limit(limit)
+        stmt = (
+            sqlalchemy.select(Exec)
+            .where(public_exec_filter())
+            .order_by(Exec._id.desc())
+            .limit(limit)
+        )
 
         results = []
         with sqlexec() as sess:
@@ -374,6 +384,10 @@ def view_server(config):
 
     @app.route('/api/exec/<int:exec_id>/packs')
     def api_packs_show(exec_id):
+        with sqlexec() as sess:
+            if require_public_exec(sess, exec_id) is None:
+                return jsonify({"error": "Not found"}), 404
+
         stmt = sqlalchemy.select(Pack).where(Pack.exec_id == exec_id)
 
         results = []
@@ -408,6 +422,10 @@ def view_server(config):
 
     @app.route('/api/exec/<int:exec_id>/packs/<int:pack_id>/metrics')
     def api_pack_metrics(exec_id, pack_id):
+        with sqlexec() as sess:
+            if require_public_exec(sess, exec_id) is None:
+                return jsonify({"error": "Not found"}), 404
+
         stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Metric.pack_id == pack_id)
         stmt = _exclude_hidden(stmt)
 
@@ -422,6 +440,10 @@ def view_server(config):
 
     @app.route('/api/exec/<int:exec_id>/packs/<string:pack_name>/metrics')
     def api_pack_summary_metrics(exec_id, pack_name):
+        with sqlexec() as sess:
+            if require_public_exec(sess, exec_id) is None:
+                return jsonify({"error": "Not found"}), 404
+
         stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Pack.name.startswith(pack_name)).join(Pack, Metric.pack_id == Pack._id)
         stmt = _exclude_hidden(stmt)
 
@@ -441,12 +463,18 @@ def view_server(config):
 
     @app.route('/api/gpu/list')
     def api_ls_gpu():
-        stmt = select(func.distinct(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT)))
+        stmt = (
+            select(func.distinct(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT)))
+            .where(public_exec_filter())
+        )
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
     from .gpu_summary import gpu_summary_routes
     gpu_summary_routes(app, sqlexec)
+
+    from .breakdown import breakdown_routes
+    breakdown_routes(app, sqlexec)
 
     from .gpu_specs import gpu_specs_routes
     gpu_specs_routes(app, sqlexec, dev_only)
@@ -499,16 +527,26 @@ def view_server(config):
     @app.route('/api/metrics/list')
     def api_ls_metrics(exec_id=None):
         if exec_id:
+            with sqlexec() as sess:
+                if require_public_exec(sess, exec_id) is None:
+                    return jsonify({"error": "Not found"}), 404
             stmt = select(func.distinct(Metric.name)).where(Metric.exec_id == exec_id)
         else:
-            stmt = select(func.distinct(Metric.name))
+            stmt = (
+                select(func.distinct(Metric.name))
+                .join(Exec, Metric.exec_id == Exec._id)
+                .where(public_exec_filter())
+            )
 
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
     @app.route('/api/pytorch/list')
     def api_ls_pytorch():
-        stmt = select(func.distinct(cast(Exec.meta["pytorch"]["torch"], TEXT)))
+        stmt = (
+            select(func.distinct(cast(Exec.meta["pytorch"]["torch"], TEXT)))
+            .where(public_exec_filter())
+        )
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
@@ -668,18 +706,20 @@ def view_server(config):
 
     @app.route('/api/milabench/list')
     def api_ls_milabench():
-        stmt = select(func.distinct(cast(Exec.meta["milabench"]["tag"], TEXT)))
+        stmt = (
+            select(func.distinct(cast(Exec.meta["milabench"]["tag"], TEXT)))
+            .where(public_exec_filter())
+        )
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
     @app.route('/api/exec/<id>')
     def api_exec_show(id):
-        stmt = sqlalchemy.select(Exec).where(Exec._id == id)
         with sqlexec() as sess:
-            cursor = sess.execute(stmt)
-            for row in cursor:
-                result = row[0]
-                return jsonify(result.as_dict())
+            exec_row = require_public_exec(sess, id)
+            if exec_row is None:
+                return jsonify({"error": "Not found"}), 404
+            return jsonify(exec_row.as_dict())
 
         return jsonify({})
 
@@ -705,7 +745,7 @@ def view_server(config):
             )
             #
             #
-        ).distinct(Exec._id)
+        ).distinct(Exec._id).where(public_exec_filter())
 
         if sql_filters:
             table = table.where(*sql_filters)
@@ -765,12 +805,20 @@ def view_server(config):
     def html_report(run_id):
         profile = request.cookies.get('scoreProfile')
 
+        with sqlexec() as sess:
+            if require_public_exec(sess, run_id) is None:
+                return jsonify({"error": "Not found"}), 404
+
         return report(run_id, profile=profile)
 
     @app.route('/html/exec/<int:exec_id>/packs/<pack_id>/metrics')
     def html_pack_metrics(exec_id, pack_id):
         import altair as alt
         from .utils import plot
+
+        with sqlexec() as sess:
+            if require_public_exec(sess, exec_id) is None:
+                return jsonify({"error": "Not found"}), 404
 
         chart = alt.Chart(f"/api/exec/{exec_id}/packs/{pack_id}/metrics").transform_joinaggregate(
             min_order="min(order)",
@@ -803,13 +851,21 @@ def view_server(config):
         from .report_cache import get_cached_report, store_report, _table_exists
 
         profile = request.cookies.get('scoreProfile') or 'default'
-        exec_ids = request.args.get('exec_ids', '').split(',')
+        exec_ids = [x for x in request.args.get('exec_ids', '').split(',') if x]
         drop_min_max = request.args.get('drop_min_max', 'true').lower() == 'true'
+        benches_raw = request.args.get('benches', '')
+        benches = [b.strip() for b in benches_raw.split(',') if b.strip()] or None
 
         more_raw = filter(lambda x: x != '', request.args.get('more', '').split(','))
         more = [make_selection_key(key) for key in more_raw]
 
-        can_cache = len(exec_ids) == 1 and not more and drop_min_max
+        if exec_ids:
+            with sqlexec() as sess:
+                for exec_id in exec_ids:
+                    if require_public_exec(sess, exec_id) is None:
+                        return jsonify({"error": "Not found"}), 404
+
+        can_cache = len(exec_ids) == 1 and not more and drop_min_max and not benches
 
         if can_cache:
             with sqlexec() as sess:
@@ -819,7 +875,13 @@ def view_server(config):
                         return jsonify(cached)
 
         with sqlexec() as sess:
-            stmt = sql_direct_report(exec_ids, profile=profile, drop_min_max=drop_min_max, more=more)
+            stmt = sql_direct_report(
+                exec_ids,
+                profile=profile,
+                drop_min_max=drop_min_max,
+                more=more,
+                benches=benches,
+            )
             cursor = sess.execute(stmt)
             results = cursor_to_json(cursor)
 
@@ -877,6 +939,7 @@ def view_server(config):
         stmt = (
             select(Pack.name, func.max(Exec.created_time).label("latest"))
             .join(Exec, Exec._id == Pack.exec_id)
+            .where(public_exec_filter())
             .group_by(Pack.name)
             .order_by(func.max(Exec.created_time).desc(), Pack.name)
         )

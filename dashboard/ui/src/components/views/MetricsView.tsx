@@ -8,17 +8,21 @@ import VegaPlot from '../charts/VegaPlot';
 interface MetricsViewProps {
     selectedPack: Pack;
     executionId: number;
+    shareToken?: string;
 }
 
-export const MetricsView = ({ selectedPack, executionId }: MetricsViewProps) => {
+export const MetricsView = ({ selectedPack, executionId, shareToken }: MetricsViewProps) => {
     const packIdentifier = selectedPack
         ? (selectedPack._id === 0 ? selectedPack.name : selectedPack._id)
         : null;
 
     const { data: metricsData } = useQuery({
-        queryKey: ['packMetrics', executionId, packIdentifier],
+        queryKey: ['packMetrics', shareToken ?? executionId, packIdentifier],
         queryFn: async () => {
-            const response = await api.get(`/exec/${executionId}/packs/${packIdentifier}/metrics`);
+            const path = shareToken
+                ? `/share/${shareToken}/packs/${packIdentifier}/metrics`
+                : `/exec/${executionId}/packs/${packIdentifier}/metrics`;
+            const response = await api.get(path);
             return response.data;
         },
         enabled: !!packIdentifier,

@@ -53,6 +53,8 @@ export interface Execution {
     namespace: string;
     status: string;
     created_time: string;
+    visibility?: number;
+    release_at?: string | null;
 }
 
 export interface Pack {

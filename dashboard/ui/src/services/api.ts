@@ -1,7 +1,11 @@
 import axios, { AxiosError } from 'axios';
 import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse } from './types';
 import { meltPivotRows } from '../utils/pivotToChartData';
-import { parsePivotFieldsFromSearchParams, pivotApiSearchParams } from '../utils/pivotUrlParams';
+import {
+    parsePivotFieldsFromSearchParams,
+    pivotApiSearchParams,
+    pivotMeltApiSearchParams,
+} from '../utils/pivotUrlParams';
 
 
 
@@ -113,6 +117,24 @@ export const getExecution = async (id: number): Promise<Execution> => {
     }
 };
 
+export const getSharedExecution = async (shareToken: string): Promise<Execution> => {
+    try {
+        const response = await api.get(`/share/${shareToken}`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getSharedPacks = async (shareToken: string): Promise<Pack[]> => {
+    try {
+        const response = await api.get(`/share/${shareToken}/packs`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export const getPacks = async (execId: number): Promise<Pack[]> => {
     try {
         const response = await api.get(`/exec/${execId}/packs`);
@@ -171,6 +193,78 @@ export interface GpuSummary {
 export const getGpuSummary = async (): Promise<GpuSummary[]> => {
     try {
         const response = await api.get('/gpu/summary');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface BreakdownWorkload {
+    pack: string;
+    group1: string | null;
+    group2: string | null;
+    group3: string | null;
+    group4: string | null;
+    weight: number;
+    enabled: boolean;
+    priority: number;
+}
+
+export interface BreakdownGpuScore {
+    gpu: string;
+    exec_id: number;
+    run_name: string | null;
+    latest_date: string | null;
+    score: number;
+    bench_count: number;
+    pytorch: string | null;
+    accel_version: string | null;
+}
+
+export const getBreakdownWorkloads = async (): Promise<BreakdownWorkload[]> => {
+    try {
+        const response = await api.get('/breakdown/workloads');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getBreakdownScores = async (
+    benches: string[],
+    perfAgg: string = 'median',
+): Promise<BreakdownGpuScore[]> => {
+    try {
+        const response = await api.get('/gpu/scores', {
+            params: {
+                benches: benches.join(','),
+                perf_agg: perfAgg,
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface ReportScore {
+    exec_id: number;
+    score: number;
+    bench_count: number;
+}
+
+export const getReportScore = async (
+    execIds: string | number | Array<string | number>,
+    benches: string[],
+): Promise<ReportScore | ReportScore[]> => {
+    const exec_ids = (Array.isArray(execIds) ? execIds : [execIds])
+        .map(String)
+        .join(',');
+    try {
+        const response = await api.get('/report/score', {
+            params: { exec_ids, benches: benches.join(',') },
+        });
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -336,7 +430,8 @@ export function normalizePivotResponse(data: unknown): Record<string, unknown>[]
 }
 
 export const getPivot = async (params: URLSearchParams): Promise<Record<string, unknown>[]> => {
-    const query = params.toString();
+    const apiParams = pivotApiSearchParams(params);
+    const query = apiParams.toString();
     const paths = query ? [`/pivot/table?${query}`, `/pivot?${query}`] : ['/pivot/table', '/pivot'];
 
     try {
@@ -395,8 +490,9 @@ function normalizePivotMeltResponse(data: unknown): PivotMeltRows {
 }
 
 export const getPivotMelt = async (params: URLSearchParams): Promise<PivotMeltRows> => {
+    const apiParams = pivotMeltApiSearchParams(params);
     try {
-        const response = await api.get(`/pivot/melt?${params.toString()}`, {
+        const response = await api.get(`/pivot/melt?${apiParams.toString()}`, {
             timeout: PIVOT_CLIENT_TIMEOUT_MS,
         });
         return normalizePivotMeltResponse(response.data);
@@ -420,8 +516,9 @@ export const getPivotMelt = async (params: URLSearchParams): Promise<PivotMeltRo
 };
 
 export const getPivotSpec = async (params: URLSearchParams): Promise<PivotSpecResponse> => {
+    const apiParams = pivotMeltApiSearchParams(params);
     try {
-        const response = await api.get(`/pivot/spec?${params.toString()}`, {
+        const response = await api.get(`/pivot/spec?${apiParams.toString()}`, {
             timeout: PIVOT_CLIENT_TIMEOUT_MS,
         });
         return response.data as PivotSpecResponse;

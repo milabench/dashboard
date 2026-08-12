@@ -1,4 +1,5 @@
 import numbers
+import secrets
 import time
 from collections import defaultdict
 from copy import deepcopy
@@ -55,6 +56,7 @@ class SQLAlchemy:
         meta_tags=None,
         meta_forced=None,
         visibility=0,
+        release_at=None,
         engine=None,
     ) -> None:
         self._owns_engine = engine is None
@@ -87,6 +89,8 @@ class SQLAlchemy:
         self.pending_metrics = []
         self.batch_size = 1000
         self.visibility = visibility
+        self.release_at = release_at
+        self.share_token = None
         self.assertion_error_count = 0
         self.error_count = 0
 
@@ -94,6 +98,7 @@ class SQLAlchemy:
         self.meta = None
         self.run = None
         self._run_id = None
+        self.share_token = None
         self.states = defaultdict(PackState)
 
     @property
@@ -194,19 +199,26 @@ class SQLAlchemy:
             except (ValueError, TypeError, OSError):
                 pass
 
+        share_token = None
+        if self.visibility == 1:
+            share_token = secrets.token_urlsafe(32)
+
         self.run = Exec(
             name=entry.pack.config["run_name"],
             namespace=None,
             created_time=created_time,
             meta=metadata,
             status="running",
-            visibility=self.visibility
+            visibility=self.visibility,
+            share_token=share_token,
+            release_at=self.release_at,
         )
         with self.session() as sesh:
             sesh.add(self.run)
             sesh.commit()
             sesh.refresh(self.run)
             self._run_id = self.run._id
+            self.share_token = self.run.share_token
 
     def on_new_pack(self, entry):
         state = self.pack_state(entry)

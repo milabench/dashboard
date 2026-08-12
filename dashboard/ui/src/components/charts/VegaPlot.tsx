@@ -17,6 +17,8 @@ export interface VegaPlotProps {
     spec: Record<string, any> | SpecBuilder;
     height?: string;
     configOverrides?: Record<string, any>;
+    /** Plot container overflow (dynamic specs default to hidden). */
+    overflow?: 'hidden' | 'visible' | 'auto';
 }
 
 export type VegaPlotHandle = {
@@ -83,7 +85,7 @@ async function buildConfig(
 }
 
 const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
-    { spec, height = '300px', configOverrides },
+    { spec, height = '300px', configOverrides, overflow },
     ref,
 ) {
     const { embed, isLoaded, error: loadError } = useVega();
@@ -205,8 +207,10 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
         );
     }
 
+    const plotOverflow = overflow ?? (usesDynamicSpec ? 'hidden' : 'auto');
+
     return (
-        <Box ref={usesDynamicSpec ? sizeRef : undefined} position="relative" width="100%" height={height}>
+        <Box ref={usesDynamicSpec ? sizeRef : undefined} position="relative" width="100%" height={height} overflow={plotOverflow}>
             {renderError && (
                 <Box p={4} bg="var(--color-btn-danger-subtle)" borderRadius="md" mb={2}>
                     <Text color="var(--color-text-danger)" fontSize="sm">{renderError}</Text>
@@ -216,8 +220,8 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
                 ref={plotRef}
                 width="100%"
                 height={renderError ? `calc(${height} - 4rem)` : height}
-                minH={usesDynamicSpec ? height : '480px'}
-                overflow="auto"
+                minH={usesDynamicSpec ? undefined : '480px'}
+                overflow={plotOverflow}
             />
         </Box>
     );

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from dashboard.server.archive import publish_zipped_run
 from dashboard.server.database.writer import SQLAlchemy
 from dashboard.server.database.models import PushKey
+from dashboard.server.visibility import parse_release_at, share_url_for
 from .db import Database
 from .gpu_summary import refresh_gpu_summary
 from .utils import database_uri
@@ -163,6 +164,46 @@ def push_routes(app, database):
         }
         return meta_tags, meta_forced
 
+    def _public_ui_base_url():
+        origin = request.headers.get("Origin")
+        if origin:
+            return origin.rstrip("/")
+        referer = request.headers.get("Referer")
+        if referer:
+            from urllib.parse import urlparse
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                return f"{parsed.scheme}://{parsed.netloc}"
+        return request.url_root.rstrip("/")
+
+    def _parse_push_visibility():
+        private = request.form.get("private", "").lower() in ("1", "true", "yes")
+        vis = request.form.get("visibility")
+        if vis is not None:
+            try:
+                private = int(vis) == 1
+            except ValueError:
+                pass
+        return private
+
+    def _parse_push_release_at(private):
+        raw = request.form.get("release_at")
+        if not raw:
+            return None
+        try:
+            return parse_release_at(raw)
+        except ValueError as err:
+            raise ValueError(str(err)) from err
+
+    def _writer_kwargs(meta_tags, meta_forced, private, release_at):
+        return dict(
+            engine=database.engine,
+            meta_tags=meta_tags,
+            meta_forced=meta_forced,
+            visibility=1 if private else 0,
+            release_at=release_at if private else None,
+        )
+
     @app.route('/api/push/zip', methods=['POST'])
     def upload_zip_file_legacy():
         """Deprecated non-streaming upload endpoint."""
@@ -190,23 +231,35 @@ def push_routes(app, database):
 
                 user_meta = _parse_upload_metadata()
                 meta_tags, meta_forced = _build_meta_layers(contributor, key_meta, user_meta)
+                private = _parse_push_visibility()
+                try:
+                    release_at = _parse_push_release_at(private)
+                except ValueError as err:
+                    return jsonify({"status": "ERR", "message": str(err)}), 400
+                share_token = None
                 with SQLAlchemy(
-                    engine=database.engine,
-                    meta_tags=meta_tags,
-                    meta_forced=meta_forced,
+                    **_writer_kwargs(meta_tags, meta_forced, private, release_at),
                 ) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
                     exec_id = backend._run_id
+                    share_token = backend.share_token
 
                 _invalidate_report_cache(database, exec_id)
                 if exec_id is not None:
                     refresh_gpu_summary(database.connect)
 
                 os.remove(dest)
-                return jsonify({
+                payload = {
                     "status": "OK",
-                    "message": f"{file.filename} was pushed by {contributor}"
-                })
+                    "message": f"{file.filename} was pushed by {contributor}",
+                }
+                if share_token:
+                    payload["share_token"] = share_token
+                    payload["share_path"] = share_url_for(share_token)
+                    payload["share_url"] = share_url_for(
+                        share_token, _public_ui_base_url()
+                    )
+                return jsonify(payload)
             except Exception as err:
                 return jsonify({
                     "status": "ERR",
@@ -239,6 +292,12 @@ def push_routes(app, database):
 
         user_meta = _parse_upload_metadata()
         meta_tags, meta_forced = _build_meta_layers(contributor, key_meta, user_meta)
+        private = _parse_push_visibility()
+        try:
+            release_at = _parse_push_release_at(private)
+        except ValueError as err:
+            os.remove(dest)
+            return jsonify({"status": "ERR", "message": str(err)}), 400
 
         def generate():
             import time
@@ -285,10 +344,9 @@ def push_routes(app, database):
                     yield _sse("info", {"message": f"Found {len(data)} run(s)", "contributor": contributor})
 
                     pushed_exec_ids = []
+                    pushed_share_links = []
                     with SQLAlchemy(
-                        engine=database.engine,
-                        meta_tags=meta_tags,
-                        meta_forced=meta_forced,
+                        **_writer_kwargs(meta_tags, meta_forced, private, release_at),
                     ) as backend:
                         with multilogger(backend, stop_on_exception=True) as log:
                             for runname, rundata in data.items():
@@ -315,13 +373,29 @@ def push_routes(app, database):
 
                                 if backend._run_id is not None:
                                     pushed_exec_ids.append(backend._run_id)
+                                    if backend.share_token:
+                                        pushed_share_links.append({
+                                            "run": runname,
+                                            "share_token": backend.share_token,
+                                            "share_path": share_url_for(backend.share_token),
+                                            "share_url": share_url_for(
+                                                backend.share_token,
+                                                _public_ui_base_url(),
+                                            ),
+                                        })
 
                     for eid in pushed_exec_ids:
                         _invalidate_report_cache(database, eid)
                     if pushed_exec_ids:
                         refresh_gpu_summary(database.connect)
 
-                yield _sse("done", {"status": "OK", "message": f"{file.filename} pushed by {contributor}"})
+                done_payload = {
+                    "status": "OK",
+                    "message": f"{file.filename} pushed by {contributor}",
+                }
+                if pushed_share_links:
+                    done_payload["share_links"] = pushed_share_links
+                yield _sse("done", done_payload)
 
             except Exception as err:
                 yield _sse("error", {"status": "ERR", "message": str(err), "traceback": traceback.format_exc()})

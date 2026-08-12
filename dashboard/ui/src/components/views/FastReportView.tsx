@@ -15,6 +15,7 @@ import { api } from '../../services/api';
 
 interface FastReportViewProps {
     executionId: string | number;
+    shareToken?: string;
     onClose: () => void;
 }
 
@@ -109,7 +110,11 @@ const columnPriority = {
     'weight': 9,
 }
 
-export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onClose: _onClose }) => {
+export const FastReportView: React.FC<FastReportViewProps> = ({
+    executionId,
+    shareToken,
+    onClose: _onClose,
+}) => {
     const [reportData, setReportData] = React.useState<any>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -121,12 +126,17 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
             setIsLoading(true);
             setError(null);
 
-            const response = await api.get(`/report/fast`, {
-                params: {
+            const endpoint = shareToken
+                ? `/share/${shareToken}/report/fast`
+                : `/report/fast`;
+            const params = shareToken
+                ? { drop_min_max: dropMinMaxValue.toString() }
+                : {
                     exec_ids: executionId,
-                    drop_min_max: dropMinMaxValue.toString()
-                }
-            });
+                    drop_min_max: dropMinMaxValue.toString(),
+                };
+
+            const response = await api.get(endpoint, { params });
 
             setReportData(response.data);
         } catch (err) {
@@ -145,7 +155,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({ executionId, onC
 
     React.useEffect(() => {
         fetchFastReport(dropMinMax);
-    }, [executionId, dropMinMax]);
+    }, [executionId, shareToken, dropMinMax]);
 
     const handleDropMinMaxToggle = (value: boolean) => {
         setDropMinMax(value);

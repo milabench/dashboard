@@ -326,7 +326,10 @@ def parse_pivot_fields_from_request_args(args) -> list[dict[str, Any]]:
             elif isinstance(decoded, dict):
                 for field, aggregators in decoded.items():
                     aggs = aggregators if isinstance(aggregators, list) else [aggregators]
-                    fields.append({"field": field, "type": "value", "aggregators": aggs[:1]})
+                    if not aggs:
+                        aggs = ["avg"]
+                    for agg in aggs:
+                        fields.append({"field": field, "type": "value", "aggregators": [agg]})
         except Exception:
             pass
 

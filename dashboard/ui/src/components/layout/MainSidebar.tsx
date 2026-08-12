@@ -15,6 +15,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: 'Dashboard', path: '/dashboard', env: 'dev' },
     { label: 'Latest Executions', path: '/executions' },
+    { label: 'Breakdown', path: '/breakdown' },
     {
         label: 'Slurm',
         env: "dev",

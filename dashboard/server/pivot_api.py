@@ -32,6 +32,41 @@ def rename_column(col: str) -> str:
     return f"{col} as {col.replace(':', '_')}"
 
 
+def normalize_pivot_values(decoded: Any) -> dict[str, list[str]]:
+    """Accept URL array format or legacy map format for pivot value fields."""
+    if isinstance(decoded, list):
+        values: dict[str, list[str]] = {}
+        for item in decoded:
+            if not isinstance(item, dict):
+                continue
+            field = item.get("field")
+            if not field:
+                continue
+            aggs = item.get("aggregators") or ["avg"]
+            if not isinstance(aggs, list):
+                aggs = [aggs]
+            if not aggs:
+                aggs = ["avg"]
+            key = rename_column(str(field))
+            values.setdefault(key, []).extend(str(agg) for agg in aggs)
+        return values
+
+    if isinstance(decoded, dict):
+        normalized: dict[str, list[str]] = {}
+        for key, aggregators in decoded.items():
+            key = rename_column(str(key))
+            if isinstance(aggregators, list):
+                aggs = aggregators
+            else:
+                aggs = [aggregators]
+            if not aggs:
+                aggs = ["avg"]
+            normalized[key] = [str(agg) for agg in aggs]
+        return normalized
+
+    return {}
+
+
 def parse_pivot_request_args(args) -> tuple[list[str], list[str], dict[str, list[str]], list[dict[str, Any]]]:
     rows = args.get("rows", "").split(",") if args.get("rows") else ["run", "gpu", "pytorch", "bench"]
     rows = [rename_column(row.strip()) for row in rows if row.strip()]
@@ -39,8 +74,7 @@ def parse_pivot_request_args(args) -> tuple[list[str], list[str], dict[str, list
     cols = args.get("cols", "").split(",") if args.get("cols") else ["metric"]
     cols = [rename_column(col.strip()) for col in cols if col.strip()]
 
-    values = json.loads(base64.b64decode(args.get("values", "e30=")))
-    values = {rename_column(key): value for key, value in values.items()}
+    values = normalize_pivot_values(json.loads(base64.b64decode(args.get("values", "e30="))))
 
     filters: list[dict[str, Any]] = []
     if args.get("filters"):

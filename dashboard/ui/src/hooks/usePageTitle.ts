@@ -25,6 +25,7 @@ export const usePageTitle = (title: string, suffix: string = "Milabench Dashboar
 export const getTitleForRoute = (pathname: string): string => {
     if (pathname === '/') return 'Dashboard';
     if (pathname === '/executions') return 'Latest Executions';
+    if (pathname === '/breakdown') return 'Breakdown';
     if (pathname.startsWith('/executions/')) return 'Execution Report';
     if (pathname === '/pivot') return 'Pivot View';
     if (pathname === '/pivot/plot') return 'Pivot Plot';

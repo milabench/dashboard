@@ -12,6 +12,7 @@ import { PivotView } from './components/views/PivotView';
 import { PivotPlotPage } from './components/views/PivotPlotPage';
 import { PivotTableSharePage } from './components/views/PivotTableSharePage';
 import { PivotPlotSharePage } from './components/views/PivotPlotSharePage';
+import { ShareExecutionReport } from './components/views/ShareExecutionReport';
 import { ExecutionReport } from './components/views/ExecutionReport';
 import { ExplorerView } from './components/views/ExplorerView';
 import { Profile } from './components/views/Profile';
@@ -31,6 +32,7 @@ import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { SupportedGpusView } from './components/views/SupportedGpusView';
 import { GpuComparisonView } from './components/views/GpuEvolutionView';
 import { BenchmarkHistoryView } from './components/views/BenchmarkHistoryView';
+import { BreakdownView } from './components/views/BreakdownView';
 import { ScheduledJobsView } from './components/views/ScheduledJobsView';
 import { Toaster } from "./components/ui/toaster"
 import { VegaProvider } from './contexts/VegaContext'
@@ -73,7 +75,9 @@ function App() {
                 )}
 
                 <Route path="/executions" element={<Executions />} />
+                <Route path="/breakdown" element={<BreakdownView />} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />
+                <Route path="/share/:token" element={<ShareExecutionReport />} />
                 <Route path="/pivot/view/table" element={<PivotTableSharePage />} />
                 <Route path="/pivot/view/plot" element={<PivotPlotSharePage />} />
                 <Route path="/pivot" element={<PivotView />} />

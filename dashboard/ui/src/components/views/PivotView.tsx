@@ -28,7 +28,7 @@ import { LuX } from 'react-icons/lu';
 import {
     hasPivotUrlConfig,
     parsePivotFieldsFromSearchParams,
-    encodePivotValuesForApi,
+    encodePivotValuesParam,
     encodePivotFieldLabels,
     savedQueryParametersToSearchParams,
     PIVOT_SAVED_QUERY_URL,
@@ -482,7 +482,7 @@ export const PivotView = () => {
 
         params.append('rows', rows.join(','));
         params.append('cols', cols.join(','));
-        params.append('values', encodePivotValuesForApi(fields));
+        params.append('values', encodePivotValuesParam(fields));
 
         const filters = fields.filter(f => f.type === 'filter').map(f => ({
             field: f.field,
@@ -1208,10 +1208,7 @@ export const PivotView = () => {
                 parameters: {
                     rows: fields.filter(f => f.type === 'row').map(f => f.field).join(','),
                     cols: fields.filter(f => f.type === 'column').map(f => f.field).join(','),
-                    values: btoa(JSON.stringify(fields.filter(f => f.type === 'value').map(f => ({
-                        field: f.field,
-                        aggregators: f.aggregators || ['avg'],
-                    })))),
+                    values: encodePivotValuesParam(fields),
                     filters: fields.filter(f => f.type === 'filter').length > 0
                         ? btoa(JSON.stringify(fields.filter(f => f.type === 'filter').map(f => ({
                             field: f.field,
