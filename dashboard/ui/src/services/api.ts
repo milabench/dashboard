@@ -248,6 +248,42 @@ export const getBreakdownScores = async (
     }
 };
 
+export interface BreakdownMatrixGpu {
+    key: string;
+    gpu: string;
+    exec_id: number;
+    total_score: number;
+}
+
+export interface BreakdownMatrixBench {
+    bench: string;
+    weight: number;
+    scores: Record<string, number>;
+}
+
+export interface BreakdownMatrix {
+    gpus: BreakdownMatrixGpu[];
+    benches: BreakdownMatrixBench[];
+}
+
+export const getBreakdownMatrix = async (
+    benches: string[],
+    perfAgg: string = 'median',
+): Promise<BreakdownMatrix> => {
+    try {
+        const response = await api.get('/breakdown/matrix', {
+            params: {
+                benches: benches.join(','),
+                perf_agg: perfAgg,
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export interface ReportScore {
     exec_id: number;
     score: number;

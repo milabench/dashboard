@@ -135,6 +135,71 @@ def gpu_scores(
     return results
 
 
+def breakdown_matrix(
+    sqlexec,
+    profile: str,
+    benches: list[str],
+    *,
+    perf_agg: str = DEFAULT_PERF_AGG,
+) -> dict:
+    """Benchmark rows × GPU columns matrix of per-bench scores."""
+    from dashboard.server.gpu_summary import _live_query
+
+    gpu_rows = _live_query(sqlexec)
+    if not gpu_rows:
+        return {"gpus": [], "benches": []}
+
+    exec_ids = [str(r["exec_id"]) for r in gpu_rows]
+    with sqlexec() as sess:
+        stmt = sql_direct_report(
+            exec_ids,
+            profile=profile,
+            benches=benches,
+            perf_agg=perf_agg,
+        )
+        cursor = sess.execute(stmt)
+        report_by_exec: dict[int, list[dict]] = defaultdict(list)
+        for row in cursor_to_json(cursor):
+            report_by_exec[int(row["exec_id"])].append(row)
+
+    gpu_columns = []
+    for gpu_row in gpu_rows:
+        exec_id = int(gpu_row["exec_id"])
+        total_score, _ = aggregate_score(report_by_exec.get(exec_id, []))
+        gpu_columns.append(
+            {
+                "key": str(exec_id),
+                "gpu": _strip_json_text(gpu_row["gpu"]),
+                "exec_id": exec_id,
+                "total_score": round(total_score, 2),
+            }
+        )
+    gpu_columns.sort(key=lambda col: (-col["total_score"], col["gpu"] or ""))
+
+    bench_map: dict[str, dict] = {}
+    for exec_id, rows in report_by_exec.items():
+        col_key = str(exec_id)
+        for row in rows:
+            bench = row["bench"]
+            enabled = float(row.get("enabled") or 0)
+            weight = float(row.get("weight") or 0)
+            if enabled <= 0 or weight <= 0:
+                continue
+            entry = bench_map.get(bench)
+            if entry is None:
+                entry = {
+                    "bench": bench,
+                    "weight": weight,
+                    "order": float(row.get("order") or 999),
+                    "scores": {},
+                }
+                bench_map[bench] = entry
+            entry["scores"][col_key] = round(float(row.get("score") or 0), 2)
+
+    bench_rows = sorted(bench_map.values(), key=lambda r: (r["order"], r["bench"]))
+    return {"gpus": gpu_columns, "benches": bench_rows}
+
+
 def exec_scores(
     sqlexec,
     profile: str,
@@ -192,6 +257,19 @@ def breakdown_routes(app, sqlexec):
             return jsonify({"error": "benches is required (comma-separated pack names)"}), 400
 
         return jsonify(gpu_scores(sqlexec, profile, benches, perf_agg=perf_agg))
+
+    @app.route("/api/breakdown/matrix")
+    def api_breakdown_matrix():
+        """Per-benchmark scores across GPUs (bench rows, GPU columns)."""
+        profile = request.cookies.get("scoreProfile") or request.args.get("profile") or "default"
+        perf_agg = parse_perf_agg(request.args.get("perf_agg"))
+        benches = parse_benches_arg(request.args.get("benches"))
+        if not benches:
+            return jsonify({"error": "benches is required (comma-separated pack names)"}), 400
+
+        return jsonify(
+            breakdown_matrix(sqlexec, profile, benches, perf_agg=perf_agg)
+        )
 
     @app.route("/api/report/score")
     def api_report_score():

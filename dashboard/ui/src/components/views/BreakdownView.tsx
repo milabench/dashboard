@@ -34,6 +34,7 @@ import {
     type BreakdownSelection,
 } from '../../utils/breakdownUrlParams';
 import {
+    getBreakdownMatrix,
     getBreakdownScores,
     getBreakdownWorkloads,
     type BreakdownGpuScore,
@@ -57,13 +58,7 @@ function formatScore(score: number): string {
     return score.toFixed(2);
 }
 
-function formatPct(pct: number): string {
-    return `${pct.toFixed(2)}%`;
-}
-
-const SCORE_COL_W = '6.5rem';
-const PCT_COL_W = '4.5rem';
-const TABLE_COL_W = '300px';
+const REPORT_COL_MIN = '360px';
 
 const numericCellStyle = {
     fontVariantNumeric: 'tabular-nums',
@@ -305,6 +300,7 @@ export const BreakdownView: React.FC = () => {
     const [perfAgg, setPerfAgg] = useState<BreakdownPerfAgg>(DEFAULT_BREAKDOWN_PERF_AGG);
     const [draftPerfAgg, setDraftPerfAgg] = useState<BreakdownPerfAgg>(DEFAULT_BREAKDOWN_PERF_AGG);
     const [initialized, setInitialized] = useState(false);
+    const [showReport, setShowReport] = useState(false);
     const { open: advancedOpen, onOpen: onAdvancedOpen, onClose: onAdvancedClose, setOpen: setAdvancedOpen } =
         useDisclosure();
 
@@ -469,6 +465,16 @@ export const BreakdownView: React.FC = () => {
         enabled: initialized && packsParam.length > 0,
     });
 
+    const {
+        data: matrix,
+        isLoading: loadingMatrix,
+        isFetching: fetchingMatrix,
+    } = useQuery({
+        queryKey: ['breakdownMatrix', profile, packsParam.join(','), perfAgg],
+        queryFn: () => getBreakdownMatrix(packsParam, perfAgg),
+        enabled: initialized && showReport && packsParam.length > 0,
+    });
+
     const openAdvancedModal = useCallback(() => {
         setDraftPerfAgg(perfAgg);
         onAdvancedOpen();
@@ -491,15 +497,6 @@ export const BreakdownView: React.FC = () => {
             };
         });
     }, [scores]);
-
-    const tableData = useMemo(() => {
-        const sorted = [...plotData].sort((a, b) => b.score - a.score);
-        const topScore = sorted[0]?.score ?? 0;
-        return sorted.map((row) => ({
-            ...row,
-            pctOfTop: topScore > 0 ? (row.score / topScore) * 100 : 0,
-        }));
-    }, [plotData]);
 
     const gpuColorScale = useMemo(
         () => buildGpuColorScale(plotData.map((d) => d.gpu)),
@@ -598,9 +595,20 @@ export const BreakdownView: React.FC = () => {
                     <Text fontSize="2xl" fontWeight="bold">
                         Breakdown
                     </Text>
-                    <Button size="sm" variant="outline" onClick={openAdvancedModal}>
-                        Advanced
-                    </Button>
+                    <HStack gap={2}>
+                        <Button
+                            size="sm"
+                            variant={showReport ? 'solid' : 'outline'}
+                            colorPalette={showReport ? 'blue' : undefined}
+                            onClick={() => setShowReport((open) => !open)}
+                            disabled={!selectedPacks.length}
+                        >
+                            Report
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={openAdvancedModal}>
+                            Advanced
+                        </Button>
+                    </HStack>
                 </HStack>
                 <Text color="fg.muted" mb={4}>
                     Score per GPU (latest run) — weighted geomean — profile{' '}
@@ -639,7 +647,10 @@ export const BreakdownView: React.FC = () => {
                 ) : (
                     <Box
                         display="grid"
-                        gridTemplateColumns={{ base: '1fr', xl: `minmax(0, 1fr) ${TABLE_COL_W}` }}
+                        gridTemplateColumns={{
+                            base: '1fr',
+                            xl: showReport ? `minmax(0, 1fr) minmax(${REPORT_COL_MIN}, 1fr)` : '1fr',
+                        }}
                         gap={4}
                         alignItems="start"
                         w="100%"
@@ -647,83 +658,154 @@ export const BreakdownView: React.FC = () => {
                         <Box minW={0}>
                             <VegaPlot spec={specBuilder} height={`${chartHeightPx}px`} />
                         </Box>
-                        <Box
-                            w={{ base: '100%', xl: TABLE_COL_W }}
-                            maxW="100%"
-                            flexShrink={0}
-                            borderLeftWidth={{ base: 0, xl: '1px' }}
-                            borderColor="var(--color-border)"
-                            pl={{ base: 0, xl: 4 }}
-                            pt={{ base: 4, xl: 0 }}
-                            borderTopWidth={{ base: '1px', xl: 0 }}
-                        >
-                            <Table.Root
-                                variant="line"
-                                size="sm"
-                                style={{ tableLayout: 'fixed', width: '100%' }}
+                        {showReport ? (
+                            <Box
+                                w="100%"
+                                minW={0}
+                                flexShrink={0}
+                                borderLeftWidth={{ base: 0, xl: '1px' }}
+                                borderColor="var(--color-border)"
+                                pl={{ base: 0, xl: 4 }}
+                                pt={{ base: 4, xl: 0 }}
+                                borderTopWidth={{ base: '1px', xl: 0 }}
                             >
-                                <Table.Header>
-                                    <Table.Row>
-                                        <Table.ColumnHeader fontSize="xs" px={2} py={2}>
-                                            GPU
-                                        </Table.ColumnHeader>
-                                        <Table.ColumnHeader
-                                            fontSize="xs"
-                                            px={2}
-                                            py={2}
-                                            textAlign="right"
-                                            w={SCORE_COL_W}
+                                <Text fontSize="xs" color="fg.muted" mb={2}>
+                                    Per-benchmark scores · total = weighted geomean (
+                                    {breakdownPerfAggLabel(perfAgg)} perf)
+                                </Text>
+                                {loadingMatrix || fetchingMatrix ? (
+                                    <HStack justify="center" minH={`${chartHeightPx}px`}>
+                                        <Spinner size="sm" />
+                                        <Text color="fg.muted" fontSize="sm">
+                                            Loading report…
+                                        </Text>
+                                    </HStack>
+                                ) : !matrix?.gpus.length ? (
+                                    <Text color="fg.muted" fontSize="sm" minH={`${chartHeightPx}px`} pt={8}>
+                                        No GPU scores for this selection.
+                                    </Text>
+                                ) : (
+                                    <Box overflowX="auto" w="100%">
+                                        <Table.Root
+                                            variant="line"
+                                            size="sm"
+                                            css={{
+                                                backgroundColor: 'transparent',
+                                                '& thead, & tbody, & tr, & th, & td': {
+                                                    backgroundColor: 'transparent',
+                                                },
+                                                '& thead th': {
+                                                    fontWeight: 'bold',
+                                                },
+                                                '& tbody td:first-of-type': {
+                                                    fontWeight: 'bold',
+                                                },
+                                                '& tbody tr:hover td': {
+                                                    backgroundColor: 'var(--color-bg-hover)',
+                                                },
+                                            }}
                                         >
-                                            Score
-                                        </Table.ColumnHeader>
-                                        <Table.ColumnHeader
-                                            fontSize="xs"
-                                            px={2}
-                                            py={2}
-                                            textAlign="right"
-                                            w={PCT_COL_W}
-                                        >
-                                            %
-                                        </Table.ColumnHeader>
-                                    </Table.Row>
-                                </Table.Header>
-                                <Table.Body>
-                                    {tableData.map((row) => (
-                                        <Table.Row
-                                            key={`${row.exec_id}-${row.gpu}`}
-                                            _hover={{ bg: 'var(--color-bg-hover)' }}
-                                        >
-                                            <Table.Cell fontSize="xs" px={2} py={2} truncate title={row.gpu}>
-                                                {row.gpu}
-                                            </Table.Cell>
-                                            <Table.Cell
-                                                fontSize="xs"
-                                                px={2}
-                                                py={2}
-                                                textAlign="right"
-                                                w={SCORE_COL_W}
-                                                fontFamily="mono"
-                                                css={numericCellStyle}
-                                            >
-                                                {formatScore(row.score)}
-                                            </Table.Cell>
-                                            <Table.Cell
-                                                fontSize="xs"
-                                                px={2}
-                                                py={2}
-                                                textAlign="right"
-                                                w={PCT_COL_W}
-                                                fontFamily="mono"
-                                                color="fg.muted"
-                                                css={numericCellStyle}
-                                            >
-                                                {formatPct(row.pctOfTop)}
-                                            </Table.Cell>
-                                        </Table.Row>
-                                    ))}
-                                </Table.Body>
-                            </Table.Root>
-                        </Box>
+                                            <Table.Header>
+                                                <Table.Row>
+                                                    <Table.ColumnHeader
+                                                        fontSize="xs"
+                                                        px={2}
+                                                        py={2}
+                                                        minW="10rem"
+                                                    >
+                                                        Benchmark
+                                                    </Table.ColumnHeader>
+                                                    <Table.ColumnHeader
+                                                        fontSize="xs"
+                                                        px={2}
+                                                        py={2}
+                                                        textAlign="right"
+                                                        w="4.5rem"
+                                                    >
+                                                        Weight
+                                                    </Table.ColumnHeader>
+                                                    {matrix.gpus.map((gpuCol) => (
+                                                        <Table.ColumnHeader
+                                                            key={gpuCol.key}
+                                                            fontSize="xs"
+                                                            px={2}
+                                                            py={2}
+                                                            textAlign="right"
+                                                            minW="5rem"
+                                                            title={`exec ${gpuCol.exec_id}`}
+                                                        >
+                                                            {gpuCol.gpu}
+                                                        </Table.ColumnHeader>
+                                                    ))}
+                                                </Table.Row>
+                                            </Table.Header>
+                                            <Table.Body>
+                                                {matrix.benches.map((benchRow) => (
+                                                    <Table.Row key={benchRow.bench}>
+                                                        <Table.Cell
+                                                            fontSize="xs"
+                                                            px={2}
+                                                            py={2}
+                                                            title={benchRow.bench}
+                                                            maxW="16rem"
+                                                            truncate
+                                                        >
+                                                            {benchRow.bench}
+                                                        </Table.Cell>
+                                                        <Table.Cell
+                                                            fontSize="xs"
+                                                            px={2}
+                                                            py={2}
+                                                            textAlign="right"
+                                                            fontFamily="mono"
+                                                            color="fg.muted"
+                                                            css={numericCellStyle}
+                                                        >
+                                                            {benchRow.weight}
+                                                        </Table.Cell>
+                                                        {matrix.gpus.map((gpuCol) => {
+                                                            const score = benchRow.scores[gpuCol.key];
+                                                            return (
+                                                                <Table.Cell
+                                                                    key={gpuCol.key}
+                                                                    fontSize="xs"
+                                                                    px={2}
+                                                                    py={2}
+                                                                    textAlign="right"
+                                                                    fontFamily="mono"
+                                                                    css={numericCellStyle}
+                                                                >
+                                                                    {score != null ? formatScore(score) : '—'}
+                                                                </Table.Cell>
+                                                            );
+                                                        })}
+                                                    </Table.Row>
+                                                ))}
+                                                <Table.Row css={{ borderTop: '2px solid var(--color-border)' }}>
+                                                    <Table.Cell fontSize="xs" px={2} py={2}>
+                                                        Total
+                                                    </Table.Cell>
+                                                    <Table.Cell fontSize="xs" px={2} py={2} />
+                                                    {matrix.gpus.map((gpuCol) => (
+                                                        <Table.Cell
+                                                            key={gpuCol.key}
+                                                            fontSize="xs"
+                                                            px={2}
+                                                            py={2}
+                                                            textAlign="right"
+                                                            fontFamily="mono"
+                                                            css={numericCellStyle}
+                                                        >
+                                                            {formatScore(gpuCol.total_score)}
+                                                        </Table.Cell>
+                                                    ))}
+                                                </Table.Row>
+                                            </Table.Body>
+                                        </Table.Root>
+                                    </Box>
+                                )}
+                            </Box>
+                        ) : null}
                     </Box>
                 )}
             </Box>
