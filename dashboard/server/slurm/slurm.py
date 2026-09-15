@@ -636,7 +636,7 @@ def local_command(*args, timeout=10):
         }
 
 
-def slurm_integration(app, cache, database):
+def slurm_integration(app, bp, cache, database):
     """Add Slurm integration routes to the Flask app"""
 
     from pathlib import Path
@@ -755,12 +755,12 @@ def slurm_integration(app, cache, database):
     app._do_slurm_submit = _do_slurm_submit
 
     from .scheduled import scheduled_jobs_routes
-    scheduled_jobs_routes(app, cache, database)
+    scheduled_jobs_routes(app, bp, cache, database)
 
     book_keeping()
     app.scheduler.add_job(book_keeping, 'interval', seconds=3600)
 
-    @app.route('/api/slurm/jobs/persited/old')
+    @bp.route('/api/slurm/jobs/persited/old')
     def api_slurm_persisted_old():
         """Get a list of job output still available"""
         try:
@@ -790,11 +790,11 @@ def slurm_integration(app, cache, database):
             traceback.print_exec()
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/persited')
+    @bp.route('/api/slurm/jobs/persited')
     def api_slurm_persisted():
         return api_slurm_persisted_limited(100)
 
-    @app.route("/api/slurm/status")
+    @bp.route("/api/slurm/status")
     def api_slurm_status():
         # this works even during maintenance
         # nc -z -w 2 login.server.mila.quebec 2222
@@ -810,7 +810,7 @@ def slurm_integration(app, cache, database):
             "reason": result["stderr"]
         }
 
-    @app.route('/api/slurm/jobs/persited/<int:limit>')
+    @bp.route('/api/slurm/jobs/persited/<int:limit>')
     def api_slurm_persisted_limited(limit=None):
         """Get a list of job output still available"""
         try:
@@ -933,7 +933,7 @@ def slurm_integration(app, cache, database):
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/all')
+    @bp.route('/api/slurm/jobs/all')
     def api_slurm_all_jobs():
         """Get list of all slurm jobs"""
         try:
@@ -950,7 +950,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<int:job_id>')
+    @bp.route('/api/slurm/jobs/<int:job_id>')
     def api_slurm_active_job_status(job_id):
         """Get list of all slurm jobs"""
         job_id = validate_slurm_job_id(job_id)
@@ -969,7 +969,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/old/<int:job_id>')
+    @bp.route('/api/slurm/jobs/old/<int:job_id>')
     def api_slurm_old_job_status(job_id):
         """Get list of all slurm jobs"""
         job_id = validate_slurm_job_id(job_id)
@@ -989,7 +989,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': str(e)}), 500
 
     # List jobs
-    @app.route('/api/slurm/jobs')
+    @bp.route('/api/slurm/jobs')
     def api_slurm_jobs():
         """Get list of pending slurm jobs"""
         try:
@@ -1021,7 +1021,7 @@ def slurm_integration(app, cache, database):
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/job/save/<string:jr_job_id>/<string:message>')
+    @bp.route('/api/slurm/job/save/<string:jr_job_id>/<string:message>')
     def api_slurm_save_job(jr_job_id: str, message: str):
         try:
             if rsync_jobrunner_job(jr_job_id) == 0:
@@ -1036,7 +1036,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': str(e)}), 500
 
 
-    @app.route('/api/slurm/rerun/<string:jr_job_id>')
+    @bp.route('/api/slurm/rerun/<string:jr_job_id>')
     def api_slurm_rerun(jr_job_id: str):
         """Rerun a previous job"""
 
@@ -1110,7 +1110,7 @@ def slurm_integration(app, cache, database):
         else:
             return jsonify({'error': result['stderr']}), 500
 
-    @app.route('/api/slurm/jobs/<string:jr_job_id>/script')
+    @bp.route('/api/slurm/jobs/<string:jr_job_id>/script')
     def api_slurm_job_script(jr_job_id: str):
         """Get the script and sbatch args used for a previous job"""
         try:
@@ -1161,7 +1161,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/earlysync/<job_id>')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/earlysync/<job_id>')
     def api_early_sync(jr_job_id, job_id):
         # This can happen quite frequently because it is (compute node -> local)
         squeue_info = safe_job_path(jr_job_id, "meta", "info.json")
@@ -1184,7 +1184,7 @@ def slurm_integration(app, cache, database):
 
 
     # Submit job
-    @app.route('/api/slurm/submit', methods=['POST'])
+    @bp.route('/api/slurm/submit', methods=['POST'])
     def api_slurm_submit():
         """Submit a new Slurm job"""
         try:
@@ -1202,7 +1202,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': str(e)}), 500
 
     # Cancel job
-    @app.route('/api/slurm/cancel/<job_id>', methods=['POST'])
+    @bp.route('/api/slurm/cancel/<job_id>', methods=['POST'])
     def api_slurm_cancel(job_id):
         """Cancel a Slurm job"""
         job_id = validate_slurm_job_id(job_id)
@@ -1263,7 +1263,7 @@ def slurm_integration(app, cache, database):
 
         return data
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/acc/<job_id>')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/acc/<job_id>')
     @local_cache("acc.json", "jr_job_id", check_validation=job_acc_cache_status)
     def api_slurm_job_acc(jr_job_id, job_id=None):
         """Get logs for a specific job"""
@@ -1287,7 +1287,7 @@ def slurm_integration(app, cache, database):
         except Exception:
             return False
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/info/<job_id>')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/info/<job_id>')
     @local_cache("info.json", "jr_job_id", check_validation=job_info_cache_status)
     def api_slurm_job_info(jr_job_id, job_id=None):
         """Get logs for a specific job"""
@@ -1356,7 +1356,7 @@ def slurm_integration(app, cache, database):
     def is_job_state_terminal(jr_job_id, job_id):
         return is_state_terminal(get_cached_state(jr_job_id, job_id))
 
-    @app.route('/api/slurm/jobs/<string:jr_job_id>/status/<int:job_id>')
+    @bp.route('/api/slurm/jobs/<string:jr_job_id>/status/<int:job_id>')
     def api_slurm_job_status(jr_job_id, job_id):
         """Get the job Status"""
 
@@ -1366,12 +1366,12 @@ def slurm_integration(app, cache, database):
             "status": cached_state
         }
   
-    @app.route('/api/slurm/jobs/<jr_job_id>/info')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/info')
     @local_cache("info.json", "jr_job_id", check_validation=job_info_cache_status)
     def api_slurm_job_info_cached(jr_job_id):
         return api_slurm_job_info(jr_job_id=jr_job_id, job_id=None)
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stdout/size')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stdout/size')
     def api_slurm_job_stdout_size(jr_job_id):
         """Get logs for a specific job"""
         try:
@@ -1387,12 +1387,12 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stdout')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stdout')
     def api_slurm_job_stdout_base(jr_job_id):
         """Get logs for a specific job"""
         return api_slurm_job_stdout_extended(jr_job_id=jr_job_id)
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stdout/<int:start>/<int:end>')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stdout/<int:start>/<int:end>')
     @job_rsync_load("log.stdout", "jr_job_id")
     def api_slurm_job_stdout_extended(jr_job_id, start=None, end=None):
         """Get logs for a specific job"""
@@ -1406,7 +1406,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stderr/size')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stderr/size')
     def api_slurm_job_stderr_size(jr_job_id):
         """Get logs for a specific job"""
         try:
@@ -1422,13 +1422,13 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stderr')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stderr')
     @job_rsync_load("log.stderr", "jr_job_id")
     def api_slurm_job_stderr_base(jr_job_id):
         """Get logs for a specific job"""
         return api_slurm_job_stderr_extend(jr_job_id=jr_job_id)
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stderr/<int:start>/<int:end>')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stderr/<int:start>/<int:end>')
     @job_rsync_load("log.stderr", "jr_job_id")
     def api_slurm_job_stderr_extend(jr_job_id, start=None, end=None):
         """Get logs for a specific job"""
@@ -1441,7 +1441,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stdout/tail')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stdout/tail')
     def api_slurm_job_stdout_tail(jr_job_id):
         """Get logs for a specific job"""
         try:
@@ -1454,7 +1454,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/slurm/jobs/<jr_job_id>/stderr/tail')
+    @bp.route('/api/slurm/jobs/<jr_job_id>/stderr/tail')
     def api_slurm_job_stderr_tail(jr_job_id):
         """Get logs for a specific job"""
         try:
@@ -1468,7 +1468,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': str(e)}), 500
 
     # Get available templates from slurm folder
-    @app.route('/api/slurm/templates')
+    @bp.route('/api/slurm/templates')
     def api_slurm_templates():
         """Get list of available templates from milabench/scripts/slurm folder"""
         try:
@@ -1480,7 +1480,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': f'Failed to load templates: {str(e)}'}), 500
 
     # Get specific template content
-    @app.route('/api/slurm/templates/<template_name>')
+    @bp.route('/api/slurm/templates/<template_name>')
     def api_slurm_template_content(template_name):
         """Get content of a specific template"""
         try:
@@ -1501,7 +1501,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': f'Failed to load template: {str(e)}'}), 500
 
     # Save custom template
-    @app.route('/api/slurm/save-template', methods=['POST'])
+    @bp.route('/api/slurm/save-template', methods=['POST'])
     def api_slurm_save_template():
         """Save a custom template to the templates folder"""
         try:
@@ -1530,7 +1530,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': f'Failed to save template: {str(e)}'}), 500
 
     # Get available clusters
-    @app.route('/api/slurm/clusters')
+    @bp.route('/api/slurm/clusters')
     def api_slurm_clusters():
         """Get available cluster configurations"""
         clusters = []
@@ -1542,7 +1542,7 @@ def slurm_integration(app, cache, database):
         return jsonify(clusters)
 
     # Get available Slurm config profiles
-    @app.route('/api/slurm/profiles')
+    @bp.route('/api/slurm/profiles')
     def api_slurm_profiles():
         """Get available Slurm configuration profiles"""
         import yaml
@@ -1578,7 +1578,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': f'Failed to load profiles: {str(e)}'}), 500
 
     # Save custom profile
-    @app.route('/api/slurm/save-profile', methods=['POST'])
+    @bp.route('/api/slurm/save-profile', methods=['POST'])
     def api_slurm_save_profile():
         """Save a custom profile to the YAML file"""
         try:
@@ -1622,12 +1622,12 @@ def slurm_integration(app, cache, database):
     #
     # Secrets management routes
     #
-    @app.route('/api/slurm/secrets/list')
+    @bp.route('/api/slurm/secrets/list')
     def api_slurm_secrets_list():
         """List available secret names (never values)."""
         return jsonify(app.secret_store.list_available())
 
-    @app.route('/api/slurm/secrets/test/<string:name>')
+    @bp.route('/api/slurm/secrets/test/<string:name>')
     def api_slurm_secrets_test(name):
         """Resolve a secret and return a masked preview."""
         value = app.secret_store.get(name)
@@ -1635,7 +1635,7 @@ def slurm_integration(app, cache, database):
             return jsonify({'error': f'Secret "{name}" not found'}), 404
         return jsonify({'name': name, 'masked': mask_value(value)})
 
-    @app.route('/api/slurm/secrets/set', methods=['POST'])
+    @bp.route('/api/slurm/secrets/set', methods=['POST'])
     def api_slurm_secrets_set():
         """Add or update a secret in the .secrets file."""
         data = request.json
@@ -1653,7 +1653,7 @@ def slurm_integration(app, cache, database):
         app.secret_store.clear_cache()
         return jsonify({'success': True, 'message': f'Secret "{key}" saved'})
 
-    @app.route('/api/slurm/secrets/delete/<string:name>', methods=['DELETE'])
+    @bp.route('/api/slurm/secrets/delete/<string:name>', methods=['DELETE'])
     def api_slurm_secrets_delete(name):
         """Remove a secret from the .secrets file."""
         fp = app.secret_store.file_provider()
@@ -1669,7 +1669,7 @@ def slurm_integration(app, cache, database):
     #
     # Pipeline routes
     #
-    @app.route('/api/slurm/pipeline/template/list')
+    @bp.route('/api/slurm/pipeline/template/list')
     def api_pipeline_list():
         try:
             return jsonify([str(f[:-5]) for f in os.listdir(PIPELINE_DEF)])
@@ -1677,7 +1677,7 @@ def slurm_integration(app, cache, database):
         except Exception as e:
             return jsonify({'error': f'Failed to list pipeline: {str(e)}'}), 500
 
-    @app.route('/api/slurm/pipeline/template/save', methods=['POST'])
+    @bp.route('/api/slurm/pipeline/template/save', methods=['POST'])
     def api_pipeline_save():
         try:
             data = request.json
@@ -1692,7 +1692,7 @@ def slurm_integration(app, cache, database):
             traceback.print_exc()
             return jsonify({'error': f'Failed to save pipeline: {str(e)}'}), 500
 
-    @app.route('/api/slurm/pipeline/template/load/<string:name>')
+    @bp.route('/api/slurm/pipeline/template/load/<string:name>')
     def api_pipeline_load(name: str):
         try:
             return send_file(safe_path(PIPELINE_DEF, name + ".json"), mimetype="application/json")
@@ -1716,7 +1716,7 @@ def slurm_integration(app, cache, database):
         # queue the jobs on slurm
         pipeline.schedule()
 
-    @app.route('/api/slurm/pipeline/run/<string:name>', methods=['POST'])
+    @bp.route('/api/slurm/pipeline/run/<string:name>', methods=['POST'])
     def api_pipeline_run_template(name):
         context = request.json["context"]
 
@@ -1725,7 +1725,7 @@ def slurm_integration(app, cache, database):
 
         return pipeline_definition_run(definition, context)
 
-    @app.route('/api/slurm/pipeline/run', methods=['POST'])
+    @bp.route('/api/slurm/pipeline/run', methods=['POST'])
     def api_pipeline_run():
         context = request.json["context"]
         definition = request.json["definition"]
@@ -1740,7 +1740,7 @@ def jobrunner_result_handler(app):
     # 
     #
     
-    @app.route('/api/slurm/job/<string:jr_job_id>/runs')
+    @bp.route('/api/slurm/job/<string:jr_job_id>/runs')
     def api_slurm_job_runs(jr_job_id):
         try:
             return jsonify({})

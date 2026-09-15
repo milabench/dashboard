@@ -1,41 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, HStack, VStack, Text, Badge, Spacer } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { ColorModeButton } from "../ui/color-mode"
+import { useViewMode, type ViewMode, type DbTarget } from '../../contexts/ViewModeContext';
 
 interface NavItem {
     label: string;
     path?: string;
     routes?: NavItem[];
-    env?: string;
+    external?: boolean;
 }
 
-
-const navItems: NavItem[] = [
-    { label: 'Dashboard', path: '/dashboard', env: 'dev' },
+// Each mode gets its own nav list — switching modes swaps the whole
+// sidebar, rather than filtering one merged list, so it reads as three
+// separate apps sharing a shell.
+const publicNavItems: NavItem[] = [
     { label: 'Latest Executions', path: '/executions' },
-    { label: 'Breakdown', path: '/breakdown' },
-    {
-        label: 'Slurm',
-        env: "dev",
-        routes: [
-            { label: 'Jobs', path: '/jobs' },
-            { label: 'Submit Job', path: '/jobs/submit' },
-            { label: 'Scheduled Jobs', path: '/scheduled' },
-            { label: 'Pipelines', path: '/pipelines' },
-            { label: 'Dashboard', path: '/realtime' },
-        ]
-    },
     {
         label: 'Search',
         routes: [
             { label: 'Pivot View', path: '/pivot' },
             { label: 'Explorer', path: '/explorer' },
-            { label: 'Datafile', path: '/datafile', env: 'dev' },
         ]
     },
-
     {
         label: 'Plot',
         routes: [
@@ -47,41 +35,133 @@ const navItems: NavItem[] = [
     {
         label: 'Manage',
         routes: [
+            { label: 'Run Groups', path: '/groups/hardware' },
             { label: 'Profiles', path: '/profile' },
             { label: 'Saved Queries', path: '/saved-queries' },
             { label: 'Push Results', path: '/push' },
-            { label: 'Database Sync', path: '/db-sync', env: 'dev' },
+        ]
+    },
+];
+
+const devNavItems: NavItem[] = [
+    { label: 'Dashboard', path: '/dashboard' },
+    {
+        label: 'Experimental',
+        routes: [
+            { label: 'Health', path: '/health' },
+            { label: 'Scaling Live', path: '/scaling-live' },
+            { label: 'Benchmark Docs', path: '/bench-doc' },
+            { label: 'Timeline', path: '/timeline' },
+            { label: 'Breakdown', path: '/breakdown' },
         ]
     },
     {
+        label: 'Slurm',
+        routes: [
+            { label: 'Jobs', path: '/jobs' },
+            { label: 'Submit Job', path: '/jobs/submit' },
+            { label: 'Scheduled Jobs', path: '/scheduled' },
+            { label: 'Pipelines', path: '/pipelines' },
+            { label: 'Dashboard', path: '/realtime' },
+        ]
+    },
+    { label: 'Datafile', path: '/datafile' },
+    {
         label: 'Baremetal',
-        env: 'dev',
         routes: [
             { label: 'Nodes & Jobs', path: '/baremetal' }
         ]
-    }
+    },
 ];
 
-function filterNavItems(items: NavItem[], devMode: boolean): NavItem[] {
-    if (devMode) return items;
+const adminNavItems: NavItem[] = [
+    { label: 'Database Sync', path: '/db-sync' },
+    { label: 'Push Keys', path: '/push-keys' },
+    { label: 'Run Visibility', path: '/run-visibility' },
+    { label: 'Data Invalidation', path: '/invalidation' },
+    { label: 'Admin Tools', path: '/admin-tools' },
+];
 
-    return items.reduce<NavItem[]>((acc, item) => {
-        if (item.env === 'dev') return acc;
-
-        if (item.routes) {
-            const filteredRoutes = item.routes.filter(r => r.env !== 'dev');
-            if (filteredRoutes.length === 0) return acc;
-            acc.push({ ...item, routes: filteredRoutes });
-        } else {
-            acc.push(item);
-        }
-        return acc;
-    }, []);
+function navItemsForMode(mode: ViewMode): NavItem[] {
+    switch (mode) {
+        case 'dev': return devNavItems;
+        case 'admin': return adminNavItems;
+        default: return publicNavItems;
+    }
 }
+
+const MODE_LABELS: Record<ViewMode, string> = {
+    public: 'Public',
+    dev: 'Dev',
+    admin: 'Admin',
+};
+
+const ModeToggle: React.FC = () => {
+    const { mode, setMode } = useViewMode();
+
+    return (
+        <HStack gap={0} borderRadius="md" borderWidth={1} borderColor="var(--color-sidebar-border)" overflow="hidden" mb={4}>
+            {(['public', 'dev', 'admin'] as ViewMode[]).map((m) => (
+                <Box
+                    key={m}
+                    as="button"
+                    flex={1}
+                    py={1}
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    textAlign="center"
+                    cursor="pointer"
+                    bg={mode === m ? 'var(--color-sidebar-active)' : 'transparent'}
+                    _hover={{ bg: 'var(--color-sidebar-hover)' }}
+                    onClick={() => setMode(m)}
+                >
+                    {MODE_LABELS[m]}
+                </Box>
+            ))}
+        </HStack>
+    );
+};
+
+const DB_TARGET_LABELS: Record<DbTarget, string> = { dev: 'DEV db', prod: 'PROD db' };
+
+const DbTargetToggle: React.FC = () => {
+    const { dbTarget, setDbTarget } = useViewMode();
+
+    return (
+        <HStack
+            gap={0}
+            borderRadius="md"
+            borderWidth={2}
+            borderColor={dbTarget === 'prod' ? 'red.500' : 'var(--color-sidebar-border)'}
+            overflow="hidden"
+            mb={4}
+        >
+            {(['dev', 'prod'] as DbTarget[]).map((t) => (
+                <Box
+                    key={t}
+                    as="button"
+                    flex={1}
+                    py={1}
+                    fontSize="xs"
+                    fontWeight="bold"
+                    textAlign="center"
+                    cursor="pointer"
+                    bg={dbTarget === t ? (t === 'prod' ? 'red.500' : 'var(--color-sidebar-active)') : 'transparent'}
+                    color={dbTarget === t && t === 'prod' ? 'white' : undefined}
+                    _hover={{ bg: dbTarget === t ? undefined : 'var(--color-sidebar-hover)' }}
+                    onClick={() => setDbTarget(t)}
+                >
+                    {DB_TARGET_LABELS[t]}
+                </Box>
+            ))}
+        </HStack>
+    );
+};
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
     const [currentProfile, setCurrentProfile] = useState<string>('NONE');
+    const { mode, devMode } = useViewMode();
 
     useEffect(() => {
         const savedProfile = Cookies.get('scoreProfile');
@@ -90,7 +170,7 @@ export const MainSidebar: React.FC = () => {
         }
     }, []);
 
-    const visibleNavItems = useMemo(() => filterNavItems(navItems, import.meta.env.DEV), []);
+    const visibleNavItems = navItemsForMode(mode);
 
     const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
         if (item.routes) {
@@ -113,6 +193,21 @@ export const MainSidebar: React.FC = () => {
                         {item.routes.map((route) => renderNavItem(route, true))}
                     </VStack>
                 </Box>
+            );
+        } else if (item.external) {
+            return (
+                <a key={item.path} href={item.path} target="_blank" rel="noopener noreferrer">
+                    <Box
+                        p={3}
+                        borderRadius="md"
+                        bg="transparent"
+                        _hover={{ bg: 'var(--color-sidebar-hover)' }}
+                        transition="all 0.2s"
+                        ml={isSubItem ? 2 : 0}
+                    >
+                        <Text fontSize={isSubItem ? 'sm' : 'md'}>{item.label} ↗</Text>
+                    </Box>
+                </a>
             );
         } else {
             const isActive = location.pathname === item.path;
@@ -148,7 +243,7 @@ export const MainSidebar: React.FC = () => {
             display="flex"
             flexDirection="column"
         >
-            <Box mb={6} textAlign="center">
+            <Box mb={devMode ? 2 : 6} textAlign="center">
                 <Link to="/" style={{ textDecoration: 'none' }}>
                     <img
                         src="/name.svg"
@@ -157,6 +252,8 @@ export const MainSidebar: React.FC = () => {
                     />
                 </Link>
             </Box>
+            {devMode && <ModeToggle />}
+            {devMode && mode === 'admin' && <DbTargetToggle />}
             <VStack gap={2} align="stretch" flex={1} overflowY="auto">
                 {visibleNavItems.map((item) => renderNavItem(item))}
             </VStack>

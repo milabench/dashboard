@@ -85,7 +85,13 @@ class Views(Command):
         parser.add_argument(
             "--secrets",
             default=None,
-            help="Path to data directory containing .secrets (default: repo data/)",
+            help="Path to data directory containing secrets.toml or .secrets (default: repo data/)",
+        )
+        parser.add_argument(
+            "--env",
+            default=None,
+            choices=["dev", "prod"],
+            help="Config section to load from secrets.toml; defaults to 'dev'. Pass --env prod explicitly to target production.",
         )
 
     @staticmethod
@@ -99,7 +105,7 @@ class Views(Command):
             load_db_secrets,
         )
 
-        load_db_secrets(root=args.secrets)
+        load_db_secrets(root=args.secrets, env=args.env)
         owner = args.owner or os.getenv("POSTGRES_USER") or DEFAULT_VIEW_OWNER
         views = args.views or None
 

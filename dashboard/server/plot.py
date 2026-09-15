@@ -133,7 +133,7 @@ def perf_per_bench_query(
             # Count the number of processes per bench
             # NOTE: this does not work for multi node (should be 2 but will return 1)
             func.count().label("n"),
-            func.avg(Pack.ngpu).label("ngpu"),
+            func.avg(func.coalesce(Pack.ngpu, 1)).label("ngpu"),
             func.avg(sub.c.perf).label("avg"),
 
             # func.sum(sub.c.count).label("count"),

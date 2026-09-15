@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     Box,
     VStack,
@@ -13,20 +13,29 @@ import {
     Grid,
     Code,
     Link,
+    Dialog,
+    Input,
+    Field,
+    NativeSelect,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { LuPlay, LuTrash2, LuPower, LuChevronDown, LuChevronRight, LuCircleAlert } from 'react-icons/lu';
+import { LuPlay, LuTrash2, LuPower, LuChevronDown, LuChevronRight, LuCircleAlert, LuPencil, LuRefreshCw } from 'react-icons/lu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toaster } from '../ui/toaster';
 import { Tooltip } from '../ui/tooltip';
+import { MonacoEditor } from '../shared/MonacoEditor';
 import {
     getScheduledJobs,
     deleteScheduledJob,
     toggleScheduledJob,
     runScheduledJobNow,
     getScheduledJobRuns,
+    updateScheduledJob,
+    getScheduledJobTemplateDiff,
+    syncScheduledJobTemplate,
+    getSlurmTemplates,
 } from '../../services/api';
-import type { ScheduledJob, ScheduledJobRun } from '../../services/types';
+import type { ScheduledJob, ScheduledJobRun, ScheduledJobTemplateDiff } from '../../services/types';
 
 const CRON_PRESETS: { label: string; cron: string }[] = [
     { label: 'Daily at midnight',      cron: '0 0 * * *' },
@@ -122,11 +131,312 @@ const RunHistory: React.FC<{ jobId: number }> = ({ jobId }) => {
     );
 };
 
+// ─── Template sync dialog ───────────────────────────────────────────
+// Shown when a job's source template has changed on disk since it was
+// last loaded, so the change can be reviewed before it's applied instead
+// of silently overwriting a scheduled job's script.
+
+const TemplateSyncDialog: React.FC<{
+    job: ScheduledJob | null;
+    onClose: () => void;
+}> = ({ job, onClose }) => {
+    const queryClient = useQueryClient();
+
+    const { data: diff, isLoading, error } = useQuery<ScheduledJobTemplateDiff>({
+        queryKey: ['scheduled-template-diff', job?._id],
+        queryFn: () => getScheduledJobTemplateDiff(job!._id),
+        enabled: job != null,
+    });
+
+    const syncMut = useMutation({
+        mutationFn: () => syncScheduledJobTemplate(job!._id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['scheduled-jobs'] });
+            toaster.create({ title: 'Script updated from template', type: 'success', duration: 3000 });
+            onClose();
+        },
+        onError: (err: { message?: string }) => {
+            toaster.create({
+                title: 'Failed to update script',
+                description: err?.message || 'Unknown error',
+                type: 'error',
+                duration: 5000,
+            });
+        },
+    });
+
+    return (
+        <Dialog.Root
+            open={job != null}
+            onOpenChange={(details) => { if (!details.open) onClose(); }}
+            size="cover"
+        >
+            <Dialog.Backdrop />
+            <Dialog.Positioner>
+                <Dialog.Content maxW="95vw" maxH="95vh" overflow="hidden" display="flex" flexDirection="column">
+                    <Dialog.Header>
+                        <Dialog.Title>
+                            Update "{job?.name}" from template {job?.source_template ? <Code>{job.source_template}</Code> : null}
+                        </Dialog.Title>
+                        <Dialog.CloseTrigger />
+                    </Dialog.Header>
+                    <Dialog.Body flex="1" overflow="hidden" display="flex" flexDirection="column" gap={3}>
+                        {isLoading && <Spinner />}
+                        {error && (
+                            <Text color="red.500">{(error as { message?: string })?.message || 'Failed to load diff'}</Text>
+                        )}
+                        {diff && (
+                            <>
+                                <Text fontSize="sm" color="var(--color-text-muted)">
+                                    The template file has changed since this job's script was last loaded.
+                                    Review the new content below, then update to apply it.
+                                </Text>
+                                <Grid templateColumns="1fr 1fr" gap={4} flex="1" minH="0">
+                                    <Box display="flex" flexDirection="column" minH="0">
+                                        <Text fontSize="sm" fontWeight="medium" mb={1}>Current (running) script</Text>
+                                        <Box
+                                            as="pre"
+                                            flex="1"
+                                            minH="0"
+                                            fontSize="xs"
+                                            fontFamily="mono"
+                                            bg="var(--color-bg-page)"
+                                            p={3}
+                                            borderRadius="md"
+                                            borderWidth="1px"
+                                            borderColor="var(--color-border)"
+                                            overflow="auto"
+                                            whiteSpace="pre-wrap"
+                                            wordBreak="break-all"
+                                        >
+                                            {diff.current_script}
+                                        </Box>
+                                    </Box>
+                                    <Box display="flex" flexDirection="column" minH="0">
+                                        <Text fontSize="sm" fontWeight="medium" mb={1}>Latest template content</Text>
+                                        <Box
+                                            as="pre"
+                                            flex="1"
+                                            minH="0"
+                                            fontSize="xs"
+                                            fontFamily="mono"
+                                            bg="var(--color-bg-page)"
+                                            p={3}
+                                            borderRadius="md"
+                                            borderWidth="1px"
+                                            borderColor="green.500"
+                                            overflow="auto"
+                                            whiteSpace="pre-wrap"
+                                            wordBreak="break-all"
+                                        >
+                                            {diff.latest_script}
+                                        </Box>
+                                    </Box>
+                                </Grid>
+                            </>
+                        )}
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                        <HStack gap={3}>
+                            <Button variant="outline" onClick={onClose}>Cancel</Button>
+                            <Button
+                                colorPalette="blue"
+                                onClick={() => syncMut.mutate()}
+                                loading={syncMut.isPending}
+                                disabled={!diff}
+                            >
+                                <LuRefreshCw />
+                                Update script from template
+                            </Button>
+                        </HStack>
+                    </Dialog.Footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Dialog.Root>
+    );
+};
+
+// ─── Edit dialog ────────────────────────────────────────────────────
+
+const EditScheduledJobDialog: React.FC<{
+    job: ScheduledJob | null;
+    onClose: () => void;
+}> = ({ job, onClose }) => {
+    const queryClient = useQueryClient();
+    const [name, setName] = useState('');
+    const [cronPreset, setCronPreset] = useState('');
+    const [cronCustom, setCronCustom] = useState('');
+    const [jobNamePrefix, setJobNamePrefix] = useState('');
+    const [script, setScript] = useState('');
+    const [sourceTemplate, setSourceTemplate] = useState('');
+
+    const { data: templates } = useQuery<string[]>({
+        queryKey: ['slurm-templates'],
+        queryFn: getSlurmTemplates,
+        enabled: job != null,
+    });
+
+    useEffect(() => {
+        if (!job) return;
+        setName(job.name);
+        const preset = CRON_PRESETS.find(p => p.cron === job.cron_expression);
+        setCronPreset(preset ? job.cron_expression : '');
+        setCronCustom(job.cron_expression);
+        setJobNamePrefix(job.job_name_prefix || '');
+        setScript(job.script);
+        setSourceTemplate(job.source_template || '');
+    }, [job]);
+
+    const cron = cronPreset || cronCustom;
+
+    const saveMut = useMutation({
+        mutationFn: (payload: Partial<ScheduledJob>) => updateScheduledJob(job!._id, payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['scheduled-jobs'] });
+            toaster.create({ title: 'Scheduled job updated', type: 'success', duration: 3000 });
+            onClose();
+        },
+        onError: (error: { message?: string }) => {
+            toaster.create({
+                title: 'Failed to update scheduled job',
+                description: error?.message || 'Unknown error',
+                type: 'error',
+                duration: 5000,
+            });
+        },
+    });
+
+    const handleSave = () => {
+        if (!name.trim()) {
+            toaster.create({ title: 'Name is required', type: 'warning', duration: 3000 });
+            return;
+        }
+        if (!cron.trim()) {
+            toaster.create({ title: 'Cron expression is required', type: 'warning', duration: 3000 });
+            return;
+        }
+        if (!script.trim()) {
+            toaster.create({ title: 'Script is required', type: 'warning', duration: 3000 });
+            return;
+        }
+        saveMut.mutate({
+            name: name.trim(),
+            cron_expression: cron.trim(),
+            job_name_prefix: jobNamePrefix.trim() || null,
+            script,
+            source_template: sourceTemplate || null,
+        });
+    };
+
+    return (
+        <Dialog.Root
+            open={job != null}
+            onOpenChange={(details) => { if (!details.open) onClose(); }}
+            size="cover"
+        >
+            <Dialog.Backdrop />
+            <Dialog.Positioner>
+                <Dialog.Content maxW="95vw" maxH="95vh" overflow="hidden" display="flex" flexDirection="column">
+                    <Dialog.Header>
+                        <Dialog.Title>Edit scheduled job</Dialog.Title>
+                        <Dialog.CloseTrigger />
+                    </Dialog.Header>
+                    <Dialog.Body flex="1" overflow="hidden" display="flex" flexDirection="column" gap={4}>
+                        <HStack gap={3} flexWrap="wrap" align="end">
+                            <Field.Root flex="1" minW="180px">
+                                <Field.Label>Name</Field.Label>
+                                <Input value={name} onChange={(e) => setName(e.target.value)} />
+                            </Field.Root>
+                            <Field.Root w="200px">
+                                <Field.Label>Schedule</Field.Label>
+                                <NativeSelect.Root>
+                                    <NativeSelect.Field
+                                        value={cronPreset}
+                                        onChange={(e) => {
+                                            setCronPreset(e.target.value);
+                                            if (e.target.value) setCronCustom(e.target.value);
+                                        }}
+                                    >
+                                        <option value="">Custom</option>
+                                        {CRON_PRESETS.map((p) => (
+                                            <option key={p.cron} value={p.cron}>{p.label}</option>
+                                        ))}
+                                    </NativeSelect.Field>
+                                </NativeSelect.Root>
+                            </Field.Root>
+                            <Field.Root w="160px">
+                                <Field.Label>Cron</Field.Label>
+                                <Input
+                                    fontFamily="mono"
+                                    value={cronPreset || cronCustom}
+                                    onChange={(e) => {
+                                        setCronCustom(e.target.value);
+                                        setCronPreset('');
+                                    }}
+                                    placeholder="0 0 * * *"
+                                />
+                            </Field.Root>
+                            <Field.Root w="200px">
+                                <Field.Label>Job name prefix</Field.Label>
+                                <Input
+                                    value={jobNamePrefix}
+                                    onChange={(e) => setJobNamePrefix(e.target.value)}
+                                    placeholder="optional"
+                                />
+                            </Field.Root>
+                            <Field.Root w="220px">
+                                <Field.Label>
+                                    Source template
+                                    {job?.template_missing && (
+                                        <Badge colorPalette="red" variant="subtle" ml={2}>missing</Badge>
+                                    )}
+                                </Field.Label>
+                                <NativeSelect.Root>
+                                    <NativeSelect.Field
+                                        value={sourceTemplate}
+                                        onChange={(e) => setSourceTemplate(e.target.value)}
+                                    >
+                                        <option value="">— none (custom script) —</option>
+                                        {sourceTemplate && !templates?.includes(sourceTemplate) && (
+                                            <option value={sourceTemplate}>{sourceTemplate} (missing)</option>
+                                        )}
+                                        {templates?.map((t) => (
+                                            <option key={t} value={t}>{t}</option>
+                                        ))}
+                                    </NativeSelect.Field>
+                                </NativeSelect.Root>
+                            </Field.Root>
+                        </HStack>
+                        <Text fontSize="xs" color="var(--color-text-muted)" mt={-2}>
+                            Setting or changing this only tracks which file the script came from
+                            for drift detection -- it does not touch the script below.
+                        </Text>
+                        <Box flex="1" minH="0" display="flex" flexDirection="column">
+                            <Text fontSize="sm" fontWeight="medium" mb={1}>Script</Text>
+                            <MonacoEditor value={script} onChange={setScript} height="100%" />
+                        </Box>
+                    </Dialog.Body>
+                    <Dialog.Footer>
+                        <HStack gap={3}>
+                            <Button variant="outline" onClick={onClose}>Cancel</Button>
+                            <Button colorPalette="blue" onClick={handleSave} loading={saveMut.isPending}>
+                                Save
+                            </Button>
+                        </HStack>
+                    </Dialog.Footer>
+                </Dialog.Content>
+            </Dialog.Positioner>
+        </Dialog.Root>
+    );
+};
+
 // ─── Main View ──────────────────────────────────────────────────────
 
 export const ScheduledJobsView: React.FC = () => {
     const queryClient = useQueryClient();
     const [expandedJobId, setExpandedJobId] = useState<number | null>(null);
+    const [editingJob, setEditingJob] = useState<ScheduledJob | null>(null);
+    const [syncingJob, setSyncingJob] = useState<ScheduledJob | null>(null);
 
     const { data: jobs, isLoading } = useQuery<ScheduledJob[]>({
         queryKey: ['scheduled-jobs'],
@@ -169,7 +479,7 @@ export const ScheduledJobsView: React.FC = () => {
                 <HStack justify="space-between" align="center">
                     <Heading size="lg" fontWeight="bold" color="var(--color-text)">Scheduled Slurm Jobs</Heading>
                     <Text fontSize="sm" color="var(--color-text-muted)">
-                        Create new schedules from the <b>Submit Job</b> page.
+                        Edit a job here, or create a new one from the <b>Submit Job</b> page.
                     </Text>
                 </HStack>
 
@@ -206,7 +516,21 @@ export const ScheduledJobsView: React.FC = () => {
                                         <Table.Cell>
                                             {expandedJobId === job._id ? <LuChevronDown /> : <LuChevronRight />}
                                         </Table.Cell>
-                                        <Table.Cell fontWeight="medium">{job.name}</Table.Cell>
+                                        <Table.Cell fontWeight="medium">
+                                            <HStack gap={2}>
+                                                <Text>{job.name}</Text>
+                                                {job.outdated && (
+                                                    <Tooltip content={`Template "${job.source_template}" has changed since this job's script was loaded.`} showArrow>
+                                                        <Badge colorPalette="orange" variant="solid">Outdated</Badge>
+                                                    </Tooltip>
+                                                )}
+                                                {job.template_missing && (
+                                                    <Tooltip content={`Source template "${job.source_template}" no longer exists.`} showArrow>
+                                                        <Badge colorPalette="red" variant="subtle">Template missing</Badge>
+                                                    </Tooltip>
+                                                )}
+                                            </HStack>
+                                        </Table.Cell>
                                         <Table.Cell>
                                             <VStack align="start" gap={0}>
                                                 <Text fontSize="sm">{cronHumanLabel(job.cron_expression)}</Text>
@@ -223,6 +547,26 @@ export const ScheduledJobsView: React.FC = () => {
                                         <Table.Cell fontSize="sm">{job.enabled ? formatDate(job.next_run_time) : '—'}</Table.Cell>
                                         <Table.Cell textAlign="right">
                                             <HStack gap={1} justify="flex-end" onClick={e => e.stopPropagation()}>
+                                                {job.outdated && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="xs"
+                                                        colorPalette="orange"
+                                                        title="Update script from template"
+                                                        onClick={() => setSyncingJob(job)}
+                                                    >
+                                                        <LuRefreshCw />
+                                                        Update
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant="ghost"
+                                                    size="xs"
+                                                    title="Edit script"
+                                                    onClick={() => setEditingJob(job)}
+                                                >
+                                                    <LuPencil />
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="xs"
@@ -278,6 +622,16 @@ export const ScheduledJobsView: React.FC = () => {
                                                                     </VStack>
                                                                 )}
                                                                 <VStack align="start" gap={0}>
+                                                                    <Text fontSize="xs" color="var(--color-text-muted)">Source Template</Text>
+                                                                    {job.source_template ? (
+                                                                        <Code fontSize="sm">{job.source_template}</Code>
+                                                                    ) : (
+                                                                        <Text fontSize="sm" color="var(--color-text-muted)" fontStyle="italic">
+                                                                            custom (not tracked)
+                                                                        </Text>
+                                                                    )}
+                                                                </VStack>
+                                                                <VStack align="start" gap={0}>
                                                                     <Text fontSize="xs" color="var(--color-text-muted)">Created</Text>
                                                                     <Text fontSize="sm">{formatDate(job.created_time)}</Text>
                                                                 </VStack>
@@ -297,7 +651,17 @@ export const ScheduledJobsView: React.FC = () => {
                                                                 </VStack>
                                                             )}
                                                             <VStack align="start" gap={1}>
-                                                                <Text fontSize="xs" color="var(--color-text-muted)">Script</Text>
+                                                                <HStack justify="space-between" w="100%">
+                                                                    <Text fontSize="xs" color="var(--color-text-muted)">Script</Text>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="xs"
+                                                                        onClick={() => setEditingJob(job)}
+                                                                    >
+                                                                        <LuPencil />
+                                                                        Edit
+                                                                    </Button>
+                                                                </HStack>
                                                                 <Box
                                                                     as="pre"
                                                                     fontSize="xs"
@@ -336,6 +700,8 @@ export const ScheduledJobsView: React.FC = () => {
                     </Table.Root>
                 )}
             </VStack>
+            <EditScheduledJobDialog job={editingJob} onClose={() => setEditingJob(null)} />
+            <TemplateSyncDialog job={syncingJob} onClose={() => setSyncingJob(null)} />
         </Box>
     );
 };

@@ -1,4 +1,5 @@
 import numbers
+import re
 import secrets
 import time
 from collections import defaultdict
@@ -19,12 +20,24 @@ from .models import (
     from_json,
     to_json,
 )
+from .grouping import assign_groups
 
 FORCED_META_KEYS = {"contributor"}
 
 META = 0
 START = 1
 DATA = 2
+
+# ``milabench prepare`` (setup-only, e.g. downloading datasets/weights) marks
+# every pack "done" without ever measuring real throughput — it produces no
+# "rate" metric at all. Pushed to the dashboard, it looks like a run and can
+# even look like a *perfect* one to composite-report/ranking logic, while
+# contributing nothing but zero-scores. Refuse it at ingestion instead.
+_PREPARE_RUN_NAME_RE = re.compile(r"^prepare(?:$|[._\-\s])", re.IGNORECASE)
+
+
+def _is_prepare_run_name(name: str | None) -> bool:
+    return bool(name) and bool(_PREPARE_RUN_NAME_RE.match(name))
 
 
 @dataclass
@@ -46,6 +59,13 @@ def _get_pack_ids(pack):
     gpu_id = ",".join(str(i) for i in devices)
 
     return job_id, gpu_id
+
+
+def _normalize_allocmem_gpu_id(gpu_id, devices):
+    """Map local CUDA index 0 to the physical GPU for single-device per_gpu packs."""
+    if len(devices) == 1 and str(gpu_id) == "0":
+        return str(devices[0])
+    return gpu_id
 
 
 class SQLAlchemy:
@@ -178,6 +198,13 @@ class SQLAlchemy:
             method(entry)
 
     def on_new_run(self, entry):
+        run_name = entry.pack.config["run_name"]
+        if _is_prepare_run_name(run_name):
+            raise ValueError(
+                f"Refusing to push run {run_name!r}: prepare/setup runs have no "
+                "benchmark data and are not accepted by the dashboard"
+            )
+
         metadata = dict(self.meta_override or entry.data or {})
 
         # Strip protected keys from run/override data so they cannot be spoofed;
@@ -204,7 +231,7 @@ class SQLAlchemy:
             share_token = secrets.token_urlsafe(32)
 
         self.run = Exec(
-            name=entry.pack.config["run_name"],
+            name=run_name,
             namespace=None,
             created_time=created_time,
             meta=metadata,
@@ -219,6 +246,12 @@ class SQLAlchemy:
             sesh.refresh(self.run)
             self._run_id = self.run._id
             self.share_token = self.run.share_token
+
+        try:
+            with self.session() as sesh:
+                assign_groups(self._run_id, metadata, sesh)
+        except Exception as err:
+            print(f"[grouping] assign_groups failed for exec_id={self._run_id}: {err}")
 
     def on_new_pack(self, entry):
         state = self.pack_state(entry)
@@ -253,8 +286,20 @@ class SQLAlchemy:
 
         state = self.pack_state(entry)
 
-        state.pack.command = entry.data["command"]
+        command = entry.data["command"]
+        state.pack.command = command
         state.start = entry.data["time"]
+
+        # state.pack was detached when on_new_pack's session closed, so the
+        # attribute assignment above never reaches the DB on its own — persist
+        # it explicitly, the same way update_pack_status() does for status.
+        with self.session() as sesh:
+            sesh.execute(
+                sqlalchemy.update(Pack)
+                .where(Pack._id == state.pack._id)
+                .values(command=command)
+            )
+            sesh.commit()
 
         assert state.step == START
         state.step += 1
@@ -332,7 +377,9 @@ class SQLAlchemy:
                     run_id, pack_id, f"gpu.{metric}", value, gpu_id=gpu_id, job_id=jobid, order=metric_time, unit=unit
                 )
 
-    def _change_allocmem(self, run_id, pack_id, prefix, payload, jobid, metric_time=None):
+    def _change_allocmem(
+        self, run_id, pack_id, prefix, payload, jobid, metric_time=None, devices=None
+    ):
         """Expand per-device allocator stats (torchmem / jaxmem) into numeric rows.
 
         Expected shape::
@@ -343,7 +390,10 @@ class SQLAlchemy:
             print(f"Unexpected value {payload} for metric {prefix}")
             return
 
+        devices = devices or []
+
         for gpu_id, values in payload.items():
+            gpu_id = _normalize_allocmem_gpu_id(gpu_id, devices)
             if not isinstance(values, dict):
                 print(f"Unexpected value {values} for metric {prefix}[{gpu_id}]")
                 continue
@@ -397,12 +447,24 @@ class SQLAlchemy:
 
         elif (torchmem := data.pop("torchmem", None)) is not None:
             self._change_allocmem(
-                run_id, pack_id, "torchmem", torchmem, job_id, metric_time=metric_time
+                run_id,
+                pack_id,
+                "torchmem",
+                torchmem,
+                job_id,
+                metric_time=metric_time,
+                devices=state.pack.config.get("devices", []),
             )
 
         elif (jaxmem := data.pop("jaxmem", None)) is not None:
             self._change_allocmem(
-                run_id, pack_id, "jaxmem", jaxmem, job_id, metric_time=metric_time
+                run_id,
+                pack_id,
+                "jaxmem",
+                jaxmem,
+                job_id,
+                metric_time=metric_time,
+                devices=state.pack.config.get("devices", []),
             )
 
         elif (process := data.pop("process", None)) is not None:

@@ -201,7 +201,7 @@ def refresh_gpu_summary(sqlexec):
         return False
 
 
-def gpu_summary_routes(app, sqlexec):
+def gpu_summary_routes(bp, sqlexec):
     """Register GPU summary endpoints on the Flask app."""
 
     _has_view = False
@@ -221,7 +221,7 @@ def gpu_summary_routes(app, sqlexec):
 
     _ensure_view()
 
-    @app.route('/api/gpu/summary')
+    @bp.route('/api/gpu/summary')
     def api_gpu_summary():
         """Read GPU summary - from materialized view if available, otherwise live."""
         if _has_view:
@@ -232,7 +232,7 @@ def gpu_summary_routes(app, sqlexec):
 
         return jsonify(_rows_to_json(rows))
 
-    @app.route('/api/gpu/summary/live')
+    @bp.route('/api/gpu/summary/live')
     def api_gpu_summary_live():
         """Always compute the GPU summary in real time."""
         rows = _live_query(sqlexec)

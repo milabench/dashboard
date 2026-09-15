@@ -72,6 +72,7 @@ register_view(
             (meta -> 'accelerators' -> 'gpus' -> '0' -> 'memory' ->> 'total')::float AS gpu_memory
         FROM execs
         WHERE visibility = 0
+          AND invalidated = false
           AND (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') IS NOT NULL
           AND (meta -> 'accelerators' -> 'gpus' -> '0' ->> 'product') != 'null'
     ),
@@ -101,6 +102,7 @@ register_view(
                avg(CASE WHEN status IN ('done', 'early_stop') THEN 1.0 ELSE 0.0 END) AS pass_rate
         FROM packs
         WHERE exec_id IN (SELECT exec_id FROM most_recent)
+          AND invalidated = false
         GROUP BY exec_id, name
     )
     SELECT

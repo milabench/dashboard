@@ -32,6 +32,52 @@ def _register_extra_models():
         pass
 
 
+class RunGroup(Base):
+    """A named group of Exec records sharing a common hardware, config, or software profile."""
+    __tablename__ = "run_groups"
+
+    _id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy = Column(String(64), nullable=False)      # hardware | config | software | manual
+    granularity = Column(String(64), nullable=True)    # gpu_profile | node_profile | machine_profile
+    fingerprint = Column(String(64), nullable=True)    # SHA-1 hex of identity fields; NULL for manual groups
+    label = Column(String(512))                        # "8× H100 80GB / EPYC 9654"
+    meta = Column(JSON)                                # strategy-specific display fields
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("strategy", "fingerprint", name="uq_run_group_strategy_fingerprint"),
+        Index("idx_run_group_strategy", "strategy"),
+        Index("idx_run_group_fingerprint", "fingerprint"),
+    )
+
+    def as_dict(self):
+        return {
+            "_id": self._id,
+            "strategy": self.strategy,
+            "granularity": self.granularity,
+            "fingerprint": self.fingerprint,
+            "label": self.label,
+            "meta": self.meta,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class RunGroupMember(Base):
+    """Many-to-many join between Exec and RunGroup."""
+    __tablename__ = "run_group_members"
+
+    exec_id = Column(Integer, ForeignKey("execs._id"), nullable=False, primary_key=True)
+    group_id = Column(Integer, ForeignKey("run_groups._id"), nullable=False, primary_key=True)
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_rgm_group_exec", "group_id", "exec_id"),
+        Index("idx_rgm_exec_group", "exec_id", "group_id"),
+    )
+
+
 class Exec(Base):
     __tablename__ = "execs"
 
@@ -50,9 +96,15 @@ class Exec(Base):
     share_token = Column(String(64), nullable=True, unique=True)
     release_at = Column(DateTime, nullable=True)
 
+    # Set when a known milabench bug is found to have produced wrong
+    # results for this run — see InvalidationRule. Excluded from
+    # public_exec_filter() so every aggregation query ignores it.
+    invalidated = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+
     __table_args__ = (
         Index("exec_name", "name"),
         Index("exec_visibility", "visibility"),
+        Index("exec_invalidated", "invalidated"),
         Index("exec_share_token", "share_token", unique=True),
         Index(
             'execs_meta_gpus_0_product_idx',
@@ -90,6 +142,7 @@ class Exec(Base):
             "created_time": self.created_time,
             "meta": self.meta,
             "status": self.status,
+            "invalidated": self.invalidated,
         }
         if include_private_fields:
             data["visibility"] = self.visibility
@@ -110,6 +163,10 @@ class Pack(Base):
     config = Column(JSON)
     command = Column(JSON)
     status = Column(String(256))
+
+    # Same idea as Exec.invalidated, but scoped to one benchmark within an
+    # otherwise-fine run (e.g. a bug only affecting one benchmark's metric).
+    invalidated = Column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     __mapper_args__ = {"exclude_properties": ["ngpu"]}
 
@@ -145,6 +202,7 @@ class Pack(Base):
         Index("idx_pack_status", "status"),
         Index("idx_pack_exec_status", "exec_id", "status"),
         Index("idx_pack_exec_name_status", "exec_id", "name", "status"),
+        Index("idx_pack_invalidated", "invalidated"),
     )
 
     def as_dict(self):
@@ -156,7 +214,58 @@ class Pack(Base):
             "created_time": self.created_time,
             "config": self.config,
             "command": self.command,
-            "status": self.status
+            "status": self.status,
+            "invalidated": self.invalidated,
+        }
+
+
+class InvalidationRule(Base):
+    """A recorded reason to treat some runs/packs as bad data (e.g. a
+    milabench bug found to have produced wrong results before it was
+    fixed). Applying a rule materializes it onto Exec.invalidated /
+    Pack.invalidated (see invalidation.py::recompute_invalidations) so
+    every read path can filter with a plain boolean check instead of
+    re-evaluating date ranges on every query.
+
+    Scoping:
+      * exec_id set            -> only that one run (optionally further
+                                   narrowed to one bench via bench_name)
+      * exec_id unset, bench_name set   -> that bench, across all runs
+      * exec_id unset, bench_name unset -> not allowed (too broad, see
+        invalidation.py's validation)
+
+    Date range (both optional, either or both may be set):
+      * before: only runs/packs created strictly before this timestamp
+        (the common case — "bug was live until it was fixed on this date")
+      * after: only runs/packs created at or after this timestamp
+    """
+
+    __tablename__ = "invalidation_rules"
+
+    _id = Column(Integer, primary_key=True, autoincrement=True)
+    exec_id = Column(Integer, ForeignKey("execs._id"), nullable=True)
+    bench_name = Column(String(256), nullable=True)
+    before = Column(DateTime, nullable=True)
+    after = Column(DateTime, nullable=True)
+    reason = Column(String(1024), nullable=False)
+    active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_invalidation_rule_exec", "exec_id"),
+        Index("idx_invalidation_rule_bench", "bench_name"),
+    )
+
+    def as_dict(self):
+        return {
+            "_id": self._id,
+            "exec_id": self.exec_id,
+            "bench_name": self.bench_name,
+            "before": self.before.isoformat() if self.before else None,
+            "after": self.after.isoformat() if self.after else None,
+            "reason": self.reason,
+            "active": self.active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 

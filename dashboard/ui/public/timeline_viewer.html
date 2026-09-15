@@ -1,0 +1,1361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark Timeline Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel-2: #1d2740;
+    --border: #2a3550;
+    --text: #e6e9f2;
+    --text-dim: #93a0bd;
+    --accent: #4da3ff;
+    --ok: #33c37f;
+    --fail: #ef5a6f;
+    --warn: #f5a742;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --panel-2: #eef1f8;
+      --border: #d7deec;
+      --text: #1a2233;
+      --text-dim: #5a6784;
+      --accent: #1d6fd6;
+      --ok: #1d9d63;
+      --fail: #d13a4f;
+      --warn: #b8721a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--panel);
+  }
+  header h1 {
+    font-size: 16px;
+    margin: 0;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  header .sub { color: var(--text-dim); font-size: 12px; }
+  main { padding: 16px 20px 60px; max-width: 1500px; margin: 0 auto; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-dim);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    text-align: center;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: var(--panel-2); }
+  .dropzone input { display: none; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; }
+  select, input[type=number], input[type=text] {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  input[type=range] { accent-color: var(--accent); }
+  button {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+  .stat {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; margin-top: 2px; }
+  .stat.ok .v { color: var(--ok); }
+  .stat.fail .v { color: var(--fail); }
+  canvas { display: block; width: 100%; }
+  .gantt-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; position: relative; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-label { font-size: 12.5px; color: var(--text-dim); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .report-box {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    white-space: pre;
+    overflow: auto;
+    max-height: 560px;
+    margin: 0;
+  }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre;
+    display: none;
+    z-index: 50;
+    box-shadow: 0 6px 20px rgba(0,0,0,.3);
+    max-width: 420px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  th { color: var(--text-dim); font-weight: 600; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--panel); }
+  th:hover { color: var(--accent); }
+  tr:hover td { background: var(--panel-2); }
+  td.err { color: var(--fail); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12.5px; color: var(--text-dim); }
+  .empty { color: var(--text-dim); text-align: center; padding: 30px; }
+  .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); }
+  a.file-link { color: var(--accent); text-decoration: none; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Benchmark Timeline Viewer</h1>
+  <span class="sub">reads a <code>benchmark_results.db</code> produced by <code>benchmate.timeline</code> — entirely in your browser, nothing is uploaded</span>
+</header>
+
+<main>
+  <div class="panel" id="loadPanel">
+    <h2>Load Database</h2>
+    <label class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".db,.sqlite,.sqlite3">
+      <div id="dropLabel">Click to choose a <b>benchmark_results.db</b> file, or drag & drop it here</div>
+    </label>
+    <div id="loadStatus" class="sub" style="margin-top:10px;"></div>
+  </div>
+
+  <div id="app">
+    <div class="panel">
+      <h2>Run</h2>
+      <div class="row">
+        <div class="field">
+          <label>Run</label>
+          <select id="runSelect"></select>
+        </div>
+        <div class="field">
+          <label>Buckets</label>
+          <input type="number" id="numBuckets" min="1" max="500" value="30" style="width:80px">
+        </div>
+        <div class="field">
+          <label>Input weight</label>
+          <input type="number" id="inputWeight" step="0.1" value="1.0" style="width:70px">
+        </div>
+        <div class="field">
+          <label>Output weight</label>
+          <input type="number" id="outputWeight" step="0.1" value="5.0" style="width:70px">
+        </div>
+        <div class="field">
+          <label>Gantt zoom</label>
+          <input type="range" id="zoom" min="1" max="20" step="0.5" value="1" style="width:140px">
+        </div>
+        <div class="field">
+          <label>Concurrency</label>
+          <input type="number" id="concurrencyThreshold" min="0" value="1" style="width:70px">
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); padding:6px 0;">
+            <input type="checkbox" id="trimRamp">
+            Trim ramp-up/down buckets (active ≤ concurrency)
+          </label>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="primary" id="recompute">Recompute</button>
+        </div>
+      </div>
+      <div class="sub" id="trimStatus" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Summary</h2>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Report Comparison</h2>
+      <div class="compare-grid">
+        <div>
+          <div class="compare-label">vLLM <code>serve.py</code>-style report <span class="badge">whole-run aggregate</span></div>
+          <pre class="report-box" id="vllmReport"></pre>
+        </div>
+        <div>
+          <div class="compare-label">Bucket aggregate <span class="badge">rolled up from buckets</span></div>
+          <pre class="report-box" id="bucketAggregateReport"></pre>
+        </div>
+      </div>
+      <details style="margin-top:16px;">
+        <summary style="cursor:pointer; color:var(--text-dim); font-size:12.5px;">Per-bucket detail (raw numbers behind the throughput/latency charts)</summary>
+        <div class="compare-label" style="margin-top:10px;">Timeline method <span class="badge" id="timelineReportBadge">per-bucket</span></div>
+        <pre class="report-box" id="timelineReport"></pre>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Request Timeline (Gantt)</h2>
+      <div class="gantt-scroll">
+        <canvas id="ganttCanvas" height="360"></canvas>
+      </div>
+      <div class="legend">
+        <span><span class="swatch" style="background:linear-gradient(90deg,#4da3ff,#a855f7,#f97316); width:36px;"></span>job # in worker (1 → max)</span>
+        <span><span class="swatch" style="background:var(--fail)"></span>error</span>
+        <span id="ganttInfo"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Throughput per bucket</h2>
+      <canvas id="throughputCanvas" height="220"></canvas>
+      <div class="legend">
+        <span><span class="swatch" style="background:#4da3ff"></span>weighted (input×w1 + output×w2)</span>
+        <span><span class="swatch" style="background:#2dd4bf"></span>prefill tok/s</span>
+        <span><span class="swatch" style="background:#a855f7"></span>output tok/s</span>
+        <span><span class="swatch" style="background:var(--warn)"></span>active jobs</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Latency percentiles per bucket</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field">
+          <label>Metric</label>
+          <select id="latencyMetric">
+            <option value="ttft">TTFT (time to first token)</option>
+            <option value="itl">ITL (inter-token latency)</option>
+          </select>
+        </div>
+      </div>
+      <canvas id="latencyCanvas" height="220"></canvas>
+      <div class="legend" id="latencyLegend"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Requests</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field">
+          <label>Filter</label>
+          <select id="filterSuccess">
+            <option value="all">All</option>
+            <option value="ok">Success only</option>
+            <option value="fail">Errors only</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Search error</label>
+          <input type="text" id="searchError" placeholder="substring...">
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table id="reqTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="prevPage">Prev</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage">Next</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="tooltip"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const state = {
+    db: null,
+    runId: null,
+    rows: [],      // raw request rows for the selected run
+    jobs: [],      // normalized jobs (start/end relative, lane assigned)
+    numLanes: 0,
+    buckets: [],
+    sortKey: "start_time",
+    sortDir: 1,
+    page: 0,
+    pageSize: 50,
+  };
+
+  const PERCENTILES = [0.5, 0.9, 0.95, 0.99];
+  const PCT_COLORS = ["#4da3ff", "#33c37f", "#f5a742", "#ef5a6f"];
+
+  // ---------------------------------------------------------------- load db
+
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const loadStatus = document.getElementById("loadStatus");
+
+  dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("drag"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag");
+    if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", (e) => {
+    if (e.target.files.length) loadFile(e.target.files[0]);
+  });
+
+  let SQL = null;
+
+  async function loadFile(file) {
+    loadStatus.textContent = "Loading sql.js...";
+    try {
+      if (!SQL) {
+        SQL = await initSqlJs({
+          locateFile: (f) => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${f}`,
+        });
+      }
+      loadStatus.textContent = `Reading ${file.name}...`;
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const db = new SQL.Database(buf);
+      state.db = db;
+      loadStatus.textContent = `Loaded ${file.name} (${(buf.length / 1024).toFixed(1)} KB)`;
+      populateRuns();
+      document.getElementById("app").style.display = "block";
+    } catch (err) {
+      console.error(err);
+      loadStatus.textContent = "Failed to load database: " + err.message;
+    }
+  }
+
+  function query(sql, params) {
+    const stmt = state.db.prepare(sql);
+    if (params) stmt.bind(params);
+    const out = [];
+    while (stmt.step()) out.push(stmt.getAsObject());
+    stmt.free();
+    return out;
+  }
+
+  function populateRuns() {
+    const runs = query(`
+      SELECT r.run_id AS run_id, r.created_at AS created_at, r.description AS description,
+             COUNT(q.id) AS num_requests
+      FROM runs r LEFT JOIN requests q ON q.run_id = r.run_id
+      GROUP BY r.run_id ORDER BY r.run_id DESC
+    `);
+    const sel = document.getElementById("runSelect");
+    sel.innerHTML = "";
+    for (const r of runs) {
+      const opt = document.createElement("option");
+      opt.value = r.run_id;
+      const desc = r.description ? ` — ${r.description}` : "";
+      opt.textContent = `run ${r.run_id} · ${r.created_at} · ${r.num_requests} requests${desc}`;
+      sel.appendChild(opt);
+    }
+    if (runs.length) {
+      sel.value = runs[0].run_id;
+      loadRun(runs[0].run_id);
+    }
+  }
+
+  document.getElementById("runSelect").addEventListener("change", (e) => loadRun(Number(e.target.value)));
+  document.getElementById("recompute").addEventListener("click", () => render());
+  document.getElementById("zoom").addEventListener("input", () => drawGantt());
+  document.getElementById("trimRamp").addEventListener("change", () => render());
+  document.getElementById("concurrencyThreshold").addEventListener("change", () => render());
+  document.getElementById("latencyMetric").addEventListener("change", () => drawLatency());
+  document.getElementById("filterSuccess").addEventListener("change", () => { state.page = 0; renderTable(); });
+  document.getElementById("searchError").addEventListener("input", () => { state.page = 0; renderTable(); });
+  document.getElementById("prevPage").addEventListener("click", () => { if (state.page > 0) { state.page--; renderTable(); } });
+  document.getElementById("nextPage").addEventListener("click", () => {
+    const filtered = filteredRows();
+    if ((state.page + 1) * state.pageSize < filtered.length) { state.page++; renderTable(); }
+  });
+
+  function loadRun(runId) {
+    state.runId = runId;
+    state.rows = query(`SELECT * FROM requests WHERE run_id = ? ORDER BY start_time`, [runId]);
+    for (const r of state.rows) {
+      try { r.itl = r.itl_json ? JSON.parse(r.itl_json) : []; } catch { r.itl = []; }
+      r.success = !!r.success;
+    }
+    render();
+  }
+
+  // ---------------------------------------------------------------- compute
+
+  function jobsFromRows(rows) {
+    if (!rows.length) return [];
+    const minStart = Math.min(...rows.map((r) => r.start_time));
+    const jobs = rows.map((r) => ({
+      raw: r,
+      start: r.start_time - minStart,
+      end: r.start_time - minStart + (r.latency || 0),
+      latency: r.latency || 0,
+      prompt_len: r.prompt_len || 0,
+      output_tokens: r.output_tokens || 0,
+      ttft: r.ttft || 0,
+      itl: r.itl || [],
+      success: r.success,
+    }));
+    jobs.sort((a, b) => a.start - b.start);
+    return jobs;
+  }
+
+  function buildJobs(rows) {
+    return jobsFromRows(rows);
+  }
+
+  function assignLanes(jobs) {
+    const laneEnds = [];
+    const laneJobCount = [];
+    for (const job of jobs) {
+      let placed = -1;
+      for (let i = 0; i < laneEnds.length; i++) {
+        if (laneEnds[i] <= job.start) { placed = i; break; }
+      }
+      if (placed === -1) { placed = laneEnds.length; laneEnds.push(0); laneJobCount.push(0); }
+      job.lane = placed;
+      laneEnds[placed] = job.end;
+      laneJobCount[placed] += 1;
+      job.batchId = laneJobCount[placed];
+    }
+    return laneEnds.length;
+  }
+
+  // Sequential blue -> purple -> orange gradient used to color each request
+  // by how many jobs its worker/lane had already processed before it —
+  // makes throughput progression (or slowdown) within a worker visible.
+  const PROGRESS_STOPS = [[77, 163, 255], [168, 85, 247], [249, 115, 22]];
+
+  function colorForProgress(t) {
+    t = Math.max(0, Math.min(1, t));
+    const n = PROGRESS_STOPS.length - 1;
+    const seg = Math.min(n - 1, Math.floor(t * n));
+    const localT = t * n - seg;
+    const [r1, g1, b1] = PROGRESS_STOPS[seg];
+    const [r2, g2, b2] = PROGRESS_STOPS[seg + 1];
+    const r = Math.round(r1 + (r2 - r1) * localT);
+    const g = Math.round(g1 + (g2 - g1) * localT);
+    const b = Math.round(b1 + (b2 - b1) * localT);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function tokenWeighted(job, iw, ow) {
+    return (job.prompt_len * iw + job.output_tokens * ow) / (iw + ow || 1);
+  }
+
+  function percentileSorted(sv, pct) {
+    if (!sv.length) return 0;
+    const idx = pct * (sv.length - 1);
+    const lo = Math.floor(idx), hi = Math.min(lo + 1, sv.length - 1);
+    const frac = idx - lo;
+    return sv[lo] * (1 - frac) + sv[hi] * frac;
+  }
+
+  function latencyStats(values) {
+    if (!values.length) return null;
+    const sv = [...values].sort((a, b) => a - b);
+    const out = { mean: sv.reduce((a, b) => a + b, 0) / sv.length, min: sv[0], max: sv[sv.length - 1] };
+    for (const p of PERCENTILES) out["p" + Math.round(p * 100)] = percentileSorted(sv, p);
+    return out;
+  }
+
+  function computeBuckets(jobs, numBuckets, iw, ow) {
+    if (!jobs.length || numBuckets < 1) return [];
+    const end = Math.max(...jobs.map((j) => j.end));
+    const step = end / numBuckets || 1;
+    const buckets = [];
+    for (let i = 0; i < numBuckets; i++) {
+      buckets.push({ start: i * step, end: (i + 1) * step, jobs: [], tokens: 0, inputTokens: 0, outputTokens: 0 });
+    }
+    for (const job of jobs) {
+      // Prefill window: the prompt is processed between start and the first
+      // token, not smeared across decode too — prompt_len/ttft is the local
+      // prefill rate, the best estimate available without per-chunk timing.
+      const prefillEnd = job.start + job.ttft;
+      const prefillWindow = Math.max(prefillEnd - job.start, 0.001);
+
+      for (const b of buckets) {
+        if (job.start <= b.end && job.end >= b.start) {
+          const total = Math.max(job.end - job.start, 0.001);
+          const overlap = Math.max(0, Math.min(job.end, b.end) - Math.max(job.start, b.start));
+          b.jobs.push({ job, pct: overlap / total });
+
+          const inOverlap = Math.max(0, Math.min(prefillEnd, b.end) - Math.max(job.start, b.start));
+          b.inputTokens += job.prompt_len * (inOverlap / prefillWindow);
+        }
+      }
+
+      // Output tokens: we know each token's actual arrival time, so count
+      // real arrivals per bucket instead of approximating with an overlap
+      // fraction (same idea as vLLM's own per-second token histogram).
+      if (job.output_tokens > 0) {
+        let t = prefillEnd;
+        const arrivalBucket = (time) => {
+          const idx = Math.min(numBuckets - 1, Math.max(0, Math.floor(time / step)));
+          return buckets[idx];
+        };
+        arrivalBucket(t).outputTokens += 1;
+        for (const gap of job.itl || []) {
+          t += gap;
+          arrivalBucket(t).outputTokens += 1;
+        }
+      }
+    }
+    for (const b of buckets) {
+      for (const p of b.jobs) b.tokens += tokenWeighted(p.job, iw, ow) * p.pct;
+    }
+    return buckets.map((b) => {
+      const ttfts = [], itls = [];
+      for (const p of b.jobs) {
+        const job = p.job;
+        const firstTokenTime = job.start + job.ttft;
+        if (job.ttft && firstTokenTime >= b.start && firstTokenTime <= b.end) ttfts.push(job.ttft);
+        if (job.itl && job.itl.length) {
+          let t = firstTokenTime;
+          for (const gap of job.itl) {
+            t += gap;
+            if (t > b.end) break;
+            if (t >= b.start) itls.push(gap);
+          }
+        }
+      }
+      return {
+        start: b.start,
+        end: b.end,
+        rate: b.tokens / (b.end - b.start),
+        input_rate: b.inputTokens / (b.end - b.start),
+        output_rate: b.outputTokens / (b.end - b.start),
+        active_jobs: b.jobs.length,
+        start_job: b.jobs.filter((p) => p.job.start >= b.start && p.job.start <= b.end).length,
+        finished_job: b.jobs.filter((p) => p.job.end >= b.start && p.job.end <= b.end).length,
+        ttft: latencyStats(ttfts),
+        itl: latencyStats(itls),
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------- render
+
+  // Drops leading/trailing buckets whose active-job count is at or below the
+  // configured concurrency — those are the ramp-up/ramp-down periods where
+  // the pipeline hasn't reached (or has fallen off) steady state, so they
+  // skew aggregate numbers. Only trims from the two ends, never the middle:
+  // a mid-run dip is real behavior, not a ramp artifact.
+  function applyRampTrim(buckets, jobs, active, threshold) {
+    if (!active || !buckets.length) {
+      return { buckets, reportRows: jobs.map((j) => j.raw), trimmedStart: 0, trimmedEnd: 0 };
+    }
+    let startIdx = 0;
+    while (startIdx < buckets.length && buckets[startIdx].active_jobs <= threshold) startIdx++;
+    let endIdx = buckets.length - 1;
+    while (endIdx >= startIdx && buckets[endIdx].active_jobs <= threshold) endIdx--;
+    if (startIdx > endIdx) {
+      return { buckets: [], reportRows: [], trimmedStart: buckets.length, trimmedEnd: 0 };
+    }
+    const kept = buckets.slice(startIdx, endIdx + 1);
+    const windowStart = kept[0].start, windowEnd = kept[kept.length - 1].end;
+    const reportRows = jobs.filter((j) => j.start >= windowStart && j.start < windowEnd).map((j) => j.raw);
+    return { buckets: kept, reportRows, trimmedStart: startIdx, trimmedEnd: buckets.length - 1 - endIdx };
+  }
+
+  function render() {
+    if (!state.rows.length) return;
+    state.jobs = buildJobs(state.rows);
+    state.numLanes = assignLanes(state.jobs);
+
+    state.numBuckets = Math.max(1, Number(document.getElementById("numBuckets").value) || 30);
+    state.inputWeight = Number(document.getElementById("inputWeight").value) || 0;
+    state.outputWeight = Number(document.getElementById("outputWeight").value) || 0;
+    const fullBuckets = computeBuckets(state.jobs, state.numBuckets, state.inputWeight, state.outputWeight);
+
+    state.trimActive = document.getElementById("trimRamp").checked;
+    state.concurrencyThreshold = Math.max(0, Number(document.getElementById("concurrencyThreshold").value) || 0);
+    const trimResult = applyRampTrim(fullBuckets, state.jobs, state.trimActive, state.concurrencyThreshold);
+    state.buckets = trimResult.buckets;
+    state.reportRows = trimResult.reportRows;
+
+    const statusEl = document.getElementById("trimStatus");
+    if (!state.trimActive) {
+      statusEl.textContent = "";
+    } else if (!state.buckets.length) {
+      statusEl.textContent = `Ramp trim ON (concurrency ≤ ${state.concurrencyThreshold}) — every bucket was at or below the threshold, nothing left to show.`;
+    } else {
+      const window = `${state.buckets[0].start.toFixed(2)}s–${state.buckets[state.buckets.length - 1].end.toFixed(2)}s`;
+      statusEl.textContent =
+        `Ramp trim ON (concurrency ≤ ${state.concurrencyThreshold}) — dropped ${trimResult.trimmedStart} bucket(s) from the start ` +
+        `and ${trimResult.trimmedEnd} from the end; ${state.buckets.length}/${state.numBuckets} buckets kept, window ${window}, ` +
+        `${state.reportRows.length}/${state.rows.length} requests used for the comparison reports.`;
+    }
+
+    renderStats();
+    renderReports();
+    drawGantt();
+    drawThroughput();
+    drawLatency();
+    state.page = 0;
+    renderTable();
+  }
+
+  function renderStats() {
+    const rows = state.rows;
+    const n = rows.length;
+    const ok = rows.filter((r) => r.success).length;
+    const fail = n - ok;
+    const duration = state.jobs.length ? Math.max(...state.jobs.map((j) => j.end)) : 0;
+    const latencies = rows.map((r) => r.latency).filter((v) => v != null);
+    const ttfts = rows.map((r) => r.ttft).filter((v) => v);
+    const totalTokens = rows.reduce((a, r) => a + (r.output_tokens || 0) + (r.prompt_len || 0), 0);
+    const promptLens = rows.map((r) => r.prompt_len).filter((v) => v != null);
+    const outputLens = rows.map((r) => r.output_tokens).filter((v) => v != null);
+    const avg = (vals) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
+
+    const stats = [
+      { l: "Requests", v: n },
+      { l: "Success", v: ok, cls: "ok" },
+      { l: "Errors", v: fail, cls: fail ? "fail" : "" },
+      { l: "Duration", v: duration.toFixed(1) + "s" },
+      { l: "Max concurrency", v: state.numLanes },
+      { l: "Avg latency", v: latencies.length ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(3) + "s" : "-" },
+      { l: "Avg TTFT", v: ttfts.length ? (ttfts.reduce((a, b) => a + b, 0) / ttfts.length).toFixed(3) + "s" : "-" },
+      { l: "Overall tok/s", v: duration ? (totalTokens / duration).toFixed(1) : "-" },
+      { l: "Avg prompt_len", v: promptLens.length ? avg(promptLens).toFixed(1) : "-" },
+      { l: "Avg output_tokens", v: outputLens.length ? avg(outputLens).toFixed(1) : "-" },
+    ];
+    const grid = document.getElementById("statsGrid");
+    grid.innerHTML = stats.map((s) =>
+      `<div class="stat ${s.cls || ""}"><div class="v">${s.v}</div><div class="l">${s.l}</div></div>`
+    ).join("");
+  }
+
+  // -- Report comparison: vLLM serve.py-style whole-run aggregate vs our
+  // per-bucket timeline method, rendered as two side-by-side text reports so
+  // the "one number for the whole run" vs "one number per time slice" framing
+  // is visible directly. The vLLM math mirrors calculate_metrics() in
+  // vllm/benchmarks/serve.py: flatten every successful request's ttft/tpot/
+  // itl/e2el into one distribution and reduce to mean/median/percentiles,
+  // plus a per-second histogram used only to derive two peak scalars.
+
+  function pad(s, width) {
+    s = String(s);
+    return s.length >= width ? s : s + " ".repeat(width - s.length);
+  }
+
+  function center(s, width, fill) {
+    const total = width - s.length;
+    if (total <= 0) return s;
+    const left = Math.floor(total / 2), right = total - left;
+    return fill.repeat(left) + s + fill.repeat(right);
+  }
+
+  function reportLine(label, value, isInt) {
+    const v = isInt ? String(value) : Number(value).toFixed(2);
+    return pad(label, 40) + " " + pad(v, 10);
+  }
+
+  function distStats(values, scale) {
+    if (!values.length) return null;
+    const sv = [...values].sort((a, b) => a - b);
+    return {
+      mean: (sv.reduce((a, b) => a + b, 0) / sv.length) * scale,
+      median: percentileSorted(sv, 0.5) * scale,
+      percentiles: PERCENTILES.map((p) => [p, percentileSorted(sv, p) * scale]),
+    };
+  }
+
+  function msStats(values) {
+    return distStats(values, 1000);
+  }
+
+  // Prefill throughput is a per-request rate (tokens processed during the
+  // prefill/prompt phase, whose duration IS ttft), not a wall-clock system
+  // throughput — so like TTFT/TPOT/ITL it's reported as a distribution
+  // (mean/median/percentiles across requests), not a single summed rate.
+  function prefillRatesOf(rows) {
+    const rates = [];
+    for (const r of rows) {
+      const ttft = r.ttft || 0;
+      if (ttft > 0) rates.push((r.prompt_len || 0) / ttft);
+    }
+    return rates;
+  }
+
+  function computeVllmAggregate(rows) {
+    const successful = rows.filter((r) => r.success);
+    const failed = rows.length - successful.length;
+    if (!successful.length) return { completed: 0, failed };
+
+    const minStart = Math.min(...successful.map((r) => r.start_time));
+    const maxEnd = Math.max(...successful.map((r) => r.start_time + (r.latency || 0)));
+    const durS = Math.max(maxEnd - minStart, 1e-9);
+
+    const totalInput = successful.reduce((a, r) => a + (r.prompt_len || 0), 0);
+    const totalOutput = successful.reduce((a, r) => a + (r.output_tokens || 0), 0);
+
+    const ttfts = successful.map((r) => r.ttft || 0);
+    const tpots = [];
+    for (const r of successful) {
+      const outLen = r.output_tokens || 0;
+      if (outLen > 1) tpots.push(((r.latency || 0) - (r.ttft || 0)) / (outLen - 1));
+    }
+    const itls = [];
+    for (const r of successful) if (r.itl && r.itl.length) itls.push(...r.itl);
+    const e2els = successful.map((r) => r.latency || 0);
+
+    // Per-second histogram, same idea as serve.py: only used to derive two
+    // peak scalars, then discarded (not part of the persisted report).
+    const nSec = Math.ceil(maxEnd - minStart) + 1;
+    const tokensPerSecond = new Array(nSec).fill(0);
+    const concurrentPerSecond = new Array(nSec).fill(0);
+    for (const r of successful) {
+      const start = r.start_time;
+      let cur = start + (r.ttft || 0);
+      const tokenTimes = [cur];
+      for (const gap of r.itl || []) { cur += gap; tokenTimes.push(cur); }
+      for (const t of tokenTimes) {
+        const idx = Math.floor(t - minStart);
+        if (idx >= 0 && idx < nSec) tokensPerSecond[idx]++;
+      }
+      const startSec = Math.max(0, Math.floor(start - minStart));
+      const endSec = Math.min(nSec - 1, Math.floor(start + (r.latency || 0) - minStart));
+      for (let s = startSec; s <= endSec; s++) concurrentPerSecond[s]++;
+    }
+
+    return {
+      completed: successful.length,
+      failed,
+      durS,
+      totalInput,
+      totalOutput,
+      requestThroughput: successful.length / durS,
+      outputThroughput: totalOutput / durS,
+      totalTokenThroughput: (totalInput + totalOutput) / durS,
+      maxOutputTokensPerS: tokensPerSecond.length ? Math.max(...tokensPerSecond) : 0,
+      maxConcurrentRequests: concurrentPerSecond.length ? Math.max(...concurrentPerSecond) : 0,
+      ttfts, tpots, itls, e2els,
+      prefillRates: prefillRatesOf(successful),
+    };
+  }
+
+  function computeVllmReportText(rows) {
+    const data = computeVllmAggregate(rows);
+    const lines = [];
+    lines.push(center(" Serving Benchmark Result ", 50, "="));
+    lines.push(reportLine("Successful requests:", data.completed, true));
+    lines.push(reportLine("Failed requests:", data.failed, true));
+    if (!data.completed) {
+      lines.push("(no successful requests — cannot compute aggregate stats)");
+      return lines.join("\n");
+    }
+    lines.push(reportLine("Benchmark duration (s):", data.durS));
+    lines.push(reportLine("Total input tokens:", data.totalInput, true));
+    lines.push(reportLine("Total generated tokens:", data.totalOutput, true));
+    lines.push(reportLine("Request throughput (req/s):", data.requestThroughput));
+    lines.push(reportLine("Output token throughput (tok/s):", data.outputThroughput));
+    lines.push(reportLine("Peak output token throughput (tok/s):", data.maxOutputTokensPerS));
+    lines.push(reportLine("Peak concurrent requests:", data.maxConcurrentRequests, true));
+    lines.push(reportLine("Total token throughput (tok/s):", data.totalTokenThroughput));
+
+    const metrics = [
+      ["Prefill", "Prefill Throughput (tok/s = prompt_len / ttft)", data.prefillRates, 1, "tok/s"],
+      ["TTFT", "Time to First Token", data.ttfts, 1000, "ms"],
+      ["TPOT", "Time per Output Token (excl. 1st token)", data.tpots, 1000, "ms"],
+      ["ITL", "Inter-token Latency", data.itls, 1000, "ms"],
+      ["E2EL", "End-to-end Latency", data.e2els, 1000, "ms"],
+    ];
+    for (const [short, header, values, scale, unit] of metrics) {
+      lines.push(center(header, 50, "-"));
+      const stats = distStats(values, scale);
+      if (!stats) { lines.push("  (no samples)"); continue; }
+      lines.push(reportLine(`Mean ${short} (${unit}):`, stats.mean));
+      lines.push(reportLine(`Median ${short} (${unit}):`, stats.median));
+      for (const [p, v] of stats.percentiles) {
+        lines.push(reportLine(`P${Math.round(p * 100)} ${short} (${unit}):`, v));
+      }
+    }
+    lines.push("=".repeat(50));
+    lines.push("");
+    lines.push("^ one number per metric for the ENTIRE run — no visibility");
+    lines.push("  into whether performance was steady, ramping, or degrading.");
+    lines.push("  Prefill Throughput isn't part of vLLM's own report; added");
+    lines.push("  here since prompt_len/ttft is a per-request rate, reported");
+    lines.push("  the same way as TTFT/TPOT/ITL rather than as a top-line sum.");
+    return lines.join("\n");
+  }
+
+  // Rolls the SAME per-bucket algorithm computeBuckets() uses back up into a
+  // single aggregate, restricted to successful requests and re-zeroed to
+  // their own earliest start — i.e. the exact basis vLLM's calculate_metrics
+  // uses — so the two whole-run numbers are a fair, line-by-line comparison
+  // instead of being computed two structurally different ways.
+  function computeBucketAggregate(rows, numBuckets, iw, ow) {
+    const successRows = rows.filter((r) => r.success);
+    const failed = rows.length - successRows.length;
+    if (!successRows.length) return { completed: 0, failed };
+
+    const jobs = jobsFromRows(successRows);
+    const end = Math.max(...jobs.map((j) => j.end));
+    const step = end / numBuckets || 1;
+    const buckets = [];
+    for (let i = 0; i < numBuckets; i++) {
+      buckets.push({
+        start: i * step, end: (i + 1) * step, jobs: [], tokens: 0,
+        inputTokens: 0, outputTokens: 0, peakInputTokens: 0, peakOutputTokens: 0,
+      });
+    }
+    for (const job of jobs) {
+      // Prefill window, for the peak-input (prefill rate) estimate below —
+      // kept separate from the whole-duration `pct` used for totalInput so
+      // the exact-total invariant against vLLM stays untouched.
+      const prefillEnd = job.start + job.ttft;
+      const prefillWindow = Math.max(prefillEnd - job.start, 0.001);
+
+      for (const b of buckets) {
+        if (job.start <= b.end && job.end >= b.start) {
+          const total = Math.max(job.end - job.start, 0.001);
+          const overlap = Math.max(0, Math.min(job.end, b.end) - Math.max(job.start, b.start));
+          b.jobs.push({ job, pct: overlap / total });
+
+          const inOverlap = Math.max(0, Math.min(prefillEnd, b.end) - Math.max(job.start, b.start));
+          b.peakInputTokens += job.prompt_len * (inOverlap / prefillWindow);
+        }
+      }
+
+      // Output tokens: exact arrival counting for the peak estimate (same
+      // idea as vLLM's own per-second histogram), separate from the
+      // whole-duration `pct` accumulation used for the exact totalOutput.
+      if (job.output_tokens > 0) {
+        let t = prefillEnd;
+        const arrivalBucket = (time) => buckets[Math.min(numBuckets - 1, Math.max(0, Math.floor(time / step)))];
+        arrivalBucket(t).peakOutputTokens += 1;
+        for (const gap of job.itl || []) { t += gap; arrivalBucket(t).peakOutputTokens += 1; }
+      }
+    }
+    for (const b of buckets) {
+      for (const p of b.jobs) {
+        b.tokens += tokenWeighted(p.job, iw, ow) * p.pct;
+        b.inputTokens += p.job.prompt_len * p.pct;
+        b.outputTokens += p.job.output_tokens * p.pct;
+      }
+    }
+
+    const allTtft = [], allItl = [];
+    const bucketStats = buckets.map((b) => {
+      const ttfts = [], itls = [];
+      for (const p of b.jobs) {
+        const job = p.job;
+        const firstTokenTime = job.start + job.ttft;
+        if (job.ttft && firstTokenTime >= b.start && firstTokenTime <= b.end) ttfts.push(job.ttft);
+        if (job.itl && job.itl.length) {
+          let t = firstTokenTime;
+          for (const gap of job.itl) {
+            t += gap;
+            if (t > b.end) break;
+            if (t >= b.start) itls.push(gap);
+          }
+        }
+      }
+      allTtft.push(...ttfts);
+      allItl.push(...itls);
+      return {
+        active_jobs: b.jobs.length,
+        inputRate: b.peakInputTokens / (b.end - b.start),
+        outputRate: b.peakOutputTokens / (b.end - b.start),
+      };
+    });
+
+    const totalInput = buckets.reduce((a, b) => a + b.inputTokens, 0);
+    const totalOutput = buckets.reduce((a, b) => a + b.outputTokens, 0);
+    const durS = Math.max(end, 1e-9);
+
+    return {
+      completed: successRows.length,
+      failed,
+      durS,
+      totalInput,
+      totalOutput,
+      requestThroughput: successRows.length / durS,
+      outputThroughput: totalOutput / durS,
+      totalTokenThroughput: (totalInput + totalOutput) / durS,
+      peakBucketInputRate: Math.max(...bucketStats.map((b) => b.inputRate)),
+      peakBucketOutputRate: Math.max(...bucketStats.map((b) => b.outputRate)),
+      peakBucketActiveJobs: Math.max(...bucketStats.map((b) => b.active_jobs)),
+      numBuckets,
+      bucketDuration: step,
+      ttfts: allTtft,
+      itls: allItl,
+      prefillRates: prefillRatesOf(successRows),
+    };
+  }
+
+  function computeBucketAggregateReportText(rows, numBuckets, iw, ow) {
+    const data = computeBucketAggregate(rows, numBuckets, iw, ow);
+    const lines = [];
+    lines.push(center(" Bucket Aggregate Result ", 50, "="));
+    lines.push(reportLine("Successful requests:", data.completed, true));
+    lines.push(reportLine("Failed requests:", data.failed, true));
+    if (!data.completed) {
+      lines.push("(no successful requests — cannot compute aggregate stats)");
+      return lines.join("\n");
+    }
+    lines.push(reportLine("Benchmark duration (s):", data.durS));
+    lines.push(reportLine("Total input tokens:", data.totalInput, true));
+    lines.push(reportLine("Total generated tokens:", data.totalOutput, true));
+    lines.push(reportLine("Request throughput (req/s):", data.requestThroughput));
+    lines.push(reportLine("Output token throughput (tok/s):", data.outputThroughput));
+    lines.push(reportLine(`Peak bucket prefill tok/s (ttft window):`, data.peakBucketInputRate));
+    lines.push(reportLine(`Peak output tok/s (${data.bucketDuration.toFixed(2)}s window):`, data.peakBucketOutputRate));
+    lines.push(reportLine("Peak concurrent requests (bucket):", data.peakBucketActiveJobs, true));
+    lines.push(reportLine("Total token throughput (tok/s):", data.totalTokenThroughput));
+
+    const metrics = [
+      ["Prefill", "Prefill Throughput (tok/s = prompt_len / ttft)", data.prefillRates, 1, "tok/s"],
+      ["TTFT", "Time to First Token", data.ttfts, 1000, "ms"],
+      ["ITL", "Inter-token Latency", data.itls, 1000, "ms"],
+    ];
+    for (const [short, header, values, scale, unit] of metrics) {
+      lines.push(center(header, 50, "-"));
+      const stats = distStats(values, scale);
+      if (!stats) { lines.push("  (no samples)"); continue; }
+      lines.push(reportLine(`Mean ${short} (${unit}):`, stats.mean));
+      lines.push(reportLine(`Median ${short} (${unit}):`, stats.median));
+      for (const [p, v] of stats.percentiles) {
+        lines.push(reportLine(`P${Math.round(p * 100)} ${short} (${unit}):`, v));
+      }
+    }
+    lines.push(center("Time per Output Token / End-to-end Latency", 50, "-"));
+    lines.push("  not produced by the bucket method (TPOT/E2EL are");
+    lines.push("  per-request scalars, not localized to a time window)");
+    lines.push("=".repeat(50));
+    lines.push("");
+    lines.push(`^ pools the ${data.numBuckets} buckets' raw TTFT/ITL samples back into`);
+    lines.push("  one distribution — totals & percentiles should match the");
+    lines.push("  vLLM panel almost exactly. Peak prefill tok/s is attributed");
+    lines.push("  to each request's own [start, start+ttft] window (prompt_len");
+    lines.push("  /ttft as local rate); peak output tok/s counts actual token");
+    lines.push("  arrivals per bucket — both differ from vLLM's peak fields");
+    lines.push("  because those use a fixed 1-second window, not bucket-width.");
+    return lines.join("\n");
+  }
+
+  function computeTimelineReportText() {
+    const buckets = state.buckets;
+    const rows = state.reportRows;
+    const ok = rows.filter((r) => r.success).length;
+    const duration = buckets.length ? buckets[buckets.length - 1].end - buckets[0].start : 0;
+    const bucketDur = buckets.length ? buckets[0].end - buckets[0].start : 0;
+    const maxActive = buckets.length ? Math.max(...buckets.map((b) => b.active_jobs)) : 0;
+
+    const lines = [];
+    lines.push(center(" Timeline Method Result ", 50, "="));
+    if (state.trimActive) lines.push(`(ramp-trimmed: concurrency ≤ ${state.concurrencyThreshold} dropped from both ends)`);
+    lines.push(reportLine("Successful requests:", ok, true));
+    lines.push(reportLine("Failed requests:", rows.length - ok, true));
+    lines.push(reportLine("Overall duration (s):", duration));
+    lines.push(reportLine("Max concurrency (lanes):", state.numLanes, true));
+    lines.push(reportLine("Max active/bucket (shown):", maxActive, true));
+    lines.push(reportLine("Buckets:", buckets.length, true));
+    lines.push(reportLine("Bucket duration (s):", bucketDur));
+    if (!buckets.length) return lines.join("\n");
+
+    const row5 = (t, cols) => `  t=${t.toFixed(2).padStart(7)}s  ` + cols.join("  ");
+    const pctCols = (s) => s
+      ? ["mean", "p50", "p90", "p95", "p99"].map((k) => `${k}=${(s[k] * 1000).toFixed(1).padStart(7)}`)
+      : ["(no samples)"];
+
+    lines.push(center("Throughput per bucket", 50, "-"));
+    for (const b of buckets) {
+      lines.push(row5(b.end, [
+        `rate=${b.rate.toFixed(1).padStart(9)} tok/s`,
+        `active=${String(b.active_jobs).padStart(4)}`,
+        `start=${String(b.start_job).padStart(4)}`,
+        `fin=${String(b.finished_job).padStart(4)}`,
+      ]));
+    }
+    lines.push(center("TTFT percentiles per bucket (ms)", 50, "-"));
+    for (const b of buckets) lines.push(row5(b.end, pctCols(b.ttft)));
+    lines.push(center("ITL percentiles per bucket (ms)", 50, "-"));
+    for (const b of buckets) lines.push(row5(b.end, pctCols(b.itl)));
+
+    lines.push("=".repeat(50));
+    lines.push("");
+    lines.push("^ same percentile math as the vLLM report, but sliced across");
+    lines.push("  time — ramp-up, steady state and tail drift are visible.");
+    return lines.join("\n");
+  }
+
+  function renderReports() {
+    const trimNote = state.trimActive
+      ? `(ramp-trimmed: concurrency ≤ ${state.concurrencyThreshold} dropped from both ends)\n\n`
+      : "";
+    document.getElementById("vllmReport").textContent = trimNote + computeVllmReportText(state.reportRows);
+    document.getElementById("bucketAggregateReport").textContent =
+      trimNote + computeBucketAggregateReportText(state.reportRows, state.numBuckets, state.inputWeight, state.outputWeight);
+    document.getElementById("timelineReport").textContent = computeTimelineReportText();
+    document.getElementById("timelineReportBadge").textContent = `per-bucket, N=${state.buckets.length}`;
+  }
+
+  // -- Gantt --
+
+  const ganttCanvas = document.getElementById("ganttCanvas");
+  const tooltip = document.getElementById("tooltip");
+
+  function drawGantt() {
+    const jobs = state.jobs;
+    const wrap = ganttCanvas.parentElement;
+    if (!jobs.length) return;
+    const zoom = Number(document.getElementById("zoom").value);
+    const baseWidth = wrap.clientWidth || 1000;
+    const width = Math.max(baseWidth, Math.floor(baseWidth * zoom));
+    const laneHeight = Math.max(2, Math.min(14, Math.floor(340 / state.numLanes)));
+    const height = Math.max(120, state.numLanes * laneHeight + 20);
+
+    const dpr = window.devicePixelRatio || 1;
+    ganttCanvas.width = width * dpr;
+    ganttCanvas.height = height * dpr;
+    ganttCanvas.style.height = height + "px";
+    const ctx = ganttCanvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const isDark = !window.matchMedia("(prefers-color-scheme: light)").matches;
+    ctx.fillStyle = isDark ? "#161d2e" : "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    const maxEnd = Math.max(...jobs.map((j) => j.end)) || 1;
+    const maxBatch = Math.max(...jobs.map((j) => j.batchId), 1);
+    const px = (t) => (t / maxEnd) * (width - 4) + 2;
+
+    for (const job of jobs) {
+      const x1 = px(job.start);
+      const x2 = Math.max(px(job.end), x1 + 0.6);
+      const y = job.lane * laneHeight + 2;
+      const t = maxBatch > 1 ? (job.batchId - 1) / (maxBatch - 1) : 0;
+      ctx.fillStyle = job.success ? colorForProgress(t) : "#ef5a6f";
+      ctx.fillRect(x1, y, x2 - x1, laneHeight - 1);
+    }
+
+    ganttCanvas._jobs = jobs;
+    ganttCanvas._px = px;
+    ganttCanvas._laneHeight = laneHeight;
+    ganttCanvas._maxEnd = maxEnd;
+    ganttCanvas._width = width;
+
+    document.getElementById("ganttInfo").textContent =
+      `${jobs.length} requests · ${state.numLanes} concurrent lanes · duration ${maxEnd.toFixed(1)}s`;
+  }
+
+  ganttCanvas.addEventListener("mousemove", (e) => {
+    const jobs = ganttCanvas._jobs;
+    if (!jobs || !jobs.length) return;
+    const rect = ganttCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const lane = Math.floor(y / ganttCanvas._laneHeight);
+    const t = (x / ganttCanvas._width) * ganttCanvas._maxEnd;
+
+    let best = null, bestDist = Infinity;
+    for (const j of jobs) {
+      if (j.lane !== lane) continue;
+      if (t >= j.start && t <= j.end) { best = j; bestDist = 0; break; }
+      const d = Math.min(Math.abs(t - j.start), Math.abs(t - j.end));
+      if (d < bestDist) { bestDist = d; best = j; }
+    }
+    if (best && bestDist < 2) {
+      const r = best.raw;
+      tooltip.style.display = "block";
+      tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - 440) + "px";
+      tooltip.style.top = (e.clientY + 14) + "px";
+      tooltip.textContent =
+        `request_id  ${r.request_id || r.id}\n` +
+        `worker      lane ${best.lane}, job #${best.batchId}\n` +
+        `start       ${best.start.toFixed(3)}s\n` +
+        `latency     ${best.latency.toFixed(3)}s\n` +
+        `ttft        ${best.ttft.toFixed(3)}s\n` +
+        `prompt_len  ${best.prompt_len}\n` +
+        `out_tokens  ${best.output_tokens}\n` +
+        `success     ${best.success}\n` +
+        (r.error ? `error       ${r.error}` : "");
+    } else {
+      tooltip.style.display = "none";
+    }
+  });
+  ganttCanvas.addEventListener("mouseleave", () => (tooltip.style.display = "none"));
+  window.addEventListener("resize", () => { drawGantt(); drawThroughput(); drawLatency(); });
+
+  // -- generic chart --
+
+  function setupCanvas(canvas) {
+    const wrap = canvas.parentElement;
+    const width = wrap.clientWidth || 800;
+    const height = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const isDark = !window.matchMedia("(prefers-color-scheme: light)").matches;
+    ctx.fillStyle = isDark ? "#161d2e" : "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = isDark ? "#2a3550" : "#d7deec";
+    ctx.fillStyle = isDark ? "#93a0bd" : "#5a6784";
+    return { ctx, width, height };
+  }
+
+  function drawAxes(ctx, width, height, pad, yMax, xMax, yLabel) {
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, height - pad.b);
+    ctx.lineTo(width - pad.r, height - pad.b);
+    ctx.stroke();
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "right";
+    for (let i = 0; i <= 4; i++) {
+      const v = (yMax * i) / 4;
+      const y = height - pad.b - ((height - pad.t - pad.b) * i) / 4;
+      ctx.fillText(v.toFixed(v < 10 ? 2 : 0), pad.l - 6, y + 3);
+    }
+    ctx.textAlign = "center";
+    for (let i = 0; i <= 4; i++) {
+      const v = (xMax * i) / 4;
+      const x = pad.l + ((width - pad.l - pad.r) * i) / 4;
+      ctx.fillText(v.toFixed(1) + "s", x, height - pad.b + 16);
+    }
+  }
+
+  const THROUGHPUT_SERIES = [
+    { key: "rate", label: "weighted", color: "#4da3ff" },
+    { key: "input_rate", label: "prefill tok/s", color: "#2dd4bf" },
+    { key: "output_rate", label: "output tok/s", color: "#a855f7" },
+  ];
+
+  function drawThroughput() {
+    const canvas = document.getElementById("throughputCanvas");
+    const { ctx, width, height } = setupCanvas(canvas);
+    const buckets = state.buckets;
+    if (!buckets.length) return;
+    const pad = { l: 44, r: 44, t: 10, b: 26 };
+    const xMax = Math.max(...buckets.map((b) => b.end));
+    const yMax = Math.max(...buckets.flatMap((b) => THROUGHPUT_SERIES.map((s) => b[s.key])), 1) * 1.1;
+    const yMax2 = Math.max(...buckets.map((b) => b.active_jobs), 1) * 1.1;
+    drawAxes(ctx, width, height, pad, yMax, xMax, "");
+
+    const xOf = (t) => pad.l + (t / xMax) * (width - pad.l - pad.r);
+    const yOf = (v) => height - pad.b - (v / yMax) * (height - pad.t - pad.b);
+    const yOf2 = (v) => height - pad.b - (v / yMax2) * (height - pad.t - pad.b);
+
+    // active jobs as faint bars
+    ctx.fillStyle = "#f5a74255";
+    for (const b of buckets) {
+      const x1 = xOf(b.start), x2 = xOf(b.end);
+      const y = yOf2(b.active_jobs);
+      ctx.fillRect(x1, y, Math.max(x2 - x1 - 1, 1), height - pad.b - y);
+    }
+
+    for (const series of THROUGHPUT_SERIES) {
+      ctx.strokeStyle = series.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      buckets.forEach((b, i) => {
+        const x = xOf((b.start + b.end) / 2);
+        const y = yOf(b[series.key]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#93a0bd";
+    ctx.fillText("tok/s", pad.l - 40, pad.t + 4);
+    ctx.textAlign = "right";
+    ctx.fillText("active", width - pad.r + 40, pad.t + 4);
+  }
+
+  function drawLatency() {
+    const canvas = document.getElementById("latencyCanvas");
+    const { ctx, width, height } = setupCanvas(canvas);
+    const buckets = state.buckets;
+    if (!buckets.length) return;
+    const metric = document.getElementById("latencyMetric").value;
+    const pad = { l: 44, r: 16, t: 10, b: 26 };
+    const xMax = Math.max(...buckets.map((b) => b.end));
+    let yMax = 0.001;
+    for (const b of buckets) {
+      const stat = b[metric];
+      if (stat) for (const p of PERCENTILES) yMax = Math.max(yMax, stat["p" + Math.round(p * 100)] || 0);
+    }
+    yMax *= 1.15;
+    drawAxes(ctx, width, height, pad, yMax, xMax, "");
+
+    const xOf = (t) => pad.l + (t / xMax) * (width - pad.l - pad.r);
+    const yOf = (v) => height - pad.b - (v / yMax) * (height - pad.t - pad.b);
+
+    PERCENTILES.forEach((p, idx) => {
+      const key = "p" + Math.round(p * 100);
+      ctx.strokeStyle = PCT_COLORS[idx];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let started = false;
+      buckets.forEach((b) => {
+        const stat = b[metric];
+        if (!stat || stat[key] == null) return;
+        const x = xOf((b.start + b.end) / 2);
+        const y = yOf(stat[key]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    });
+    ctx.lineWidth = 1;
+
+    const legend = document.getElementById("latencyLegend");
+    legend.innerHTML = PERCENTILES.map((p, idx) =>
+      `<span><span class="swatch" style="background:${PCT_COLORS[idx]}"></span>p${Math.round(p * 100)}</span>`
+    ).join("");
+  }
+
+  // -- table --
+
+  const COLUMNS = [
+    { key: "id", label: "id" },
+    { key: "request_id", label: "request" },
+    { key: "start_time", label: "start" },
+    { key: "latency", label: "latency" },
+    { key: "prompt_len", label: "prompt_len" },
+    { key: "output_tokens", label: "out_tok" },
+    { key: "ttft", label: "ttft" },
+    { key: "tpot", label: "tpot" },
+    { key: "success", label: "ok" },
+    { key: "error", label: "error" },
+  ];
+
+  function filteredRows() {
+    const filter = document.getElementById("filterSuccess").value;
+    const search = document.getElementById("searchError").value.trim().toLowerCase();
+    return state.rows.filter((r) => {
+      if (filter === "ok" && !r.success) return false;
+      if (filter === "fail" && r.success) return false;
+      if (search && !(r.error || "").toLowerCase().includes(search)) return false;
+      return true;
+    });
+  }
+
+  function renderTable() {
+    const thead = document.querySelector("#reqTable thead");
+    const tbody = document.querySelector("#reqTable tbody");
+    thead.innerHTML = "<tr>" + COLUMNS.map((c) =>
+      `<th data-key="${c.key}">${c.label}${state.sortKey === c.key ? (state.sortDir > 0 ? " ▲" : " ▼") : ""}</th>`
+    ).join("") + "</tr>";
+    thead.querySelectorAll("th").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.key;
+        if (state.sortKey === key) state.sortDir *= -1; else { state.sortKey = key; state.sortDir = 1; }
+        renderTable();
+      });
+    });
+
+    let rows = filteredRows();
+    const key = state.sortKey, dir = state.sortDir;
+    rows = [...rows].sort((a, b) => {
+      let av = a[key], bv = b[key];
+      if (typeof av === "string" || typeof bv === "string") { av = String(av ?? ""); bv = String(bv ?? ""); return dir * av.localeCompare(bv); }
+      return dir * ((av ?? 0) - (bv ?? 0));
+    });
+
+    const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
+    state.page = Math.min(state.page, totalPages - 1);
+    const pageRows = rows.slice(state.page * state.pageSize, (state.page + 1) * state.pageSize);
+
+    if (!pageRows.length) {
+      tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="empty">No requests match the current filter.</td></tr>`;
+    } else {
+      tbody.innerHTML = pageRows.map((r) => `<tr>${COLUMNS.map((c) => {
+        let v = r[c.key];
+        if (c.key === "start_time" || c.key === "latency" || c.key === "ttft" || c.key === "tpot") {
+          v = v == null ? "-" : Number(v).toFixed(3);
+        } else if (c.key === "success") {
+          v = r.success ? "✓" : "✗";
+        } else if (c.key === "error") {
+          return `<td class="err" title="${(v || "").replace(/"/g, "&quot;")}">${v || ""}</td>`;
+        }
+        return `<td>${v ?? ""}</td>`;
+      }).join("")}</tr>`).join("");
+    }
+
+    document.getElementById("pageInfo").textContent =
+      `Page ${state.page + 1} / ${totalPages} · ${rows.length} rows`;
+  }
+})();
+</script>
+</body>
+</html>

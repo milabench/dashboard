@@ -7,15 +7,32 @@ from datetime import datetime
 import sqlalchemy
 from sqlalchemy import select
 
-from dashboard.server.database.models import Exec
+from dashboard.server.database.models import Exec, Pack
 
 VISIBILITY_PUBLIC = 0
 VISIBILITY_PRIVATE = 1
 
 
 def public_exec_filter():
-    """SQLAlchemy filter clause: public runs only."""
-    return Exec.visibility == VISIBILITY_PUBLIC
+    """SQLAlchemy filter clause: public, non-invalidated runs only.
+
+    Every read/aggregation path (breakdown, gpu_summary, run_groups,
+    scaling_live_compute, bench_doc, the pivot/summary views in view.py, ...)
+    uses this as its base Exec condition, so excluding invalidated runs here
+    propagates everywhere at once — see database/invalidation.py for how
+    Exec.invalidated gets set.
+    """
+    return sqlalchemy.and_(Exec.visibility == VISIBILITY_PUBLIC, Exec.invalidated.is_(False))
+
+
+def valid_pack_filter():
+    """SQLAlchemy filter clause: non-invalidated packs only.
+
+    Companion to public_exec_filter() for the finer-grained case — a bug
+    that only tainted one benchmark within an otherwise-fine run. Apply
+    alongside public_exec_filter() wherever Pack rows are aggregated.
+    """
+    return Pack.invalidated.is_(False)
 
 
 def is_public(exec_row: Exec | None) -> bool:

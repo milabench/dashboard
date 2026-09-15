@@ -97,7 +97,7 @@ def get_log(runfile, *args, **kwargs):
     yield from fetch_one(LogExtractor, runfile, *args, **kwargs)
 
 
-def datafile_processor(app, cache):
+def datafile_processor(app, bp, cache):
     from pathlib import Path
     from ..slurm.constant import ROOT
 
@@ -156,11 +156,11 @@ def datafile_processor(app, cache):
         # Deduplicate values for each field
         return {k: sorted(list(set(v))) for k, v in fields.items()}
 
-    @app.route('/api/datafile/select/fields', methods=["GET"])
+    @bp.route('/api/datafile/select/fields', methods=["GET"])
     def list_fields():
         return _list_fields(run_folder())
 
-    @app.route('/api/datafile/select/benchmark', methods=["POST"])
+    @bp.route('/api/datafile/select/benchmark', methods=["POST"])
     def preview_selected():
         selected_fields = request.get_json()
 
@@ -168,7 +168,7 @@ def datafile_processor(app, cache):
         group_selector = GroupMetricExpander(fetch_groups(run_folder()))
         return group_selector.query(**selected_fields)
 
-    @app.route('/api/datafile/select/metrics', methods=["POST", "GET"])
+    @bp.route('/api/datafile/select/metrics', methods=["POST", "GET"])
     def selected_metrics():
         import base64
         import json
@@ -195,33 +195,33 @@ def datafile_processor(app, cache):
         file_list = benchs[bench]
         return file_list[0]["file"]
 
-    @app.route('/api/datafile/list/benchmark')
+    @bp.route('/api/datafile/list/benchmark')
     def _list_benchmarks():
         benchs = list_benchmarks(run_folder())
         return list(benchs.keys())
 
-    @app.route('/api/datafile/config/<string:bench>')
+    @bp.route('/api/datafile/config/<string:bench>')
     def benchmark_config(bench):
         r = get_config(get_benchmark_file(bench))
         return r
 
-    @app.route('/api/datafile/meta/<string:bench>')
+    @bp.route('/api/datafile/meta/<string:bench>')
     def benchmark_meta(bench):
         return get_meta(get_benchmark_file(bench))
 
-    @app.route('/api/datafile/stdout/<string:bench>')
+    @bp.route('/api/datafile/stdout/<string:bench>')
     def benchmark_stdout(bench):
         return list(get_log(get_benchmark_file(bench), pipe_filter="stdout"))
 
-    @app.route('/api/datafile/stderr/<string:bench>')
+    @bp.route('/api/datafile/stderr/<string:bench>')
     def benchmark_stderr(bench):
         return list(get_log(get_benchmark_file(bench), pipe_filter="stderr"))
 
-    @app.route('/api/datafile/metrics/<string:bench>')
+    @bp.route('/api/datafile/metrics/<string:bench>')
     def benchmark_metrics(bench):
         return list(extract_milabench_metrics(get_benchmark_file(bench)))
 
-    @app.route('/api/datafile/metrics/preview/<string:bench>')
+    @bp.route('/api/datafile/metrics/preview/<string:bench>')
     def benchmark_metrics_preview(bench):
         full = benchmark_metrics(bench)
         return {

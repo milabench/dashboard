@@ -2,7 +2,7 @@
 
 Cascade order (FKs are not ``ON DELETE CASCADE`` in the schema)::
 
-    metrics → report_cache → packs → execs
+    metrics → report_cache → run_group_members → packs → execs
 
 Examples::
 
@@ -97,7 +97,13 @@ class Runs(Command):
         parser.add_argument(
             "--secrets",
             default=None,
-            help="Path to data directory containing .secrets (default: repo data/)",
+            help="Path to data directory containing secrets.toml or .secrets (default: repo data/)",
+        )
+        parser.add_argument(
+            "--env",
+            default=None,
+            choices=["dev", "prod"],
+            help="Config section to load from secrets.toml; defaults to 'dev'. Pass --env prod explicitly to target production.",
         )
 
     @staticmethod
@@ -107,7 +113,7 @@ class Runs(Command):
 
         from dashboard.server.utils import database_uri, load_db_secrets
 
-        load_db_secrets(root=args.secrets)
+        load_db_secrets(root=args.secrets, env=args.env)
         try:
             uri = database_uri()
         except ValueError as err:
@@ -269,13 +275,19 @@ def _print_summary(summary):
 
 
 def cascade_delete_exec(sess, exec_id: int) -> dict[str, int]:
-    """Delete metrics, report_cache, packs, then the exec row.
+    """Delete metrics, report_cache, packs, run_group_members, then the exec row.
 
     Caller owns the transaction (commit / rollback).
     """
     from sqlalchemy import delete, func, select
 
-    from dashboard.server.database.models import Exec, Metric, Pack, ReportCache
+    from dashboard.server.database.models import (
+        Exec,
+        Metric,
+        Pack,
+        ReportCache,
+        RunGroupMember,
+    )
 
     exec_id = int(exec_id)
     if sess.get(Exec, exec_id) is None:
@@ -291,6 +303,7 @@ def cascade_delete_exec(sess, exec_id: int) -> dict[str, int]:
     counts = {
         "metrics": _count_delete(Metric, Metric.exec_id == exec_id),
         "report_cache": _count_delete(ReportCache, ReportCache.exec_id == exec_id),
+        "run_group_members": _count_delete(RunGroupMember, RunGroupMember.exec_id == exec_id),
         "packs": _count_delete(Pack, Pack.exec_id == exec_id),
         "execs": _count_delete(Exec, Exec._id == exec_id),
     }

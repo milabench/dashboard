@@ -34,19 +34,25 @@ class Scaling(Command):
         parser = newparser(subparsers, Scaling)
         parser.add_argument(
             "action",
-            choices=["import", "list"],
+            choices=["import", "list", "delete"],
             help="Action to perform",
         )
         parser.add_argument(
             "path",
             nargs="?",
             default=None,
-            help="Directory of *.yaml scaling files (for import)",
+            help="Directory of *.yaml scaling files (for import); GPU name to delete (for delete)",
         )
         parser.add_argument(
             "--secrets",
             default=None,
-            help="Path to data directory containing .secrets (default: repo data/)",
+            help="Path to data directory containing secrets.toml or .secrets (default: repo data/)",
+        )
+        parser.add_argument(
+            "--env",
+            default=None,
+            choices=["dev", "prod"],
+            help="Config section to load from secrets.toml; defaults to 'dev'. Pass --env prod explicitly to target production.",
         )
 
     @staticmethod
@@ -57,7 +63,7 @@ class Scaling(Command):
         from dashboard.server.utils import database_uri, load_db_secrets
         from dashboard.server.database.scaling import ScalingObservation
 
-        load_db_secrets(root=args.secrets)
+        load_db_secrets(root=args.secrets, env=args.env)
         try:
             uri = database_uri()
         except ValueError as err:
@@ -86,6 +92,24 @@ class Scaling(Command):
                         return 0
                     for gpu, count in rows:
                         print(f"  {gpu:<16} {count:>6} rows")
+                    return 0
+                case "delete":
+                    from sqlalchemy import delete as sql_delete
+                    gpu = args.path
+                    if not gpu:
+                        print("[scaling] delete requires a GPU name, e.g.: dashboard db scaling delete MI355X.new")
+                        return 1
+                    count = sess.execute(
+                        select(func.count(ScalingObservation._id))
+                        .where(ScalingObservation.gpu == gpu)
+                    ).scalar_one()
+                    if count == 0:
+                        print(f"[scaling] No rows found for GPU '{gpu}'")
+                        return 1
+                    print(f"[scaling] Deleting {count} rows for GPU '{gpu}'…")
+                    sess.execute(sql_delete(ScalingObservation).where(ScalingObservation.gpu == gpu))
+                    sess.commit()
+                    print(f"[scaling] Done — {count} rows deleted.")
                     return 0
 
 

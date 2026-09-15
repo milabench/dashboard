@@ -48,6 +48,101 @@ from typing import Optional
 from argklass.arguments import argument, choice
 from argklass.command import Command
 
+
+def _parse_local_db(db_uri):
+    """Extract connection params from a database URI.
+
+    Handles both sqlalchemy.URL objects and plain URI strings.
+    """
+    from sqlalchemy import URL
+
+    if isinstance(db_uri, URL):
+        return {
+            "host": db_uri.host or "localhost",
+            "port": str(db_uri.port or 5432),
+            "dbname": db_uri.database or "",
+            "user": db_uri.username or "",
+            "password": db_uri.password or "",
+            "sslmode": db_uri.query.get("sslmode", ""),
+        }
+
+    from urllib.parse import urlparse, parse_qs
+
+    parsed = urlparse(str(db_uri))
+    query = parse_qs(parsed.query)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": str(parsed.port or 5432),
+        "dbname": parsed.path.lstrip("/"),
+        "user": parsed.username or "",
+        "password": parsed.password or "",
+        "sslmode": query.get("sslmode", [""])[0],
+    }
+
+
+def _pg_dump(host, port, user, password, dbname, sslmode=""):
+    """Run pg_dump and return (stdout_bytes, stderr_str, returncode)."""
+    env = os.environ.copy()
+    env["PGPASSWORD"] = password
+    if sslmode:
+        env["PGSSLMODE"] = sslmode
+
+    result = subprocess.run(
+        [
+            "pg_dump",
+            "-h", host,
+            "-p", str(port),
+            "-U", user,
+            "-d", dbname,
+            "--format=custom",
+            "--no-owner",
+            "--no-acl",
+        ],
+        capture_output=True,
+        env=env,
+        timeout=600,
+    )
+    return result.stdout, result.stderr.decode("utf-8", errors="replace"), result.returncode
+
+
+def _pg_restore(dump_path, host, port, user, password, dbname, sslmode="", clean=True, grant_to=None):
+    """Run pg_restore and return (stderr_str, returncode).
+
+    If grant_to is provided, grants SELECT on all tables to that role
+    after restore (to fix permissions lost by --clean).
+    """
+    env = os.environ.copy()
+    env["PGPASSWORD"] = password
+    if sslmode:
+        env["PGSSLMODE"] = sslmode
+
+    cmd = [
+        "pg_restore",
+        "-h", host,
+        "-p", str(port),
+        "-U", user,
+        "-d", dbname,
+        "--no-owner",
+        "--no-acl",
+    ]
+    if clean:
+        cmd += ["--clean", "--if-exists"]
+    cmd.append(dump_path)
+
+    result = subprocess.run(cmd, capture_output=True, env=env, timeout=600)
+    stderr = result.stderr.decode("utf-8", errors="replace")
+
+    if grant_to and result.returncode in (0, 1):
+        grant_sql = f"GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{grant_to}\";"
+        grant_result = subprocess.run(
+            ["psql", "-h", host, "-p", str(port), "-U", user, "-d", dbname, "-c", grant_sql],
+            capture_output=True, env=env, timeout=30,
+        )
+        if grant_result.returncode != 0:
+            stderr += f"\nGrant failed: {grant_result.stderr.decode('utf-8', errors='replace')}"
+
+    return stderr, result.returncode
+
 DEFAULT_STORAGE_ACCOUNT = "stbackupmilabenchdev"
 DEFAULT_CONTAINER = "db-backups"
 DEFAULT_RETAIN = 4
@@ -64,7 +159,8 @@ class Backup(Command):
         """Dump, restore, and manage Azure/local database backups."""
         action         : str           = choice("dump", "restore", "download", "list", "upload", "prune")  # Backup action
         path           : Optional[str] = argument(nargs="?")  # Local .dump path (dump output / restore input / upload source)
-        secrets        : Optional[str] = None  # Path to data directory containing .secrets (default: repo data/)
+        secrets        : Optional[str] = None  # Path to data directory containing secrets.toml or .secrets (default: repo data/)
+        env            : Optional[str] = None  # TOML section to load (dev or prod); defaults to dev — pass prod explicitly
         outdir         : Optional[str] = None  # Local backups directory (default: <repo>/backups)
         storage_account: Optional[str] = None  # Azure storage account (default: $BACKUP_STORAGE_ACCOUNT or stbackupmilabenchdev)
         container      : str           = DEFAULT_CONTAINER  # Azure blob container
@@ -80,7 +176,7 @@ class Backup(Command):
     def execute(args):
         from dashboard.server.utils import load_db_secrets
 
-        load_db_secrets(root=args.secrets)
+        load_db_secrets(root=args.secrets, env=args.env)
         outdir = Path(args.outdir) if args.outdir else _default_backups_dir()
 
         match args.action:
@@ -121,7 +217,6 @@ def _conn_params(args, *, for_restore: bool):
     Restore defaults to admin (DROP privileges for --clean).
     Dump prefers backup role → admin → app.
     """
-    from dashboard.server.sync import _parse_local_db
     from dashboard.server.utils import _postgres_url, admin_database_uri
 
     if args.app and args.admin:
@@ -157,7 +252,6 @@ def _conn_params(args, *, for_restore: bool):
 
 
 def _dump(args, outdir: Path):
-    from dashboard.server.sync import _pg_dump
 
     conn = _conn_params(args, for_restore=False)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -192,7 +286,6 @@ def _latest_local_dump(outdir: Path) -> Path | None:
 
 
 def _restore(args, outdir: Path):
-    from dashboard.server.sync import _pg_restore
 
     if args.path:
         dump_path = Path(args.path)

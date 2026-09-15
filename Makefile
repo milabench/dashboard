@@ -24,15 +24,9 @@ setup-conda:
 front:
 	cd dashboard/ui && npm run dev
 
-back-conda:
-	($(CONDA_ACTIVATE) py312; POSTGRES_USER=milabench_write POSTGRES_PSWD=1234 flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
-
-back:
-	(. ../.venv/bin/activate; POSTGRES_USER=milabench_write POSTGRES_PSWD=1234 flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
-
 # ── Local Postgres (dev) ────────────────────────────────────────────────────
-# Same credentials as `make back`. Unsets DATABASE_URI so a prod DSN in the
-# environment / data/.secrets cannot redirect these targets.
+# Used by `make back` and local-db targets. Unsets DATABASE_URI so a prod DSN
+# in the environment / data/.secrets cannot redirect the dev server.
 LOCAL_PG_HOST ?= localhost
 LOCAL_PG_PORT ?= 5432
 LOCAL_PG_DB   ?= milabench
@@ -46,6 +40,13 @@ LOCAL_DB_ENV = env -u DATABASE_URI \
 	POSTGRES_USER=$(LOCAL_PG_USER) \
 	POSTGRES_PSWD=$(LOCAL_PG_PSWD) \
 	POSTGRES_SSLMODE=
+
+# Auto-runs Alembic on localhost when DEV_MODE is on (default). Set AUTO_MIGRATE=0 to skip.
+back-conda:
+	($(CONDA_ACTIVATE) py312; $(LOCAL_DB_ENV) flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
+
+back:
+	(. ../.venv/bin/activate; $(LOCAL_DB_ENV) flask --app dashboard.server.view:main run --host=0.0.0.0 --debug)
 
 .PHONY: local-db local-db-migrate local-db-scaling local-db-gpus local-db-list
 

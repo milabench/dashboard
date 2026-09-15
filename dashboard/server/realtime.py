@@ -64,12 +64,12 @@ class BenchEntryRebuilder:
                 yield self.benchentry(**entry)
 
 
-def metric_receiver(app):
+def metric_receiver(app, bp):
     from flask import request
     rebuilder_registry = {}
     process_registry = {}
 
-    @app.route('/api/metric/<string:hostname>')
+    @bp.route('/api/metric/<string:hostname>')
     def open_reverse_ssh(hostname: str):
         cmd = reverse_ssh_tunnel(hostname)
 
@@ -82,7 +82,7 @@ def metric_receiver(app):
 
         return {"status": "ok", "message": "already exists"}
 
-    @app.route('/api/metric/<string:hostname>', methods=['DELETE'])
+    @bp.route('/api/metric/<string:hostname>', methods=['DELETE'])
     def close_reverse_ssh(hostname: str):
         nonlocal process_registry
 
@@ -93,7 +93,7 @@ def metric_receiver(app):
             return {"status": "ok", "message": "stopped"}
         return {"status": "ok", "message": "does not exist"}
 
-    @app.route('/api/metric/<string:jr_job_id>', methods=['POST'])
+    @bp.route('/api/metric/<string:jr_job_id>', methods=['POST'])
     def receive_metric(jr_job_id: str):
         # We do not control when we receive the data
         # we might lose the first few messages

@@ -8,6 +8,7 @@ Covers:
 - Submit failure recording
 """
 
+import hashlib
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 from contextlib import contextmanager
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session as SASession
 
 from dashboard.server.database.models import Base
 from dashboard.server.database.scheduled_job import ScheduledJob, ScheduledJobRun
+from dashboard.server.slurm import scheduled as scheduled_mod
 from dashboard.server.slurm.scheduled import _compute_next_run
 
 
@@ -96,6 +98,8 @@ class TestScheduledJobModel:
             created_time=datetime(2026, 6, 11),
             modified_time=datetime(2026, 6, 11),
             next_run_time=datetime(2026, 6, 12),
+            source_template="shared_run.sh",
+            source_template_hash="abc123",
         )
         d = job.as_dict()
         assert d["name"] == "test"
@@ -103,6 +107,8 @@ class TestScheduledJobModel:
         assert d["sbatch_args"] == ["--partition=long"]
         assert d["next_run_time"] is not None
         assert d["last_run_time"] is None
+        assert d["source_template"] == "shared_run.sh"
+        assert d["source_template_hash"] == "abc123"
 
     def test_as_dict_null_dates(self):
         job = ScheduledJob(_id=2, name="x", cron_expression="0 0 * * *",
@@ -110,6 +116,8 @@ class TestScheduledJobModel:
         d = job.as_dict()
         for key in ("created_time", "modified_time", "last_run_time", "next_run_time"):
             assert d[key] is None
+        assert d["source_template"] is None
+        assert d["source_template_hash"] is None
 
 
 class TestScheduledJobRunModel:
@@ -162,6 +170,56 @@ class TestComputeNextRun:
         nxt = _compute_next_run("0 0 * * *", base)
         assert nxt == datetime(2026, 6, 14, 0, 0)
         assert nxt > base
+
+
+# ─── Source template tracking (drift detection) ───────────────────────
+
+class TestTemplateTracking:
+    """_template_content / _template_hash / _job_outdated against a fake
+    scripts/slurm folder, so a scheduled job can remember which template it
+    came from and the dashboard can tell when that file has since changed.
+    """
+
+    def test_template_hash_matches_current_content(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(scheduled_mod, "SLURM_TEMPLATES", str(tmp_path))
+        (tmp_path / "foo.sh").write_text("#!/bin/bash\necho hi\n")
+
+        digest = scheduled_mod._template_hash("foo.sh")
+        assert digest == hashlib.sha256(b"#!/bin/bash\necho hi\n").hexdigest()
+
+    def test_template_hash_none_for_missing_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(scheduled_mod, "SLURM_TEMPLATES", str(tmp_path))
+        assert scheduled_mod._template_hash("nope.sh") is None
+
+    def test_job_outdated_false_when_no_source_template(self):
+        job = ScheduledJob(source_template=None, source_template_hash=None)
+        assert scheduled_mod._job_outdated(job) == (False, False)
+
+    def test_job_outdated_false_when_content_unchanged(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(scheduled_mod, "SLURM_TEMPLATES", str(tmp_path))
+        (tmp_path / "foo.sh").write_text("v1")
+        job = ScheduledJob(
+            source_template="foo.sh",
+            source_template_hash=scheduled_mod._template_hash("foo.sh"),
+        )
+        assert scheduled_mod._job_outdated(job) == (False, False)
+
+    def test_job_outdated_true_after_template_edited(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(scheduled_mod, "SLURM_TEMPLATES", str(tmp_path))
+        (tmp_path / "foo.sh").write_text("v1")
+        job = ScheduledJob(
+            source_template="foo.sh",
+            source_template_hash=scheduled_mod._template_hash("foo.sh"),
+        )
+
+        (tmp_path / "foo.sh").write_text("v2 -- something changed")
+
+        assert scheduled_mod._job_outdated(job) == (True, False)
+
+    def test_job_outdated_flags_missing_template_instead_of_outdated(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(scheduled_mod, "SLURM_TEMPLATES", str(tmp_path))
+        job = ScheduledJob(source_template="gone.sh", source_template_hash="deadbeef")
+        assert scheduled_mod._job_outdated(job) == (False, True)
 
 
 # ─── Full checker cycle (the real integration test) ───────────────────

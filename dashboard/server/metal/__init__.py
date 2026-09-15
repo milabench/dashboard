@@ -36,7 +36,7 @@ class Baremetal:
         pass
 
 
-def baremetal_server(app):
+def baremetal_server(app, bp):
     # Baremetal
     #   we can SSH to them
     #   milabench has an agent running there
@@ -80,7 +80,7 @@ def baremetal_server(app):
         # This can use ansible
         pass
 
-    @app.route("/api/metal/sync/<string:name>")
+    @bp.route("/api/metal/sync/<string:name>")
     def sync_jobs(name):
         info = get_host(name)
         # How can I get this ?
@@ -90,7 +90,7 @@ def baremetal_server(app):
 
         cmd = "rsync {ssh}:{folder} {dest}"
 
-    @app.route("/api/metal/list")
+    @bp.route("/api/metal/list")
     def list_hosts():
         return baremetal_hosts
 
@@ -103,8 +103,8 @@ def baremetal_server(app):
     #   This is problematic when we need to pass through SSH
     #   We can parse ~/.ssh/config instead and get the nodes from there
     #
-    @app.route("/api/metal/register/<string:address>/<int:port>", methods=["POST"])
-    @app.route("/api/metal/register/<string:address>/<int:port>/<string:name>", methods=["POST"])
+    @bp.route("/api/metal/register/<string:address>/<int:port>", methods=["POST"])
+    @bp.route("/api/metal/register/<string:address>/<int:port>/<string:name>", methods=["POST"])
     def register_new_host(address: str, port: int, name: str | None = None):
         # Register a new host to this server
         # NOTE: we need to ssh to the server fo open the connection, which kind of sucks
@@ -123,8 +123,8 @@ def baremetal_server(app):
         except ValueError:
             return jsonify({"status": "no", "error": "Invalid /config response"}), 502
 
-    @app.route("/api/metal/<string:name>", defaults={"route": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
-    @app.route("/api/metal/<string:name>/<path:route>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    @bp.route("/api/metal/<string:name>", defaults={"route": ""}, methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    @bp.route("/api/metal/<string:name>/<path:route>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def forward_to_agent(name: str, route: str):
         # Forward all requests to the agent based on the host name
         return forward_request(name, route)

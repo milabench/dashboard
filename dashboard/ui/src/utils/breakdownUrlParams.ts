@@ -31,9 +31,37 @@ export interface BreakdownSelection {
     g4: string[];
     benches: string[];
     perfAgg: BreakdownPerfAgg;
+    configGroupId: number | null;
 }
 
-const SELECTION_KEYS = ['g1', 'g2', 'g3', 'g4', 'benches'] as const;
+const SELECTION_KEYS = ['g1', 'g2', 'g3', 'g4', 'benches', 'config'] as const;
+
+/** Minimal shape needed to pick a default config run-group; avoids importing
+ * the full `RunGroup` type from services/types into this utils module. */
+export interface ConfigGroupLike {
+    _id: number;
+    label: string;
+    meta: Record<string, unknown> | null;
+    member_count?: number;
+}
+
+/** Default config run-group: plain "baseline" label wins; else the
+ * highest-member baseline-kind group; else the highest-member group overall. */
+export function defaultConfigGroupId(groups: ConfigGroupLike[]): number | null {
+    if (!groups.length) return null;
+    const byMembers = (list: ConfigGroupLike[]) =>
+        [...list].sort((a, b) => (b.member_count ?? 0) - (a.member_count ?? 0))[0];
+
+    const plainBaseline = groups.find(
+        (g) => g.label === 'baseline' && g.meta?.kind === 'baseline',
+    );
+    if (plainBaseline) return plainBaseline._id;
+
+    const anyBaseline = groups.filter((g) => g.meta?.kind === 'baseline');
+    if (anyBaseline.length) return byMembers(anyBaseline)._id;
+
+    return byMembers(groups)._id;
+}
 
 export function parseBreakdownPerfAgg(raw: string | null): BreakdownPerfAgg {
     const method = raw?.trim().toLowerCase();
@@ -48,6 +76,8 @@ export function hasBreakdownUrlConfig(params: URLSearchParams): boolean {
 }
 
 export function parseBreakdownFromSearchParams(params: URLSearchParams): BreakdownSelection {
+    const rawConfig = params.get('config');
+    const configGroupId = rawConfig && /^\d+$/.test(rawConfig) ? Number(rawConfig) : null;
     return {
         g1: params.getAll('g1'),
         g2: params.getAll('g2'),
@@ -55,6 +85,7 @@ export function parseBreakdownFromSearchParams(params: URLSearchParams): Breakdo
         g4: params.getAll('g4'),
         benches: params.getAll('benches'),
         perfAgg: parseBreakdownPerfAgg(params.get('perfAgg')),
+        configGroupId,
     };
 }
 
@@ -77,6 +108,9 @@ export function buildBreakdownSearchParams(selection: BreakdownSelection): URLSe
     }
     if (selection.perfAgg !== DEFAULT_BREAKDOWN_PERF_AGG) {
         params.set('perfAgg', selection.perfAgg);
+    }
+    if (selection.configGroupId !== null) {
+        params.set('config', String(selection.configGroupId));
     }
     return params;
 }

@@ -24,8 +24,8 @@ _DB_SECRET_KEYS = (
 )
 
 
-def load_db_secrets(root=None):
-    """Fill unset DB-related env vars from ``data/.secrets``.
+def load_db_secrets(root=None, env: str | None = None):
+    """Fill unset DB-related env vars from ``secrets.toml`` or ``data/.secrets``.
 
     Distinguishes admin vs application credentials:
 
@@ -33,6 +33,10 @@ def load_db_secrets(root=None):
     * ``DB_APP_PASSWORD`` / ``POSTGRES_PSWD`` — app role (``milabench_write``)
 
     Environment variables already set take precedence over the secrets file.
+
+    *env* selects the ``[dev]``/``[prod]`` section in ``secrets.toml``.
+    Defaults to ``"dev"``; pass ``"prod"`` only when explicitly requested.
+    ``DASHBOARD_ENV`` is intentionally ignored — prod must be opt-in.
     """
     if root is None:
         from dashboard.server.slurm.constant import JOBRUNNER_LOCAL_CACHE
@@ -43,7 +47,7 @@ def load_db_secrets(root=None):
 
     from dashboard.server.slurm.secrets import create_default_store
 
-    store = create_default_store(root)
+    store = create_default_store(root, env=env or "dev")
     for key in _DB_SECRET_KEYS:
         if os.environ.get(key):
             continue

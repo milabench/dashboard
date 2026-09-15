@@ -472,6 +472,19 @@ export interface ScheduledJob {
     last_run_time: string | null;
     last_job_id: string | null;
     next_run_time: string | null;
+    // Which scripts/slurm template this job's script was loaded from, if
+    // any, and whether that file has since changed (computed server-side).
+    source_template: string | null;
+    source_template_hash: string | null;
+    outdated?: boolean;
+    template_missing?: boolean;
+}
+
+export interface ScheduledJobTemplateDiff {
+    source_template: string;
+    current_script: string;
+    latest_script: string;
+    outdated: boolean;
 }
 
 export interface ScheduledJobRun {
@@ -482,4 +495,16 @@ export interface ScheduledJobRun {
     submitted_at: string | null;
     status: string;
     error: string | null;
+}
+
+export interface RunGroup {
+    _id: number;
+    strategy: 'hardware' | 'config' | 'software' | 'manual';
+    granularity: string | null;
+    fingerprint: string | null;
+    label: string;
+    meta: Record<string, unknown> | null;
+    created_at: string | null;
+    updated_at: string | null;
+    member_count?: number;
 }

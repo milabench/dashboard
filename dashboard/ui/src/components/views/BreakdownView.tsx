@@ -26,6 +26,7 @@ import {
     buildBreakdownSearchParams,
     breakdownSelectionUrlKey,
     breakdownPerfAggLabel,
+    defaultConfigGroupId,
     BREAKDOWN_PERF_AGG_OPTIONS,
     DEFAULT_BREAKDOWN_PERF_AGG,
     hasBreakdownUrlConfig,
@@ -34,12 +35,15 @@ import {
     type BreakdownSelection,
 } from '../../utils/breakdownUrlParams';
 import {
-    getBreakdownMatrix,
-    getBreakdownScores,
     getBreakdownWorkloads,
-    type BreakdownGpuScore,
+    getProfileList,
+    getRunGroupMatrix,
+    getRunGroupScores,
+    getRunGroups,
     type BreakdownWorkload,
+    type RunGroupScore,
 } from '../../services/api';
+import type { RunGroup } from '../../services/types';
 
 type GroupKey = 'group1' | 'group2' | 'group3' | 'group4';
 
@@ -52,6 +56,23 @@ function groupLabel(value: string | null | undefined): string | null {
 function stripQuotes(value: string | null | undefined): string {
     if (!value || value === 'null') return '';
     return value.replace(/^"|"$/g, '');
+}
+
+/** Hardware group labels are "<gpu part> / <cpu part> / <arch>" (see
+ * grouping.py's _hardware_label); the GPU part alone is plenty for the
+ * chart axis / table header — CPU + arch stay available on hover. The
+ * vendor name, form-factor tag (OAM), and any memory size baked into the
+ * product string are dropped too — the product name alone is enough at a
+ * glance (memory is already reported separately as "…GiB") and the full
+ * label is still shown on hover. */
+function shortHardwareLabel(label: string): string {
+    const gpuPart = label.split(' / ')[0] ?? label;
+    return gpuPart
+        .replace(/\b(NVIDIA|AMD)\b\s*/gi, '')
+        .replace(/\bOAM\b\s*/gi, '')
+        .replace(/\b\d+\s?GB\b\s*/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
 }
 
 function formatScore(score: number): string {
@@ -134,6 +155,7 @@ function pruneToAllowed(selected: string[], allowed: Set<string>): string[] {
 
 function validateBreakdownSelection(
     items: BreakdownWorkload[],
+    configGroups: RunGroup[],
     selection: BreakdownSelection,
 ): BreakdownSelection {
     const g1 = pruneToAllowed(selection.g1, new Set(groupOptions(items, 'group1')));
@@ -153,6 +175,11 @@ function validateBreakdownSelection(
     const benches = selection.benches.length
         ? pruneToAllowed(selection.benches, packAllow)
         : effectivePacks(items, g1, g2, g3, g4);
+    const configGroupId =
+        selection.configGroupId !== null &&
+        configGroups.some((g) => g._id === selection.configGroupId)
+            ? selection.configGroupId
+            : defaultConfigGroupId(configGroups);
     return {
         g1,
         g2,
@@ -160,10 +187,14 @@ function validateBreakdownSelection(
         g4,
         benches,
         perfAgg: selection.perfAgg,
+        configGroupId,
     };
 }
 
-function defaultBreakdownSelection(items: BreakdownWorkload[]): BreakdownSelection {
+function defaultBreakdownSelection(
+    items: BreakdownWorkload[],
+    configGroups: RunGroup[],
+): BreakdownSelection {
     const g1 = groupOptions(items, 'group1');
     const { g2, g3, g4 } = cascadeChildSelections(items, g1);
     return {
@@ -173,6 +204,7 @@ function defaultBreakdownSelection(items: BreakdownWorkload[]): BreakdownSelecti
         g4,
         benches: effectivePacks(items, g1, g2, g3, g4),
         perfAgg: DEFAULT_BREAKDOWN_PERF_AGG,
+        configGroupId: defaultConfigGroupId(configGroups),
     };
 }
 
@@ -185,6 +217,7 @@ function applyBreakdownSelection(
         setG4: (v: string[]) => void;
         setPacks: (v: string[]) => void;
         setPerfAgg: (v: BreakdownPerfAgg) => void;
+        setConfigGroupId: (v: number | null) => void;
     },
 ): void {
     setters.setG1(selection.g1);
@@ -193,6 +226,7 @@ function applyBreakdownSelection(
     setters.setG4(selection.g4);
     setters.setPacks(selection.benches);
     setters.setPerfAgg(selection.perfAgg);
+    setters.setConfigGroupId(selection.configGroupId);
 }
 
 interface CascadeSelectProps {
@@ -281,13 +315,30 @@ const SelectedBenchmarksPanel: React.FC<{
 export const BreakdownView: React.FC = () => {
     usePageTitle('Breakdown');
     const { colorMode } = useColorMode();
-    const profile = Cookies.get('scoreProfile') || 'default';
+    const [profile, setProfile] = useState(() => Cookies.get('scoreProfile') || 'default');
     const [searchParams, setSearchParams] = useSearchParams();
     const lastUrlKeyRef = useRef('');
+    const profileChangePendingRef = useRef(false);
+
+    const { data: profileList = [] } = useQuery({
+        queryKey: ['profileList'],
+        queryFn: getProfileList,
+    });
+
+    const profileOptions = useMemo(() => {
+        const names = new Set(profileList);
+        names.add(profile);
+        return Array.from(names).sort((a, b) => a.localeCompare(b));
+    }, [profileList, profile]);
 
     const { data: workloads, isLoading: loadingWorkloads } = useQuery({
         queryKey: ['breakdownWorkloads', profile],
         queryFn: getBreakdownWorkloads,
+    });
+
+    const { data: configGroups = [], isLoading: loadingConfigGroups } = useQuery({
+        queryKey: ['runGroups', 'config'],
+        queryFn: () => getRunGroups('config'),
     });
 
     const items = drawerWorkloads(workloads ?? []);
@@ -298,7 +349,9 @@ export const BreakdownView: React.FC = () => {
     const [selectedG4, setSelectedG4] = useState<string[]>([]);
     const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
     const [perfAgg, setPerfAgg] = useState<BreakdownPerfAgg>(DEFAULT_BREAKDOWN_PERF_AGG);
+    const [selectedConfigGroupId, setSelectedConfigGroupId] = useState<number | null>(null);
     const [draftPerfAgg, setDraftPerfAgg] = useState<BreakdownPerfAgg>(DEFAULT_BREAKDOWN_PERF_AGG);
+    const [draftProfile, setDraftProfile] = useState(profile);
     const [initialized, setInitialized] = useState(false);
     const [showReport, setShowReport] = useState(false);
     const { open: advancedOpen, onOpen: onAdvancedOpen, onClose: onAdvancedClose, setOpen: setAdvancedOpen } =
@@ -312,6 +365,7 @@ export const BreakdownView: React.FC = () => {
             setG4: setSelectedG4,
             setPacks: setSelectedPacks,
             setPerfAgg,
+            setConfigGroupId: setSelectedConfigGroupId,
         }),
         [],
     );
@@ -333,14 +387,14 @@ export const BreakdownView: React.FC = () => {
     );
 
     React.useEffect(() => {
-        if (!items.length || initialized) return;
+        if (!items.length || loadingConfigGroups || initialized) return;
         const fromUrl = hasBreakdownUrlConfig(searchParams)
-            ? validateBreakdownSelection(items, parseBreakdownFromSearchParams(searchParams))
-            : defaultBreakdownSelection(items);
+            ? validateBreakdownSelection(items, configGroups, parseBreakdownFromSearchParams(searchParams))
+            : defaultBreakdownSelection(items, configGroups);
         applyBreakdownSelection(fromUrl, selectionSetters);
         lastUrlKeyRef.current = breakdownSelectionUrlKey(fromUrl);
         setInitialized(true);
-    }, [items, initialized, searchParams, selectionSetters]);
+    }, [items, configGroups, loadingConfigGroups, initialized, searchParams, selectionSetters]);
 
     React.useEffect(() => {
         if (!initialized) return;
@@ -351,6 +405,7 @@ export const BreakdownView: React.FC = () => {
             g4: selectedG4,
             benches: selectedPacks,
             perfAgg,
+            configGroupId: selectedConfigGroupId,
         });
     }, [
         initialized,
@@ -360,17 +415,42 @@ export const BreakdownView: React.FC = () => {
         selectedG4,
         selectedPacks,
         perfAgg,
+        selectedConfigGroupId,
         syncSelectionToUrl,
     ]);
 
     React.useEffect(() => {
         if (!items.length || !initialized) return;
-        const fromUrl = validateBreakdownSelection(items, parseBreakdownFromSearchParams(searchParams));
+        const fromUrl = validateBreakdownSelection(
+            items,
+            configGroups,
+            parseBreakdownFromSearchParams(searchParams),
+        );
         const urlKey = breakdownSelectionUrlKey(fromUrl);
         if (urlKey === lastUrlKeyRef.current) return;
         lastUrlKeyRef.current = urlKey;
         applyBreakdownSelection(fromUrl, selectionSetters);
-    }, [searchParams, items, initialized, selectionSetters]);
+    }, [searchParams, items, configGroups, initialized, selectionSetters]);
+
+    React.useEffect(() => {
+        if (!profileChangePendingRef.current || !initialized || loadingWorkloads) return;
+        profileChangePendingRef.current = false;
+        const nextSelection = items.length
+            ? { ...defaultBreakdownSelection(items, configGroups), perfAgg, configGroupId: selectedConfigGroupId }
+            : { g1: [], g2: [], g3: [], g4: [], benches: [], perfAgg, configGroupId: selectedConfigGroupId };
+        applyBreakdownSelection(nextSelection, selectionSetters);
+        lastUrlKeyRef.current = breakdownSelectionUrlKey(nextSelection);
+        setSearchParams(buildBreakdownSearchParams(nextSelection), { replace: true });
+    }, [
+        items,
+        configGroups,
+        initialized,
+        loadingWorkloads,
+        perfAgg,
+        selectedConfigGroupId,
+        selectionSetters,
+        setSearchParams,
+    ]);
 
     const g1Options = useMemo(() => groupOptions(items, 'group1'), [items]);
 
@@ -460,9 +540,9 @@ export const BreakdownView: React.FC = () => {
     );
 
     const { data: scores, isLoading: loadingScores, isFetching: fetchingScores } = useQuery({
-        queryKey: ['breakdownScores', profile, packsParam.join(','), perfAgg],
-        queryFn: () => getBreakdownScores(packsParam, perfAgg),
-        enabled: initialized && packsParam.length > 0,
+        queryKey: ['runGroupScores', profile, selectedConfigGroupId, packsParam.join(','), perfAgg],
+        queryFn: () => getRunGroupScores(selectedConfigGroupId as number, packsParam, perfAgg),
+        enabled: initialized && packsParam.length > 0 && selectedConfigGroupId !== null,
     });
 
     const {
@@ -470,29 +550,42 @@ export const BreakdownView: React.FC = () => {
         isLoading: loadingMatrix,
         isFetching: fetchingMatrix,
     } = useQuery({
-        queryKey: ['breakdownMatrix', profile, packsParam.join(','), perfAgg],
-        queryFn: () => getBreakdownMatrix(packsParam, perfAgg),
-        enabled: initialized && showReport && packsParam.length > 0,
+        queryKey: ['runGroupMatrix', profile, selectedConfigGroupId, packsParam.join(','), perfAgg],
+        queryFn: () => getRunGroupMatrix(selectedConfigGroupId as number, packsParam, perfAgg),
+        enabled: initialized && showReport && packsParam.length > 0 && selectedConfigGroupId !== null,
     });
 
     const openAdvancedModal = useCallback(() => {
         setDraftPerfAgg(perfAgg);
+        setDraftProfile(profile);
         onAdvancedOpen();
-    }, [onAdvancedOpen, perfAgg]);
+    }, [onAdvancedOpen, perfAgg, profile]);
 
     const applyAdvancedOptions = useCallback(() => {
+        if (draftProfile !== profile) {
+            profileChangePendingRef.current = true;
+            Cookies.set('scoreProfile', draftProfile, { expires: 365 });
+            setProfile(draftProfile);
+        }
         setPerfAgg(draftPerfAgg);
         onAdvancedClose();
-    }, [draftPerfAgg, onAdvancedClose]);
+    }, [draftPerfAgg, draftProfile, onAdvancedClose, profile]);
 
     const plotData = useMemo(() => {
-        return (scores ?? []).map((row: BreakdownGpuScore) => {
-            const gpu = stripQuotes(row.gpu);
+        const seen = new Map<string, number>();
+        return (scores ?? []).map((row: RunGroupScore) => {
+            const gpuFull = stripQuotes(row.gpu);
+            const short = shortHardwareLabel(gpuFull);
+            // Disambiguate distinct hardware groups that happen to share a
+            // shortened GPU label (e.g. same GPU config on different CPU
+            // hosts) so they don't collapse into one bar.
+            const count = (seen.get(short) ?? 0) + 1;
+            seen.set(short, count);
+            const gpu = count > 1 ? `${short} (${count})` : short;
             return {
                 ...row,
                 gpu,
-                pytorch: stripQuotes(row.pytorch),
-                accel_version: stripQuotes(row.accel_version),
+                gpuFull,
                 vendor: guessVendor(gpu),
             };
         });
@@ -503,45 +596,45 @@ export const BreakdownView: React.FC = () => {
         [plotData],
     );
 
-    const chartPlotHeightPx = useMemo(() => {
-        if (!selectedPacks.length || !plotData.length) return 120;
-        return Math.max(120, plotData.length * 30 + 56);
-    }, [plotData.length, selectedPacks.length]);
-
-    // Spec padding (top 20 + bottom 44) plus a little room for axis labels.
-    const chartHeightPx = chartPlotHeightPx + 64;
+    // Bars are vertical now (GPU on X), so the plot area height is fixed —
+    // it no longer needs to grow with the number of hardware groups. The
+    // extra room below it is for the angled, untruncated X-axis labels.
+    const chartPlotHeightPx = 300;
+    const chartHeightPx = chartPlotHeightPx + 170;
 
     const specBuilder = useCallback(
         (width: number) => {
             if (!plotData.length) return null;
             return {
                 $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-                padding: { left: 46, top: 20, right: 12, bottom: 44 },
+                padding: { left: 46, top: 20, right: 12, bottom: 150 },
                 width: Math.max(width - 48, 200),
                 height: chartPlotHeightPx,
                 data: { values: plotData },
                 mark: { type: 'bar', tooltip: true, cornerRadiusEnd: 3 },
                 encoding: {
-                    y: {
+                    x: {
                         field: 'gpu',
                         type: 'nominal',
                         sort: { field: 'score', order: 'descending' },
-                        title: 'GPU',
+                        title: null,
                         scale: { paddingInner: 0.2, paddingOuter: 0.35 },
                         axis: {
                             labelLimit: 0,
+                            labelAngle: -40,
                             labelAlign: 'right',
+                            labelBaseline: 'middle',
                             labelPadding: 4,
                         },
                     },
-                    x: {
+                    y: {
                         field: 'score',
                         type: 'quantitative',
                         title: 'Weighted score',
                         scale: { zero: true },
-                        axis: { 
+                        axis: {
                             format: '~s',
-                            tickCount: 10
+                            tickCount: 6
                         },
                     },
                     color: {
@@ -551,12 +644,11 @@ export const BreakdownView: React.FC = () => {
                         legend: null,
                     },
                     tooltip: [
-                        { field: 'gpu', title: 'GPU' },
+                        { field: 'gpuFull', title: 'Hardware group' },
                         { field: 'score', title: 'Score', format: '.3s' },
                         { field: 'bench_count', title: 'Benchmarks' },
-                        { field: 'pytorch', title: 'PyTorch' },
-                        { field: 'accel_version', title: 'CUDA / ROCm' },
-                        { field: 'run_name', title: 'Run' },
+                        { field: 'exec_count', title: 'Runs' },
+                        { field: 'latest_date', title: 'Latest run' },
                     ],
                 },
                 config: {
@@ -573,7 +665,7 @@ export const BreakdownView: React.FC = () => {
         [plotData, gpuColorScale, colorMode, chartPlotHeightPx],
     );
 
-    if (loadingWorkloads) {
+    if (loadingWorkloads || loadingConfigGroups) {
         return (
             <Box p={8} textAlign="center">
                 <Spinner size="xl" />
@@ -591,11 +683,34 @@ export const BreakdownView: React.FC = () => {
             overflowY="auto"
         >
             <Box flexShrink={0}>
-                <HStack justify="space-between" align="start" mb={1}>
+                <HStack justify="space-between" align="start" mb={1} wrap="wrap" gap={2}>
                     <Text fontSize="2xl" fontWeight="bold">
                         Breakdown
                     </Text>
-                    <HStack gap={2}>
+                    <HStack gap={2} wrap="wrap">
+                        <HStack gap={1}>
+                            <Text fontSize="xs" color="fg.muted" whiteSpace="nowrap">
+                                Config
+                            </Text>
+                            <NativeSelect.Root size="sm" minW="12rem">
+                                <NativeSelect.Field
+                                    value={selectedConfigGroupId ?? ''}
+                                    onChange={(e) =>
+                                        setSelectedConfigGroupId(
+                                            e.currentTarget.value ? Number(e.currentTarget.value) : null,
+                                        )
+                                    }
+                                >
+                                    {configGroups.map((g: RunGroup) => (
+                                        <option key={g._id} value={g._id}>
+                                            {g.label}
+                                            {g.member_count ? ` (${g.member_count})` : ''}
+                                        </option>
+                                    ))}
+                                </NativeSelect.Field>
+                                <NativeSelect.Indicator />
+                            </NativeSelect.Root>
+                        </HStack>
                         <Button
                             size="sm"
                             variant={showReport ? 'solid' : 'outline'}
@@ -611,7 +726,7 @@ export const BreakdownView: React.FC = () => {
                     </HStack>
                 </HStack>
                 <Text color="fg.muted" mb={4}>
-                    Score per GPU (latest run) — weighted geomean — profile{' '}
+                    Score per hardware group — composite report — profile{' '}
                     <Badge colorPalette="blue">{profile}</Badge>
                     {' · '}
                     <Badge colorPalette="gray">{breakdownPerfAggLabel(perfAgg)} perf</Badge>
@@ -620,6 +735,66 @@ export const BreakdownView: React.FC = () => {
                         {selectedPacks.length} benchmark{selectedPacks.length === 1 ? '' : 's'} selected
                     </Text>
                 </Text>
+            </Box>
+
+            <Box flexShrink={0} mb={4}>
+                <Text fontWeight="semibold" mb={2}>
+                    Workloads
+                </Text>
+                <Box
+                    borderWidth="1px"
+                    borderRadius="md"
+                    borderColor="var(--color-border)"
+                    bg="var(--color-bg-card)"
+                    p={4}
+                >
+                    <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} gap={4}>
+                        <CascadeSelect
+                            label="Group 1"
+                            options={g1Options}
+                            value={selectedG1}
+                            onChange={onG1Change}
+                        />
+                        <CascadeSelect
+                            label="Group 2"
+                            options={g2Options}
+                            value={selectedG2}
+                            onChange={onG2Change}
+                            hint={
+                                selectedG1.length
+                                    ? `Filtered by ${selectedG1.length} Group 1 value(s)`
+                                    : undefined
+                            }
+                        />
+                        <CascadeSelect
+                            label="Group 3"
+                            options={g3Options}
+                            value={selectedG3}
+                            onChange={onG3Change}
+                            hint={
+                                selectedG2.length
+                                    ? `Filtered by ${selectedG2.length} Group 2 value(s)`
+                                    : undefined
+                            }
+                        />
+                        <CascadeSelect
+                            label="Group 4"
+                            options={g4Options}
+                            value={selectedG4}
+                            onChange={onG4Change}
+                            hint={
+                                selectedG3.length
+                                    ? `Filtered by ${selectedG3.length} Group 3 value(s)`
+                                    : undefined
+                            }
+                        />
+                        <SelectedBenchmarksPanel
+                            options={benchOptions}
+                            value={selectedPacks}
+                            onChange={setSelectedPacks}
+                        />
+                    </SimpleGrid>
+                </Box>
             </Box>
 
             <Box
@@ -732,9 +907,9 @@ export const BreakdownView: React.FC = () => {
                                                             py={2}
                                                             textAlign="right"
                                                             minW="5rem"
-                                                            title={`exec ${gpuCol.exec_id}`}
+                                                            title={gpuCol.gpu}
                                                         >
-                                                            {gpuCol.gpu}
+                                                            {shortHardwareLabel(gpuCol.gpu)}
                                                         </Table.ColumnHeader>
                                                     ))}
                                                 </Table.Row>
@@ -810,68 +985,6 @@ export const BreakdownView: React.FC = () => {
                 )}
             </Box>
 
-            <Box flex="1" minH={4} />
-
-            <Box flexShrink={0}>
-                <Text fontWeight="semibold" mb={2}>
-                    Workloads
-                </Text>
-                <Box
-                    borderWidth="1px"
-                    borderRadius="md"
-                    borderColor="var(--color-border)"
-                    bg="var(--color-bg-card)"
-                    p={4}
-                >
-                    <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} gap={4}>
-                        <CascadeSelect
-                            label="Group 1"
-                            options={g1Options}
-                            value={selectedG1}
-                            onChange={onG1Change}
-                        />
-                        <CascadeSelect
-                            label="Group 2"
-                            options={g2Options}
-                            value={selectedG2}
-                            onChange={onG2Change}
-                            hint={
-                                selectedG1.length
-                                    ? `Filtered by ${selectedG1.length} Group 1 value(s)`
-                                    : undefined
-                            }
-                        />
-                        <CascadeSelect
-                            label="Group 3"
-                            options={g3Options}
-                            value={selectedG3}
-                            onChange={onG3Change}
-                            hint={
-                                selectedG2.length
-                                    ? `Filtered by ${selectedG2.length} Group 2 value(s)`
-                                    : undefined
-                            }
-                        />
-                        <CascadeSelect
-                            label="Group 4"
-                            options={g4Options}
-                            value={selectedG4}
-                            onChange={onG4Change}
-                            hint={
-                                selectedG3.length
-                                    ? `Filtered by ${selectedG3.length} Group 3 value(s)`
-                                    : undefined
-                            }
-                        />
-                        <SelectedBenchmarksPanel
-                            options={benchOptions}
-                            value={selectedPacks}
-                            onChange={setSelectedPacks}
-                        />
-                    </SimpleGrid>
-                </Box>
-            </Box>
-
             <Dialog.Root open={advancedOpen} onOpenChange={(details) => setAdvancedOpen(details.open)}>
                 <Dialog.Backdrop />
                 <Dialog.Positioner>
@@ -882,6 +995,26 @@ export const BreakdownView: React.FC = () => {
                         </Dialog.Header>
                         <Dialog.Body pb={6}>
                             <VStack align="stretch" gap={4}>
+                                <Field.Root>
+                                    <Field.Label>Score profile</Field.Label>
+                                    <NativeSelect.Root>
+                                        <NativeSelect.Field
+                                            value={draftProfile}
+                                            onChange={(e) => setDraftProfile(e.currentTarget.value)}
+                                        >
+                                            {profileOptions.map((name) => (
+                                                <option key={name} value={name}>
+                                                    {name}
+                                                </option>
+                                            ))}
+                                        </NativeSelect.Field>
+                                        <NativeSelect.Indicator />
+                                    </NativeSelect.Root>
+                                    <Field.HelperText>
+                                        Weights and workload groups for scoring. Changing profile resets
+                                        benchmark selection.
+                                    </Field.HelperText>
+                                </Field.Root>
                                 <Field.Root>
                                     <Field.Label>Benchmark perf</Field.Label>
                                     <NativeSelect.Root>

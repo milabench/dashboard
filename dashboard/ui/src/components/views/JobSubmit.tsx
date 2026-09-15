@@ -466,6 +466,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             toaster.create({ title: 'Script content required', type: 'warning', duration: 3000 });
             return;
         }
+        const templateName = selectedTemplate.trim();
         saveScheduledMutation.mutate({
             name,
             cron_expression: effectiveCron,
@@ -473,6 +474,10 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             script,
             sbatch_args: _collectSbatchArgs(),
             job_name_prefix: jobNameRef.current?.value || null,
+            // Only track it as a source template if it's actually a saved
+            // template on disk -- a free-typed name the user never saved
+            // has nothing to detect drift against.
+            source_template: templates?.includes(templateName) ? templateName : null,
         });
     };
     // Refs for uncontrolled inputs - much more performant

@@ -14,7 +14,7 @@ from flask_socketio import SocketIO, emit
 import sqlalchemy
 from sqlalchemy import select, func, cast, TEXT
 
-from dashboard.server.database.models import Exec, Metric, Pack, Weight, SavedQuery
+from dashboard.server.database.models import Exec, Metric, Pack, Weight, SavedQuery, RunGroupMember
 from dashboard.server.report_data import fetch_data, make_pivot_summary, fetch_data_by_id
 from milabench.report import make_report
 
@@ -27,15 +27,26 @@ from .plot import (
 )
 from .pivot_api import fetch_pivot_melt, fetch_pivot_spec, fetch_pivot_table
 from .utils import database_uri, page, make_selection_key, make_filters, cursor_to_json, cursor_to_dataframe
+from .blueprints import make_blueprints
 from .slurm import slurm_integration
 from .realtime import metric_receiver, set_socketio_instance
-from .push import push_routes
+from .push import push_public_routes, push_admin_routes, push_dev_routes
 from .share import share_routes
 from .embargo import register_embargo_scheduler
-from .visibility import public_exec_filter, require_public_exec
+from .visibility import public_exec_filter, require_public_exec, valid_pack_filter
 from .report import datafile_processor
+from .timeline_dev import timeline_processor
 from .metal import baremetal_server
 from .sync import sync_routes
+from .run_groups import run_group_routes, run_group_admin_routes
+from .runs_admin import runs_admin_routes
+from .invalidation_admin import invalidation_admin_routes
+from .admin_tools import admin_tools_routes
+from .gpu_specs import gpu_specs_routes, gpu_specs_dev_routes
+from .milabench_health import milabench_health_routes
+from .scaling_live import scaling_live_routes
+from .scaling_suggest import scaling_suggest_routes
+from .bench_doc import bench_doc_routes
 
 
 def _get_version():
@@ -153,36 +164,6 @@ def pandas_to_html_relative(df, default_float="{:.2f}".format):
 
 
 
-def _alembic_config(database_url):
-    """Build an Alembic Config pointing at dashboard/alembic.ini."""
-    from pathlib import Path
-
-    from alembic.config import Config
-
-    # dashboard/server/view.py -> package root dashboard/
-    pkg_root = Path(__file__).resolve().parents[1]
-    alembic_cfg = Config(str(pkg_root / "alembic.ini"))
-    url_str = (
-        database_url.render_as_string(hide_password=False)
-        if hasattr(database_url, "render_as_string")
-        else str(database_url)
-    )
-    alembic_cfg.set_main_option("sqlalchemy.url", url_str)
-    return alembic_cfg
-
-
-def _run_migrations(database_url):
-    """Run Alembic migrations automatically on startup."""
-    try:
-        from alembic import command
-
-        alembic_cfg = _alembic_config(database_url)
-        command.upgrade(alembic_cfg, "head")
-        print("[migrations] Database is up to date.")
-    except Exception as err:
-        print(f"[migrations] Warning: auto-migration failed: {err}")
-
-
 def _scaling_from_db(sqlexec, gpus):
     """Return scaling rows from Postgres, or None if the table is missing/empty."""
     try:
@@ -231,9 +212,16 @@ def _scaling_from_yaml(gpus):
 
 def view_server(config):
     """Display milabench results"""
+    from dashboard.server.migrations import auto_migrate_if_dev
+    from dashboard.server.utils import load_db_secrets
+
+    load_db_secrets()
+    auto_migrate_if_dev()
 
     DATABASE_URI = database_uri()
     database = Database(DATABASE_URI)
+
+    public_bp, dev_bp, admin_bp = make_blueprints()
 
     app = Flask(__name__)
     app.config.update(config)
@@ -272,53 +260,82 @@ def view_server(config):
     dev_mode = os.environ.get("DEV_MODE", "true").lower() not in ("0", "false", "no")
     app.config["DEV_MODE"] = dev_mode
 
-    def dev_only(f):
-        from functools import wraps
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            if not app.config["DEV_MODE"]:
-                return jsonify({"error": "Server is in read-only mode"}), 403
-            return f(*args, **kwargs)
-        return wrapper
-
-    push_routes(app, database)
-    share_routes(app, sqlexec)
+    push_public_routes(public_bp, app, database)
+    share_routes(public_bp, sqlexec)
+    run_group_routes(public_bp, sqlexec)
     register_embargo_scheduler(app, database)
 
-    @app.route('/api/ping')
+    @public_bp.route('/api/ping')
     def api_ping():
         return "pong"
 
-    @app.route('/api/status')
+    @public_bp.route('/api/status')
     def api_status():
-        return jsonify({"status": "ok", "version": _get_version()})
+        return jsonify({"status": "ok", "version": _get_version(), "dev_mode": dev_mode})
 
-    @app.route('/api/routes')
+    @public_bp.route('/api/routes')
     def api_routes():
         rules = []
         for rule in app.url_map.iter_rules():
             rules.append({"endpoint": rule.endpoint, "methods": list(rule.methods), "rule": rule.rule})
         return jsonify(sorted(rules, key=lambda r: r["rule"]))
 
+    gpu_specs_routes(public_bp, sqlexec)
+
     if dev_mode:
-        sync_routes(app, DATABASE_URI)
+        sync_routes(admin_bp)
+        push_admin_routes(admin_bp)
+        run_group_admin_routes(admin_bp)
+        runs_admin_routes(admin_bp)
+        invalidation_admin_routes(admin_bp)
+        admin_tools_routes(admin_bp)
+
+        gpu_specs_dev_routes(dev_bp, sqlexec)
+        milabench_health_routes(dev_bp, sqlexec)
+
+        # Experimental/DEV-only table — self-heal it via the app role
+        # (same pattern as the gpus/scheduled_job tables above) instead of
+        # requiring an admin-credentialed Alembic migration for something
+        # not yet promoted out of DEV.
+        try:
+            from .database.scaling_live import LiveScalingObservation
+            from dashboard.server.database.models import Base as MetricsBase
+            with sqlexec() as sess:
+                MetricsBase.metadata.create_all(
+                    sess.bind, tables=[LiveScalingObservation.__table__], checkfirst=True
+                )
+                sess.commit()
+        except Exception as err:
+            print(f"[scaling_live] Could not create scaling_observations_live table: {err}")
+
+        scaling_live_routes(dev_bp, sqlexec)
+        scaling_suggest_routes(dev_bp, sqlexec)
+        bench_doc_routes(dev_bp, sqlexec)
+        push_dev_routes(dev_bp, database)
 
         try:
-            slurm_integration(app, cache, database)
+            slurm_integration(app, dev_bp, cache, database)
         except Exception as exc:
             import traceback
             print(f"[slurm] slurm_integration FAILED: {exc}")
             traceback.print_exc()
 
-        baremetal_server(app)
+        baremetal_server(app, dev_bp)
 
-        metric_receiver(app)
+        metric_receiver(app, dev_bp)
 
         # FIXME: create a way to ignore failing extension
         try:
-            datafile_processor(app, cache)
+            datafile_processor(app, dev_bp, cache)
         except:
             pass
+
+        try:
+            timeline_processor(app, dev_bp, cache)
+        except Exception as exc:
+            import traceback
+            print(f"[timeline] timeline_processor FAILED: {exc}")
+            traceback.print_exc()
 
     @socketio.on('connect')
     def handle_connect():
@@ -353,7 +370,7 @@ def view_server(config):
     # API routes
     #
 
-    @app.route('/api/summary/<runame>')
+    @public_bp.route('/api/summary/<runame>')
     def api_summary(runame):
         df_post = fetch_data(database.engine, runame)
 
@@ -363,8 +380,8 @@ def view_server(config):
 
         return jsonify(multirun)
 
-    @app.route('/api/exec/list')
-    @app.route('/api/exec/list/<int:limit>')
+    @public_bp.route('/api/exec/list')
+    @public_bp.route('/api/exec/list/<int:limit>')
     def api_exec_list(limit=25):
         stmt = (
             sqlalchemy.select(Exec)
@@ -382,7 +399,7 @@ def view_server(config):
 
         return results
 
-    @app.route('/api/exec/<int:exec_id>/packs')
+    @public_bp.route('/api/exec/<int:exec_id>/packs')
     def api_packs_show(exec_id):
         with sqlexec() as sess:
             if require_public_exec(sess, exec_id) is None:
@@ -420,7 +437,7 @@ def view_server(config):
         stmt = stmt.where(~Metric.name.like("process.%"))
         return stmt
 
-    @app.route('/api/exec/<int:exec_id>/packs/<int:pack_id>/metrics')
+    @public_bp.route('/api/exec/<int:exec_id>/packs/<int:pack_id>/metrics')
     def api_pack_metrics(exec_id, pack_id):
         with sqlexec() as sess:
             if require_public_exec(sess, exec_id) is None:
@@ -438,7 +455,7 @@ def view_server(config):
 
         return results
 
-    @app.route('/api/exec/<int:exec_id>/packs/<string:pack_name>/metrics')
+    @public_bp.route('/api/exec/<int:exec_id>/packs/<string:pack_name>/metrics')
     def api_pack_summary_metrics(exec_id, pack_name):
         with sqlexec() as sess:
             if require_public_exec(sess, exec_id) is None:
@@ -456,12 +473,12 @@ def view_server(config):
 
         return jsonify(results)
 
-    @app.route('/api/keys')
+    @public_bp.route('/api/keys')
     def api_ls_keys():
         data_path = importlib_resources.files("dashboard.data")
         return send_file(data_path / "keys.json", mimetype="application/json")
 
-    @app.route('/api/gpu/list')
+    @public_bp.route('/api/gpu/list')
     def api_ls_gpu():
         stmt = (
             select(func.distinct(cast(Exec.meta["accelerators"]["gpus"]["0"]["product"], TEXT)))
@@ -471,13 +488,10 @@ def view_server(config):
             return jsonify(sess.execute(stmt).scalars().all())
 
     from .gpu_summary import gpu_summary_routes
-    gpu_summary_routes(app, sqlexec)
+    gpu_summary_routes(public_bp, sqlexec)
 
     from .breakdown import breakdown_routes
-    breakdown_routes(app, sqlexec)
-
-    from .gpu_specs import gpu_specs_routes
-    gpu_specs_routes(app, sqlexec, dev_only)
+    breakdown_routes(public_bp, sqlexec)
 
     # Ensure the gpus table exists and has all columns
     try:
@@ -523,8 +537,8 @@ def view_server(config):
 
     scheduler.add_job(_evict_report_cache, 'interval', minutes=30, id='evict_report_cache')
 
-    @app.route('/api/metrics/list/<int:exec_id>')
-    @app.route('/api/metrics/list')
+    @public_bp.route('/api/metrics/list/<int:exec_id>')
+    @public_bp.route('/api/metrics/list')
     def api_ls_metrics(exec_id=None):
         if exec_id:
             with sqlexec() as sess:
@@ -541,7 +555,7 @@ def view_server(config):
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/pytorch/list')
+    @public_bp.route('/api/pytorch/list')
     def api_ls_pytorch():
         stmt = (
             select(func.distinct(cast(Exec.meta["pytorch"]["torch"], TEXT)))
@@ -550,13 +564,13 @@ def view_server(config):
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/profile/list')
+    @public_bp.route('/api/profile/list')
     def api_ls_profile():
         stmt = select(func.distinct(Weight.profile))
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/profile/show/<string:profile>')
+    @public_bp.route('/api/profile/show/<string:profile>')
     def api_show_profile(profile):
         stmt = select(Weight).where(Weight.profile == profile)
 
@@ -572,8 +586,7 @@ def view_server(config):
 
         return jsonify(results)
 
-    @app.route('/api/profile/save/<string:profile>', methods=['POST'])
-    @dev_only
+    @dev_bp.route('/api/profile/save/<string:profile>', methods=['POST'])
     def api_save_profile(profile):
         from flask import request
         weights = request.json
@@ -598,8 +611,7 @@ def view_server(config):
 
         return jsonify({"status": "success"})
 
-    @app.route('/api/profile/copy', methods=['POST'])
-    @dev_only
+    @dev_bp.route('/api/profile/copy', methods=['POST'])
     def api_copy_profile():
         from flask import request
         data = request.json
@@ -633,13 +645,13 @@ def view_server(config):
 
         return jsonify({"status": "success"})
 
-    @app.route('/api/query/list')
+    @public_bp.route('/api/query/list')
     def api_ls_saved():
         stmt = select(func.distinct(SavedQuery.name))
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/query/all')
+    @public_bp.route('/api/query/all')
     def api_get_all_saved_queries():
         stmt = select(SavedQuery).order_by(SavedQuery.created_time.desc())
         with sqlexec() as sess:
@@ -650,7 +662,7 @@ def view_server(config):
                     results.append(col.as_dict())
             return jsonify(results)
 
-    @app.route('/api/query/<string:name>')
+    @public_bp.route('/api/query/<string:name>')
     def api_get_saved_query(name):
         stmt = select(SavedQuery).where(SavedQuery.name == name)
         with sqlexec() as sess:
@@ -660,8 +672,7 @@ def view_server(config):
             else:
                 return jsonify({"error": "Query not found"}), 404
 
-    @app.route('/api/query/save', methods=['POST'])
-    @dev_only
+    @dev_bp.route('/api/query/save', methods=['POST'])
     def api_save_query():
         from flask import request
         data = request.json
@@ -692,8 +703,7 @@ def view_server(config):
 
         return jsonify({"status": "success"})
 
-    @app.route('/api/query/delete/<string:name>', methods=['DELETE'])
-    @dev_only
+    @dev_bp.route('/api/query/delete/<string:name>', methods=['DELETE'])
     def api_delete_saved_query(name):
         with sqlexec() as sess:
             result = sess.execute(select(SavedQuery).where(SavedQuery.name == name)).scalar_one_or_none()
@@ -704,7 +714,7 @@ def view_server(config):
             else:
                 return jsonify({"error": "Query not found"}), 404
 
-    @app.route('/api/milabench/list')
+    @public_bp.route('/api/milabench/list')
     def api_ls_milabench():
         stmt = (
             select(func.distinct(cast(Exec.meta["milabench"]["tag"], TEXT)))
@@ -713,7 +723,7 @@ def view_server(config):
         with sqlexec() as sess:
             return jsonify(sess.execute(stmt).scalars().all())
 
-    @app.route('/api/exec/<id>')
+    @public_bp.route('/api/exec/<id>')
     def api_exec_show(id):
         with sqlexec() as sess:
             exec_row = require_public_exec(sess, id)
@@ -723,7 +733,7 @@ def view_server(config):
 
         return jsonify({})
 
-    @app.route('/api/exec/explore')
+    @public_bp.route('/api/exec/explore')
     def api_explore():
         from flask import request
         fields = {}
@@ -795,13 +805,13 @@ def view_server(config):
         print(names)
         return stream.getvalue()
 
-    @app.route('/html/report/<string:runame>')
+    @public_bp.route('/html/report/<string:runame>')
     def html_report_name(runame):
         profile = request.cookies.get('scoreProfile')
 
         return report(runame, profile=profile)
 
-    @app.route('/html/report/<int:run_id>')
+    @public_bp.route('/html/report/<int:run_id>')
     def html_report(run_id):
         profile = request.cookies.get('scoreProfile')
 
@@ -811,7 +821,7 @@ def view_server(config):
 
         return report(run_id, profile=profile)
 
-    @app.route('/html/exec/<int:exec_id>/packs/<pack_id>/metrics')
+    @public_bp.route('/html/exec/<int:exec_id>/packs/<pack_id>/metrics')
     def html_pack_metrics(exec_id, pack_id):
         import altair as alt
         from .utils import plot
@@ -840,12 +850,12 @@ def view_server(config):
 
         return plot(chart.to_json())
 
-    @app.route('/html/form/pivot')
+    @public_bp.route('/html/form/pivot')
     def html_format_pivot():
         with open("/home/newton/work/milabench_dev/milabench/milabench/web/template/pivot.html", "r") as fp:
             return render_template_string(fp.read())
 
-    @app.route('/api/report/fast')
+    @public_bp.route('/api/report/fast')
     def api_report_fast():
         from .plot import sql_direct_report
         from .report_cache import get_cached_report, store_report, _table_exists
@@ -895,7 +905,7 @@ def view_server(config):
 
         return jsonify(results)
 
-    @app.route('/api/scaling')
+    @public_bp.route('/api/scaling')
     def api_scaling():
         """Fetch scaling observations (Postgres preferred, YAML fallback)."""
         gpus = request.args.getlist("gpus")
@@ -909,7 +919,7 @@ def view_server(config):
             return jsonify(output), 404
         return jsonify(output)
 
-    @app.route('/html/scaling/x=<string:x>/y=<string:y>')
+    @public_bp.route('/html/scaling/x=<string:x>/y=<string:y>')
     def scaling_plot(x, y):
         """Fetch scaling data from the scaling configuration files"""
         import altair as alt
@@ -933,7 +943,7 @@ def view_server(config):
 
         return plot(chart.to_json())
 
-    @app.route('/api/bench/list')
+    @public_bp.route('/api/bench/list')
     def api_bench_list():
         """Return benchmark names sorted by most recent run date, then name."""
         stmt = (
@@ -946,7 +956,7 @@ def view_server(config):
         with sqlexec() as sess:
             return jsonify([row[0] for row in sess.execute(stmt)])
 
-    @app.route('/api/bench/history')
+    @public_bp.route('/api/bench/history')
     def api_bench_history():
         """Return candlestick statistics for a benchmark across runs over time.
 
@@ -954,10 +964,14 @@ def view_server(config):
             bench: benchmark name (required)
             metric: metric name (default: rate)
             gpu: filter by GPU product name (optional)
+            group_id: restrict to Execs that are members of this RunGroup
+                (e.g. the "baseline" config group) — avoids mixing runs with
+                different batch sizes/configs into one time series (optional)
         """
         bench_name = request.args.get('bench')
         metric_name = request.args.get('metric', 'rate')
         gpu_filter = request.args.get('gpu')
+        group_id = request.args.get('group_id', type=int)
         limit = min(int(request.args.get('limit', 365)), 1000)
         trim = request.args.get('trim', '0') == '1'
 
@@ -969,11 +983,18 @@ def view_server(config):
         recent_execs = (
             select(Exec._id, Exec.created_time)
             .join(Pack, Pack.exec_id == Exec._id)
-            .where(Pack.name == bench_name, Exec.visibility == 0)
+            .where(Pack.name == bench_name, public_exec_filter(), valid_pack_filter())
             .distinct()
             .order_by(Exec.created_time.desc())
             .limit(limit)
-        ).subquery()
+        )
+        if group_id is not None:
+            recent_execs = recent_execs.where(
+                Exec._id.in_(
+                    select(RunGroupMember.exec_id).where(RunGroupMember.group_id == group_id)
+                )
+            )
+        recent_execs = recent_execs.subquery()
 
         raw = (
             select(
@@ -987,7 +1008,8 @@ def view_server(config):
             .where(
                 Pack.name == bench_name,
                 Metric.name == metric_name,
-                Exec.visibility == 0,
+                public_exec_filter(),
+                valid_pack_filter(),
                 Metric.exec_id.in_(select(recent_execs.c._id)),
             )
         )
@@ -1175,7 +1197,7 @@ def view_server(config):
         # We need to reorder the df by the same order
         return overall
 
-    @app.route('/html/relative/pivot')
+    @public_bp.route('/html/relative/pivot')
     def html_relative_pivot():
         # retrieve the cookie `scoreProfile` and use that as the profile
         profile = request.cookies.get('scoreProfile')
@@ -1187,7 +1209,7 @@ def view_server(config):
 
         return pandas_to_html_relative(df)
 
-    @app.route('/html/pivot')
+    @public_bp.route('/html/pivot')
     def html_pivot():
         profile = request.cookies.get('scoreProfile')
 
@@ -1195,20 +1217,20 @@ def view_server(config):
 
         return pandas_to_html(df)
 
-    @app.route('/api/pivot')
-    @app.route('/api/pivot/table')
+    @public_bp.route('/api/pivot')
+    @public_bp.route('/api/pivot/table')
     def api_pivot_table():
         profile = request.cookies.get('scoreProfile') or 'default'
         payload, status = fetch_pivot_table(sqlexec, request.args, profile)
         return jsonify(payload), status
 
-    @app.route('/api/pivot/melt')
+    @public_bp.route('/api/pivot/melt')
     def api_pivot_melt():
         profile = request.cookies.get('scoreProfile') or 'default'
         payload, status = fetch_pivot_melt(sqlexec, request.args, profile)
         return jsonify(payload), status
 
-    @app.route('/api/pivot/spec')
+    @public_bp.route('/api/pivot/spec')
     def api_pivot_spec():
         profile = request.cookies.get('scoreProfile') or 'default'
         payload, status = fetch_pivot_spec(sqlexec, request.args, profile)
@@ -1233,6 +1255,14 @@ def view_server(config):
                     pass
 
             return send_file(os.path.join(_static_dir, "index.html"))
+
+    # Register last: every @public_bp/@dev_bp/@admin_bp.route above must be
+    # declared before a blueprint is registered on the app (Flask forbids
+    # further route registrations on an already-registered blueprint).
+    app.register_blueprint(public_bp)
+    if dev_mode:
+        app.register_blueprint(dev_bp)
+        app.register_blueprint(admin_bp)
 
     return app, socketio
 

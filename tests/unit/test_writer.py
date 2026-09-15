@@ -2,10 +2,12 @@
 
 from types import SimpleNamespace
 
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
 
-from dashboard.server.database.models import Base
-from dashboard.server.database.writer import DATA, SQLAlchemy
+from dashboard.server.database.models import Base, Exec, Pack
+from dashboard.server.database.writer import DATA, SQLAlchemy, _is_prepare_run_name
 
 
 def test_sqlalchemy_reuses_injected_engine():
@@ -60,6 +62,33 @@ def _backend_ready_for_data(engine):
     return backend, pack
 
 
+def test_on_start_persists_command_to_db():
+    # Pack.command is assigned on the Pack ORM object in on_start, but
+    # on_new_pack's own `with self.session()` block has already closed by
+    # then, detaching the object — a plain attribute assignment on a
+    # detached instance is never flushed. on_start must persist it via an
+    # explicit statement (like update_pack_status does for status), not
+    # rely on the attribute mutation alone.
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    backend, pack = _backend_ready_for_data(engine)
+
+    state = backend.states["bench.0"]
+    state.step = 1  # START
+
+    command = ["python", "main.py", "--batch-size", "42"]
+    backend.on_start(SimpleNamespace(
+        tag="bench.0",
+        pack=pack,
+        event="start",
+        data={"command": command, "time": 123.0},
+    ))
+
+    with Session(engine) as sess:
+        row = sess.execute(select(Pack).where(Pack._id == state.pack._id)).scalar_one()
+        assert row.command == command
+
+
 def test_torchmem_expanded_per_device():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -94,6 +123,46 @@ def test_torchmem_expanded_per_device():
     assert by_name["torchmem.max_allocated"].gpu_id == "0"
     assert by_name["torchmem.max_allocated"].unit == "MiB"
     assert by_name["torchmem.max_allocated"].order == 123.0
+
+
+def test_torchmem_remaps_physical_gpu_for_per_gpu_pack():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    backend = SQLAlchemy(engine=engine)
+    pack_cfg = {
+        "run_name": "r1",
+        "name": "resnet50",
+        "devices": [3],
+        "job-number": 1,
+    }
+    pack = SimpleNamespace(config=pack_cfg)
+    backend.on_new_run(SimpleNamespace(data={}, pack=pack))
+    backend.on_new_pack(SimpleNamespace(tag="resnet50.D3", pack=pack, data={}))
+    state = backend.states["resnet50.D3"]
+    state.step = DATA
+    state.start = 0
+
+    entry = SimpleNamespace(
+        tag="resnet50.D3",
+        pack=pack,
+        event="data",
+        data={
+            "time": 456.0,
+            "torchmem": {
+                "0": {
+                    "allocated": 100.0,
+                    "reserved": 200.0,
+                    "max_allocated": 300.0,
+                    "max_reserved": 400.0,
+                }
+            },
+        },
+    )
+    backend.on_data(entry)
+
+    by_name = {m.name: m for m in backend.pending_metrics}
+    assert by_name["torchmem.max_allocated"].gpu_id == "3"
+    assert by_name["torchmem.max_allocated"].value == 300.0
 
 
 def test_jaxmem_expanded_per_device():
@@ -136,6 +205,44 @@ def test_empty_torchmem_is_noop(capsys):
 
     assert backend.pending_metrics == []
     assert "Unexpected value" not in capsys.readouterr().out
+
+
+class TestIsPrepareRunName:
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "prepare.2026-08-02_19-03-10",
+            "prepare_2026-08-02",
+            "prepare-run",
+            "prepare",
+            "PREPARE.foo",
+            "Prepare something",
+        ],
+    )
+    def test_matches_prepare_names(self, name):
+        assert _is_prepare_run_name(name)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["rufijini.2026-08-06_14-32-27", "preparation.run", "preparex", None, ""],
+    )
+    def test_does_not_match_other_names(self, name):
+        assert not _is_prepare_run_name(name)
+
+
+def test_on_new_run_refuses_prepare_run_name():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    backend = SQLAlchemy(engine=engine)
+    pack = SimpleNamespace(config={"run_name": "prepare.2026-08-02_19-03-10"})
+    entry = SimpleNamespace(data={}, pack=pack)
+
+    with pytest.raises(ValueError, match="prepare"):
+        backend.on_new_run(entry)
+
+    with Session(engine) as sess:
+        assert sess.execute(select(Exec)).first() is None
 
 
 def test_empty_jaxmem_is_noop(capsys):

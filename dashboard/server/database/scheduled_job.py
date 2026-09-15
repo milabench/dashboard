@@ -39,6 +39,13 @@ class ScheduledJob(Base):
     sbatch_args = Column(JSON, nullable=False, default=list)
     job_name_prefix = Column(String(256), nullable=True)
 
+    # Name of the file under scripts/slurm this job's script was loaded
+    # from (if any), and the sha256 of that file's content at the time it
+    # was last pulled in -- lets us detect when the template has since
+    # drifted from what this job is still running.
+    source_template = Column(String(256), nullable=True)
+    source_template_hash = Column(String(64), nullable=True)
+
     created_time = Column(DateTime, default=datetime.utcnow)
     modified_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -61,6 +68,8 @@ class ScheduledJob(Base):
             "script": self.script,
             "sbatch_args": self.sbatch_args,
             "job_name_prefix": self.job_name_prefix,
+            "source_template": self.source_template,
+            "source_template_hash": self.source_template_hash,
             "created_time": self.created_time.isoformat() if self.created_time else None,
             "modified_time": self.modified_time.isoformat() if self.modified_time else None,
             "last_run_time": self.last_run_time.isoformat() if self.last_run_time else None,

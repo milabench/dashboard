@@ -9,6 +9,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* w="100vw" on the app's layout wrapper is a few pixels wider than the
+     visible area whenever a vertical scrollbar is present (100vw includes
+     the scrollbar's reserved gutter, but doesn't subtract it) — clip that
+     excess here instead of changing element widths, which avoids fighting
+     the flex/centering layout on <body> below. */
+  overflow-x: hidden;
 }
 
 * {
@@ -28,6 +35,7 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 h1 {

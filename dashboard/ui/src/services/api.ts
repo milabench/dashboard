@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse, RunGroup } from './types';
 import { meltPivotRows } from '../utils/pivotToChartData';
 import {
     parsePivotFieldsFromSearchParams,
@@ -27,6 +27,13 @@ export const api = axios.create({
 });
 
 const handleError = (error: unknown): never => {
+    // Rethrow cancellations as-is (don't wrap them) so React Query can tell
+    // "this was superseded/aborted" apart from a real failure — otherwise
+    // every debounce-superseded or StrictMode-duplicate request gets
+    // treated as a genuine error and retried (default: 3x with backoff).
+    if (axios.isCancel(error)) {
+        throw error;
+    }
     if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
         const data = axiosError.response?.data as any;
@@ -41,8 +48,92 @@ const handleError = (error: unknown): never => {
     } as ApiError;
 };
 
-export const getHealth = async (): Promise<{ status: string; version?: { dashboard: string; milabench: string } }> => {
+export const getHealth = async (): Promise<{ status: string; version?: { dashboard: string; milabench: string }; dev_mode?: boolean }> => {
     const response = await api.get('/status', { timeout: 5000 });
+    return response.data;
+};
+
+export interface MilabenchHealthCommit {
+    sha: string;
+    html_url: string;
+    date: string | null;
+    message: string;
+}
+
+export interface MilabenchHealthJob {
+    name: string | null;
+    status: string | null;
+    conclusion: string | null;
+    html_url: string | null;
+}
+
+export interface MilabenchHealthWorkflow {
+    found: boolean;
+    error: { status: number; message: string } | null;
+    id: number | null;
+    status: string | null;
+    conclusion: string | null;
+    head_sha: string | null;
+    html_url: string | null;
+    updated_at: string | null;
+    jobs: MilabenchHealthJob[];
+    matches_latest_main?: boolean;
+}
+
+export interface MilabenchHealthDocker extends MilabenchHealthWorkflow {
+    published: boolean;
+    cuda_published: boolean;
+    rocm_published: boolean;
+}
+
+export interface MilabenchHealthCi extends MilabenchHealthWorkflow {
+    ran: boolean;
+    bench_total: number;
+    bench_completed: number;
+    bench_failed: number;
+    failed_jobs: string[];
+}
+
+export interface MilabenchHealthGb10Run {
+    exec_id: number;
+    name: string | null;
+    status: string | null;
+    created_time: string | null;
+    commit: string | null;
+    branch: string | null;
+    matches_latest_main: boolean;
+    packs: { total: number; passed: number; failed: number };
+}
+
+export interface MilabenchHealthGb10 {
+    ran: boolean;
+    failures: number | null;
+    source: string;
+    for_latest_main: MilabenchHealthGb10Run | null;
+    latest_on_main: MilabenchHealthGb10Run | null;
+}
+
+export interface MilabenchHealthRepo {
+    id: string;
+    label: string;
+    owner: string;
+    repo: string;
+    html_url: string;
+    commit: MilabenchHealthCommit | null;
+    commit_error: { status: number; message: string } | null;
+    docker: MilabenchHealthDocker;
+    ci: MilabenchHealthCi;
+    gb10: MilabenchHealthGb10;
+}
+
+export interface MilabenchHealth {
+    checked_at: string;
+    branch: string;
+    repos: MilabenchHealthRepo[];
+}
+
+export const getMilabenchHealth = async (): Promise<MilabenchHealth> => {
+    const response = await api.get('/health/milabench', { timeout: 20000 });
     return response.data;
 };
 
@@ -273,6 +364,73 @@ export const getBreakdownMatrix = async (
     try {
         const response = await api.get('/breakdown/matrix', {
             params: {
+                benches: benches.join(','),
+                perf_agg: perfAgg,
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface RunGroupScore {
+    hardware_group_id: number;
+    gpu: string;
+    score: number;
+    bench_count: number;
+    exec_count: number;
+    latest_date: string | null;
+}
+
+export const getRunGroupScores = async (
+    configGroupId: number,
+    benches: string[],
+    perfAgg: string = 'median',
+): Promise<RunGroupScore[]> => {
+    try {
+        const response = await api.get('/breakdown/run-group-scores', {
+            params: {
+                config_group_id: configGroupId,
+                benches: benches.join(','),
+                perf_agg: perfAgg,
+            },
+            timeout: 120000,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface RunGroupMatrixGroup {
+    key: string;
+    gpu: string;
+    hardware_group_id: number;
+    total_score: number;
+}
+
+export interface RunGroupMatrixBench {
+    bench: string;
+    weight: number;
+    scores: Record<string, number>;
+}
+
+export interface RunGroupMatrix {
+    gpus: RunGroupMatrixGroup[];
+    benches: RunGroupMatrixBench[];
+}
+
+export const getRunGroupMatrix = async (
+    configGroupId: number,
+    benches: string[],
+    perfAgg: string = 'median',
+): Promise<RunGroupMatrix> => {
+    try {
+        const response = await api.get('/breakdown/run-group-matrix', {
+            params: {
+                config_group_id: configGroupId,
                 benches: benches.join(','),
                 perf_agg: perfAgg,
             },
@@ -890,9 +1048,12 @@ export const listSlurmSecrets = async (): Promise<string[]> => {
 };
 
 // Push-related API functions
+export type DbTarget = 'dev' | 'prod';
+
 export const requestPushKey = async (
     name: string,
     metadata?: Record<string, unknown>,
+    target: DbTarget = 'dev',
 ): Promise<{
     status: string;
     name?: string;
@@ -901,7 +1062,7 @@ export const requestPushKey = async (
     message: string;
 }> => {
     try {
-        const payload: { name: string; metadata?: Record<string, unknown> } = { name };
+        const payload: { name: string; metadata?: Record<string, unknown>; target: DbTarget } = { name, target };
         if (metadata && Object.keys(metadata).length > 0) {
             payload.metadata = metadata;
         }
@@ -915,9 +1076,331 @@ export const requestPushKey = async (
     }
 };
 
-export const listPushKeys = async (): Promise<{ name: string; metadata?: Record<string, unknown> }[]> => {
+export const listPushKeys = async (target: DbTarget = 'dev'): Promise<{ name: string; metadata?: Record<string, unknown> }[]> => {
     try {
-        const response = await api.get('/push/key/list');
+        const response = await api.get('/push/key/list', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getDbTargets = async (): Promise<{ default: string; targets: { name: DbTarget; available: boolean }[] }> => {
+    try {
+        const response = await api.get('/sync/db-targets');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+// ── Admin: run visibility ───────────────────────────────────────────
+
+export interface AdminRunSummary {
+    _id: number;
+    name: string;
+    created_time: string | null;
+    status: string | null;
+    visibility: 'public' | 'private';
+    share_token: string | null;
+    share_path: string | null;
+    release_at: string | null;
+}
+
+export const getAdminRuns = async (
+    opts: { q?: string; visibility?: 'public' | 'private'; limit?: number; offset?: number } = {},
+    target: DbTarget = 'dev',
+): Promise<{ total: number; runs: AdminRunSummary[] }> => {
+    try {
+        const params: Record<string, string | number> = {
+            target,
+            limit: opts.limit ?? 50,
+            offset: opts.offset ?? 0,
+        };
+        if (opts.q) params.q = opts.q;
+        if (opts.visibility) params.visibility = opts.visibility;
+        const response = await api.get('/admin/runs', { params });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const setRunVisibility = async (
+    execId: number,
+    visibility: 'public' | 'private',
+    opts: { releaseAt?: string | null } = {},
+    target: DbTarget = 'dev',
+): Promise<AdminRunSummary> => {
+    try {
+        const body: Record<string, unknown> = { visibility, target };
+        if (opts.releaseAt !== undefined) body.release_at = opts.releaseAt;
+        const response = await api.post(`/admin/runs/${execId}/visibility`, body);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+// ── Admin: migrations & materialized views ──────────────────────────
+
+export interface AdminToolResult {
+    status: string;
+    log?: string;
+    message?: string;
+}
+
+export const getMigrationStatus = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
+    try {
+        const response = await api.get('/admin/migrate/status', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const runMigrationUpgrade = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
+    try {
+        const response = await api.post('/admin/migrate/upgrade', { target }, { timeout: 120000 });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const getViewsStatus = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
+    try {
+        const response = await api.get('/admin/views/status', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const refreshViews = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
+    try {
+        const response = await api.post('/admin/views/refresh', { target }, { timeout: 60000 });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+// ── Admin: data invalidation (known-bad runs/benches) ───────────────
+
+export interface InvalidationRule {
+    _id: number;
+    exec_id: number | null;
+    bench_name: string | null;
+    before: string | null;
+    after: string | null;
+    reason: string;
+    active: boolean;
+    created_at: string | null;
+}
+
+export interface InvalidationApplyResult {
+    rule?: InvalidationRule;
+    status?: string;
+    rules_applied: number;
+    execs_invalidated: number;
+    packs_invalidated: number;
+    error?: string;
+}
+
+export const getInvalidationRules = async (target: DbTarget = 'dev'): Promise<InvalidationRule[]> => {
+    try {
+        const response = await api.get('/admin/invalidation-rules', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const createInvalidationRule = async (
+    rule: { exec_id?: number | null; bench_name?: string | null; before?: string | null; after?: string | null; reason: string },
+    target: DbTarget = 'dev',
+): Promise<InvalidationApplyResult> => {
+    try {
+        const response = await api.post('/admin/invalidation-rules', { ...rule, target });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const deleteInvalidationRule = async (
+    ruleId: number,
+    target: DbTarget = 'dev',
+): Promise<InvalidationApplyResult> => {
+    try {
+        const response = await api.delete(`/admin/invalidation-rules/${ruleId}`, { data: { target } });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const recomputeInvalidationRules = async (target: DbTarget = 'dev'): Promise<InvalidationApplyResult> => {
+    try {
+        const response = await api.post('/admin/invalidation-rules/recompute', { target }, { timeout: 60000 });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export const getInvalidationBenchNames = async (target: DbTarget = 'dev'): Promise<string[]> => {
+    try {
+        const response = await api.get('/admin/invalidation-rules/bench-names', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+// ── Dev: scaling live (experimental, DB-backed scaling cache) ──────
+
+export interface LiveScalingPoint {
+    gpu: string;
+    bench: string;
+    batch_size: number;
+    memory: number | null;
+    perf: number | null;
+    n_samples: number;
+    torch: string | null;
+    backend: string | null;
+    exec_id: number | null;
+    time: string | null;
+}
+
+export interface LiveScalingStatus {
+    n_points: number;
+    gpus: string[];
+    benches: string[];
+    last_computed: string | null;
+}
+
+export interface LiveScalingRefreshResult {
+    status: string;
+    written?: number;
+    skipped_no_batch_size?: number;
+    skipped_no_gpu?: number;
+    packs_considered?: number;
+    message?: string;
+}
+
+export const getScalingLive = async (gpus?: string[], benches?: string[]): Promise<LiveScalingPoint[]> => {
+    try {
+        const params: Record<string, string[]> = {};
+        if (gpus && gpus.length > 0) params.gpus = gpus;
+        if (benches && benches.length > 0) params.benches = benches;
+        const response = await api.get('/scaling-live', {
+            params: Object.keys(params).length > 0 ? params : undefined,
+            paramsSerializer: { indexes: null },
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const getScalingLiveStatus = async (): Promise<LiveScalingStatus> => {
+    try {
+        const response = await api.get('/scaling-live/status');
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const refreshScalingLive = async (benches?: string[]): Promise<LiveScalingRefreshResult> => {
+    try {
+        const response = await api.post(
+            '/scaling-live/refresh',
+            benches && benches.length > 0 ? { benches } : {},
+            { timeout: 120000 },
+        );
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+// ── Dev: scaling coverage suggestions (experimental) ────────────────
+
+export interface ScalingSuggestionCommand {
+    batch_size: number;
+    command: string;
+}
+
+export interface ScalingSuggestion {
+    gpu: string;
+    bench: string;
+    observed_batch_sizes: number[];
+    missing_batch_sizes: number[];
+    commands: ScalingSuggestionCommand[];
+}
+
+export interface ScalingSuggestResponse {
+    target_batch_sizes: number[];
+    suggestions: ScalingSuggestion[];
+}
+
+export const getScalingLiveSuggestions = async (
+    opts: { gpu?: string; bench?: string } = {},
+): Promise<ScalingSuggestResponse> => {
+    try {
+        const params: Record<string, string> = {};
+        if (opts.gpu) params.gpu = opts.gpu;
+        if (opts.bench) params.bench = opts.bench;
+        const response = await api.get('/scaling-live/suggest', { params });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+// ── Dev: benchmark documentation (experimental) ─────────────────────
+
+export interface BenchDocVram {
+    gpu: string;
+    batch_size: number;
+    memory: number;
+}
+
+export interface BenchDoc {
+    bench: string;
+    sample_command: string[] | null;
+    sample_gpu: string | null;
+    sample_exec_id: number | null;
+    vram: BenchDocVram[];
+    vram_min: BenchDocVram | null;
+    runtime_median_seconds: number | null;
+    runtime_samples: number;
+}
+
+export const getBenchDoc = async (bench: string): Promise<BenchDoc> => {
+    try {
+        const response = await api.get(`/bench/doc/${encodeURIComponent(bench)}`);
         return response.data;
     } catch (error) {
         return handleError(error);
@@ -1180,6 +1663,280 @@ export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields)
     }
 };
 
+// Timeline dev view — reuses benchmate.timeline server-side (ResultStore /
+// TimelineProcessor) against a benchmark_results.db path set via cookie.
+export interface TimelineCheckResult {
+    ok: boolean;
+    path?: string;
+    error?: string;
+}
+
+export interface TimelineRun {
+    run_id: number;
+    created_at: string;
+    description: string;
+    num_requests: number;
+}
+
+export interface TimelineBucket {
+    time: number;
+    start: number;
+    rate: number;
+    input_rate: number;
+    output_rate: number;
+    active_jobs: number;
+    start_job: number;
+    finished_job: number;
+    ran_through: number;
+    active_jobs_pct: number;
+    // false for "fake" context buckets a trim window adds outside itself —
+    // visualization-only, never part of the official N in-window samples.
+    in_window: boolean;
+    [key: string]: number | boolean;
+}
+
+export interface TimelineGanttJob {
+    request_id: string;
+    start: number;
+    end: number;
+    start_time: number;
+    latency: number;
+    prompt_len: number;
+    output_tokens: number;
+    ttft: number;
+    tpot: number;
+    itl: number[];
+    success: boolean;
+    error: string;
+    worker: number;
+    batch_id: number;
+}
+
+export interface TimelineTrimInfo {
+    enabled: boolean;
+    mode?: 'concurrency' | 'launch';
+    concurrency: number | null;
+    trimmed_start: number;
+    trimmed_end: number;
+    kept_buckets: number;
+    total_buckets: number;
+    window: [number, number] | null;
+    requests_used?: number;
+    requests_total?: number;
+}
+
+export interface TimelineBucketsResponse {
+    // official buckets plus "fake" context buckets outside the trim window
+    // (in_window: false on those) — for charting.
+    buckets: TimelineBucket[];
+    // the official, in-window-only subset of `buckets` — what the aggregate
+    // report actually samples from.
+    official_buckets: TimelineBucket[];
+    full_buckets: TimelineBucket[];
+    trim: TimelineTrimInfo;
+}
+
+export interface TimelineDistStats {
+    mean: number;
+    std: number;
+    median: number;
+    percentiles: [number, number][];
+}
+
+// Shape of milabench's own summary.py::_metrics() output — the same
+// sorted+outlier-trimmed (min/max dropped when n>=5) mean/median/percentile
+// aggregation milabench applies to any 'rate' metric sample stream.
+export interface TimelineMilabenchRateStats extends TimelineDistStats {
+    min: number;
+    max: number;
+    n: number;
+}
+
+export interface TimelineVllmReport {
+    completed: number;
+    failed: number;
+    dur_s?: number;
+    total_input?: number;
+    total_output?: number;
+    request_throughput?: number;
+    output_throughput?: number;
+    total_token_throughput?: number;
+    max_output_tokens_per_s?: number;
+    max_concurrent_requests?: number;
+    prefill?: TimelineDistStats | null;
+    ttft?: TimelineDistStats | null;
+    tpot?: TimelineDistStats | null;
+    itl?: TimelineDistStats | null;
+    e2el?: TimelineDistStats | null;
+}
+
+export interface TimelineBucketAggregate {
+    completed: number;
+    failed: number;
+    dur_s?: number;
+    total_input?: number;
+    total_output?: number;
+    request_throughput?: number;
+    output_throughput?: number;
+    total_token_throughput?: number;
+    peak_bucket_input_rate?: number;
+    peak_bucket_output_rate?: number;
+    peak_bucket_active_jobs?: number;
+    num_buckets?: number;
+    bucket_duration?: number;
+    milabench_rate?: TimelineMilabenchRateStats | null;
+    prefill?: TimelineDistStats | null;
+    ttft?: TimelineDistStats | null;
+    tpot?: TimelineDistStats | null;
+    itl?: TimelineDistStats | null;
+    e2el?: TimelineDistStats | null;
+    buckets?: TimelineBucket[];
+}
+
+export interface TimelineReportResponse {
+    vllm: TimelineVllmReport;
+    bucket_aggregate: TimelineBucketAggregate;
+    trim: TimelineTrimInfo;
+}
+
+export interface TimelineGpuPowerSample {
+    time: number;
+    power_w: number;
+}
+
+export interface TimelineGpuBucketPower {
+    time: number;
+    start: number;
+    power_w: number | null;
+    tokens_per_joule: number | null;
+}
+
+// Best-effort: a matching .data log with GPU power samples may not exist
+// (see dashboard/server/timeline_gpu.py) — available is false rather than
+// this being an error.
+export interface TimelineGpuReport {
+    available: boolean;
+    data_file?: string;
+    series?: TimelineGpuPowerSample[];
+    buckets?: TimelineGpuBucketPower[];
+    error?: string;
+}
+
+export interface TimelineParams {
+    num_buckets: number;
+    input_weight: number;
+    output_weight: number;
+    trim?: boolean;
+    trim_mode?: 'concurrency' | 'launch';
+    concurrency?: number;
+}
+
+export const checkTimelineDb = async (dbPath: string): Promise<TimelineCheckResult> => {
+    try {
+        const response = await api.get('/timeline/check', {
+            params: { db_path: dbPath },
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response) {
+            return error.response.data as TimelineCheckResult;
+        }
+        return handleError(error);
+    }
+};
+
+export const getTimelineRuns = async (dbPath: string): Promise<TimelineRun[]> => {
+    try {
+        const response = await api.get('/timeline/runs', {
+            params: { db_path: dbPath },
+            withCredentials: true,
+        });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export interface TimelineRequest {
+    request_id: string;
+    start_time: number;
+    latency: number;
+    prompt_len: number;
+    output_tokens: number;
+    ttft: number;
+    tpot: number;
+    itl: number[];
+    success: boolean;
+    error: string;
+}
+
+// One request does all of a page load's work — db load, trim, gantt, report
+// — and streams each stage as SSE events as soon as it's ready, instead of
+// four independent requests each separately re-loading the run and (for
+// buckets/report) recomputing the same trim window. `onEvent` fires once
+// per stage: 'requests' (TimelineRequest[]), 'buckets' (TimelineBucketsResponse),
+// 'gantt' (TimelineGanttJob[]), 'report' (TimelineReportResponse), then
+// 'done', or 'error' ({error: string}) if the run fails at any stage.
+// Aborting `signal` (e.g. a newer request superseding this one) closes the
+// connection, which stops whatever server-side stage hasn't started yet.
+export const streamTimelineRun = async (
+    runId: number,
+    dbPath: string,
+    params: TimelineParams,
+    onEvent: (event: string, data: any) => void,
+    signal?: AbortSignal,
+): Promise<void> => {
+    const query: Record<string, string> = {
+        db_path: dbPath,
+        num_buckets: String(params.num_buckets),
+        input_weight: String(params.input_weight),
+        output_weight: String(params.output_weight),
+    };
+    if (params.trim) query.trim = '1';
+    if (params.trim_mode) query.trim_mode = params.trim_mode;
+    if (params.concurrency != null) query.concurrency = String(params.concurrency);
+
+    // Axios buffers the whole body in browsers, so streaming needs fetch.
+    const baseURL = api.defaults.baseURL || '/api';
+    const response = await fetch(`${baseURL}/timeline/runs/${runId}/stream?${new URLSearchParams(query)}`, { signal });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: `Request failed with status ${response.status}` }));
+        onEvent('error', error);
+        return;
+    }
+    if (!response.body) {
+        onEvent('error', { error: 'Streaming is not supported by this browser' });
+        return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const processBlock = (block: string) => {
+        let event = 'message';
+        const dataLines: string[] = [];
+        for (const line of block.split(/\r?\n/)) {
+            if (line.startsWith('event:')) event = line.slice(6).trim();
+            if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        if (dataLines.length === 0) return;
+        onEvent(event, JSON.parse(dataLines.join('\n')));
+    };
+
+    while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const blocks = buffer.split(/\r?\n\r?\n/);
+        buffer = blocks.pop() || '';
+        blocks.forEach(processBlock);
+        if (done) break;
+    }
+    if (buffer.trim()) processBlock(buffer);
+};
+
 // Database sync API functions
 export const getSyncRemoteInfo = async (): Promise<{ default_url: string }> => {
     try {
@@ -1190,8 +1947,9 @@ export const getSyncRemoteInfo = async (): Promise<{ default_url: string }> => {
     }
 };
 
-export const downloadLocalBackup = async (): Promise<Blob> => {
+export const downloadLocalBackup = async (target: DbTarget = 'dev'): Promise<Blob> => {
     const response = await api.get('/sync/local-backup', {
+        params: { target },
         responseType: 'blob',
         timeout: 600000,
     });
@@ -1220,9 +1978,9 @@ export const pushToRemote = async (connInfo: {
     user: string;
     password: string;
     sslmode?: string;
-}): Promise<{ status: string; message: string }> => {
+}, target: DbTarget = 'dev'): Promise<{ status: string; message: string }> => {
     try {
-        const response = await api.post('/sync/push-to-remote', connInfo, {
+        const response = await api.post('/sync/push-to-remote', { ...connInfo, target }, {
             timeout: 600000,
         });
         return response.data;
@@ -1236,7 +1994,7 @@ export const pushToRemote = async (connInfo: {
 
 // ── Scheduled Slurm Jobs ────────────────────────────────────────────
 
-import type { ScheduledJob, ScheduledJobRun } from './types';
+import type { ScheduledJob, ScheduledJobRun, ScheduledJobTemplateDiff } from './types';
 
 export const getScheduledJobs = async (): Promise<ScheduledJob[]> => {
     try {
@@ -1287,9 +2045,24 @@ export const getScheduledJobRuns = async (id: number): Promise<ScheduledJobRun[]
     } catch (error) { return handleError(error); }
 };
 
-export const restoreBackup = async (file: File): Promise<{ status: string; message: string }> => {
+export const getScheduledJobTemplateDiff = async (id: number): Promise<ScheduledJobTemplateDiff> => {
+    try {
+        const response = await api.get(`/slurm/scheduled/${id}/template-diff`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const syncScheduledJobTemplate = async (id: number): Promise<ScheduledJob> => {
+    try {
+        const response = await api.post(`/slurm/scheduled/${id}/sync-template`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const restoreBackup = async (file: File, target: DbTarget = 'dev'): Promise<{ status: string; message: string }> => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('target', target);
     try {
         const response = await api.post('/sync/restore', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
@@ -1306,4 +2079,83 @@ export const restoreBackup = async (file: File): Promise<{ status: string; messa
         }
         return handleError(error);
     }
+};
+
+export const getRunGroups = async (strategy?: string): Promise<RunGroup[]> => {
+    try {
+        const params = strategy ? { strategy } : {};
+        const response = await api.get('/run-groups', { params });
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const getRunGroup = async (id: number): Promise<RunGroup> => {
+    try {
+        const response = await api.get(`/run-groups/${id}`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const getRunGroupMembers = async (
+    id: number,
+    limit = 200,
+    offset = 0,
+    intersectGroupId?: number,
+): Promise<Execution[]> => {
+    try {
+        const params: Record<string, number> = { limit, offset };
+        if (intersectGroupId !== undefined) params.intersect_group_id = intersectGroupId;
+        const response = await api.get(`/run-groups/${id}/members`, { params });
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const getExecGroups = async (execId: number): Promise<RunGroup[]> => {
+    try {
+        const response = await api.get(`/exec/${execId}/groups`);
+        return response.data;
+    } catch (error) { return handleError(error); }
+};
+
+export const createRunGroup = async (label: string, meta?: Record<string, unknown>): Promise<RunGroup> => {
+    const response = await api.post('/run-groups', { label, meta });
+    return response.data;
+};
+
+export const addRunGroupMember = async (groupId: number, execId: number): Promise<void> => {
+    await api.post(`/run-groups/${groupId}/members`, { exec_id: execId });
+};
+
+export const removeRunGroupMember = async (groupId: number, execId: number): Promise<void> => {
+    await api.delete(`/run-groups/${groupId}/members/${execId}`);
+};
+
+export const backfillRunGroups = async (strategy?: string, target: DbTarget = 'dev'): Promise<{ processed: number; errors: number }> => {
+    const params: Record<string, string> = { target };
+    if (strategy) params.strategy = strategy;
+    const response = await api.post('/run-groups/backfill', null, { params });
+    return response.data;
+};
+
+export const getRunGroupCompositeReport = async (
+    groupId: number,
+    opts: { dropMinMax?: boolean; profile?: string; intersectGroupId?: number } = {},
+): Promise<any[]> => {
+    const params: Record<string, string> = {};
+    if (opts.dropMinMax !== undefined) params.drop_min_max = opts.dropMinMax.toString();
+    if (opts.profile) params.profile = opts.profile;
+    if (opts.intersectGroupId !== undefined) params.intersect_group_id = opts.intersectGroupId.toString();
+    const response = await api.get(`/run-groups/${groupId}/composite-report`, { params });
+    return response.data;
+};
+
+export interface RelatedRunGroup {
+    _id: number;
+    label: string;
+    count: number;
+}
+
+export const getRelatedRunGroups = async (groupId: number, strategy: string): Promise<RelatedRunGroup[]> => {
+    const response = await api.get(`/run-groups/${groupId}/related`, { params: { strategy } });
+    return response.data;
 };

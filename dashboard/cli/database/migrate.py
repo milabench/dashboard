@@ -74,14 +74,15 @@ class Migrate(Command):
         """Run Alembic migrations and related admin DB tasks."""
         action : str           = choice("upgrade", "check", "stamp", "grant", "grant-all")  # Migration action
         rest   : list[str]     = argument(nargs="*")  # Extra: revision for stamp, or <table> [app_user] for grant
-        secrets: Optional[str] = None  # Path to data directory containing .secrets (default: repo data/)
+        secrets: Optional[str] = None  # Path to data directory containing secrets.toml or .secrets (default: repo data/)
+        env    : Optional[str] = None  # TOML section to load (dev or prod); defaults to dev — pass prod explicitly
     # fmt: on
 
     @staticmethod
     def execute(args):
         from dashboard.server.utils import load_db_secrets
 
-        load_db_secrets(root=args.secrets)
+        load_db_secrets(root=args.secrets, env=args.env)
         rest = args.rest or []
 
         match args.action:
@@ -122,10 +123,10 @@ def _admin_url():
     return admin_database_uri()
 
 
-def _upgrade():
+def _upgrade(db_url=None):
     from alembic import command
 
-    db_url = _admin_url()
+    db_url = db_url or _admin_url()
     cfg = _alembic_config(db_url)
     print(f"[migrate] Upgrading {db_url.host} as {db_url.username}...")
     command.upgrade(cfg, "head")
@@ -133,10 +134,10 @@ def _upgrade():
     return 0
 
 
-def _check():
+def _check(db_url=None):
     from alembic import command
 
-    db_url = _admin_url()
+    db_url = db_url or _admin_url()
     cfg = _alembic_config(db_url)
     print(f"[migrate] Database: {db_url.host} as {db_url.username}")
     print()

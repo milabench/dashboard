@@ -38,10 +38,10 @@ def _normalize_gpu_name(detected: str) -> str:
     return name
 
 
-def gpu_specs_routes(app, sqlexec, dev_only):
-    """Register GPU specification endpoints on the Flask app."""
+def gpu_specs_routes(bp, sqlexec):
+    """Register read-only GPU specification endpoints."""
 
-    @app.route("/api/gpu/specs")
+    @bp.route("/api/gpu/specs")
     def api_gpu_specs_list():
         """List all GPU specs."""
         with sqlexec() as sess:
@@ -50,7 +50,7 @@ def gpu_specs_routes(app, sqlexec, dev_only):
             ).scalars().all()
             return jsonify([_gpu_to_json(g) for g in rows])
 
-    @app.route("/api/gpu/specs/<string:name>")
+    @bp.route("/api/gpu/specs/<string:name>")
     def api_gpu_specs_get(name):
         """Get a single GPU spec by exact name."""
         with sqlexec() as sess:
@@ -61,7 +61,7 @@ def gpu_specs_routes(app, sqlexec, dev_only):
                 return jsonify({"error": f"GPU '{name}' not found"}), 404
             return jsonify(_gpu_to_json(gpu))
 
-    @app.route("/api/gpu/specs/search")
+    @bp.route("/api/gpu/specs/search")
     def api_gpu_specs_search():
         """Search GPUs by vendor, architecture, or minimum memory.
 
@@ -92,7 +92,7 @@ def gpu_specs_routes(app, sqlexec, dev_only):
             rows = sess.execute(stmt).scalars().all()
             return jsonify([_gpu_to_json(g) for g in rows])
 
-    @app.route("/api/gpu/specs/match/<string:detected_name>")
+    @bp.route("/api/gpu/specs/match/<string:detected_name>")
     def api_gpu_specs_match(detected_name):
         """Find the best-matching GPU spec for a detected product name.
 
@@ -122,55 +122,7 @@ def gpu_specs_routes(app, sqlexec, dev_only):
 
             return jsonify({"match": "exact", "gpu": _gpu_to_json(gpu)})
 
-    @app.route("/api/gpu/specs/seed", methods=["POST"])
-    @dev_only
-    def api_gpu_specs_seed():
-        """Seed the GPU database from built-in IGUANE data."""
-        with sqlexec() as sess:
-            count = seed_gpus(sess)
-            return jsonify({"status": "ok", "seeded": count})
-
-    @app.route("/api/gpu/specs", methods=["POST"])
-    @dev_only
-    def api_gpu_specs_upsert():
-        """Add or update a GPU spec.
-
-        JSON body::
-
-            {
-                "name": "B200-NVL",
-                "vendor": "nvidia",
-                "architecture": "Blackwell",
-                "specs": {"fp16": 2250, "fp32": 140, ...}
-            }
-        """
-        data = request.json
-        if not data or "name" not in data or "specs" not in data:
-            return jsonify({"error": "name and specs are required"}), 400
-
-        raw = data["specs"]
-        gpu = GPU.from_spec(
-            data["name"],
-            raw,
-            vendor=data.get("vendor", "nvidia"),
-            architecture=data.get("architecture"),
-        )
-
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-        stmt = pg_insert(GPU).values(**_gpu_to_row(gpu))
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["name"],
-            set_={k: getattr(stmt.excluded, k) for k in _ROW_FIELDS},
-        )
-
-        with sqlexec() as sess:
-            sess.execute(stmt)
-            sess.commit()
-
-        return jsonify({"status": "ok", "name": gpu.name})
-
-    @app.route("/api/gpu/specs/evolution")
+    @bp.route("/api/gpu/specs/evolution")
     def api_gpu_specs_evolution():
         """Flat records of GPU specs for compute-progression plots.
 
@@ -236,7 +188,7 @@ def gpu_specs_routes(app, sqlexec, dev_only):
 
         return jsonify(records)
 
-    @app.route("/html/gpu/evolution")
+    @bp.route("/html/gpu/evolution")
     def html_gpu_evolution():
         """Interactive Altair chart: GPU compute progression over time.
 
@@ -338,3 +290,53 @@ def gpu_specs_routes(app, sqlexec, dev_only):
         )
 
         return plot(chart.to_json())
+
+
+def gpu_specs_dev_routes(bp, sqlexec):
+    """Write endpoints (seed/upsert) — local-only, never on the public site."""
+
+    @bp.route("/api/gpu/specs/seed", methods=["POST"])
+    def api_gpu_specs_seed():
+        """Seed the GPU database from built-in IGUANE data."""
+        with sqlexec() as sess:
+            count = seed_gpus(sess)
+            return jsonify({"status": "ok", "seeded": count})
+
+    @bp.route("/api/gpu/specs", methods=["POST"])
+    def api_gpu_specs_upsert():
+        """Add or update a GPU spec.
+
+        JSON body::
+
+            {
+                "name": "B200-NVL",
+                "vendor": "nvidia",
+                "architecture": "Blackwell",
+                "specs": {"fp16": 2250, "fp32": 140, ...}
+            }
+        """
+        data = request.json
+        if not data or "name" not in data or "specs" not in data:
+            return jsonify({"error": "name and specs are required"}), 400
+
+        raw = data["specs"]
+        gpu = GPU.from_spec(
+            data["name"],
+            raw,
+            vendor=data.get("vendor", "nvidia"),
+            architecture=data.get("architecture"),
+        )
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        stmt = pg_insert(GPU).values(**_gpu_to_row(gpu))
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["name"],
+            set_={k: getattr(stmt.excluded, k) for k in _ROW_FIELDS},
+        )
+
+        with sqlexec() as sess:
+            sess.execute(stmt)
+            sess.commit()
+
+        return jsonify({"status": "ok", "name": gpu.name})

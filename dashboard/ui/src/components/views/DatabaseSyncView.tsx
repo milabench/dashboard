@@ -21,9 +21,11 @@ import {
     restoreBackup,
     pushToRemote,
 } from '../../services/api';
+import { useViewMode } from '../../contexts/ViewModeContext';
 
 export const DatabaseSyncView: React.FC = () => {
     usePageTitle('Database Sync');
+    const { dbTarget } = useViewMode();
 
     // Remote connection info
     const [remoteHost, setRemoteHost] = useState('');
@@ -60,7 +62,7 @@ export const DatabaseSyncView: React.FC = () => {
     const handleLocalBackup = async () => {
         setIsBackingUpLocal(true);
         try {
-            const blob = await downloadLocalBackup();
+            const blob = await downloadLocalBackup(dbTarget);
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             triggerDownload(blob, `milabench_local_${timestamp}.dump`);
             toaster.create({
@@ -127,7 +129,7 @@ export const DatabaseSyncView: React.FC = () => {
 
         setIsRestoring(true);
         try {
-            const result = await restoreBackup(restoreFile);
+            const result = await restoreBackup(restoreFile, dbTarget);
             const isError = result.status === 'ERR';
             toaster.create({
                 title: isError ? 'Restore failed' : 'Restore complete',
@@ -171,7 +173,7 @@ export const DatabaseSyncView: React.FC = () => {
                 user: remoteUser,
                 password: remotePassword,
                 sslmode: remoteSslmode,
-            });
+            }, dbTarget);
             const isError = result.status === 'ERR';
             toaster.create({
                 title: isError ? 'Push failed' : 'Push complete',
@@ -195,6 +197,18 @@ export const DatabaseSyncView: React.FC = () => {
         <Box p={4} bg="var(--color-bg-page)" h="100%" overflowY="auto">
             <VStack align="stretch" gap={6} maxW="900px">
                 <Heading color="var(--color-text)">Database Sync</Heading>
+                <Box
+                    borderWidth={2}
+                    borderRadius="md"
+                    borderColor={dbTarget === 'prod' ? 'red.500' : 'var(--color-border)'}
+                    bg={dbTarget === 'prod' ? 'red.500' : 'var(--color-bg-card)'}
+                    p={3}
+                >
+                    <Text fontWeight="bold" color={dbTarget === 'prod' ? 'white' : 'var(--color-text)'}>
+                        Target: {dbTarget === 'prod' ? '⚠ PROD' : 'DEV'} — every action below (local backup, restore,
+                        push-to-remote) reads/writes this database. Switch it with the toggle in the sidebar.
+                    </Text>
+                </Box>
                 <Text color="var(--color-text-muted)">
                     Backup and restore databases between local dev and deployed environments.
                     {remoteInfo && (

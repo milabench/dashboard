@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import hashlib
 import logging
+import os
 import traceback
 
 from apscheduler.triggers.date import DateTrigger
@@ -12,6 +14,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from ..database.scheduled_job import ScheduledJob, ScheduledJobRun
+from .constant import SLURM_TEMPLATES
+from .slurm import safe_path
 
 log = logging.getLogger("scheduled_jobs")
 log.setLevel(logging.DEBUG)
@@ -32,7 +36,36 @@ def _compute_next_run(cron_expr: str, base_time: datetime | None = None) -> date
     return croniter(cron_expr, base).get_next(datetime)
 
 
-def scheduled_jobs_routes(app, cache, database):
+def _template_content(name: str) -> str | None:
+    """Current content of a scripts/slurm template, or None if it's gone."""
+    try:
+        path = safe_path(SLURM_TEMPLATES, name)
+    except Exception:
+        return None
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r") as fp:
+        return fp.read()
+
+
+def _template_hash(name: str) -> str | None:
+    content = _template_content(name)
+    if content is None:
+        return None
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _job_outdated(job: ScheduledJob) -> tuple[bool, bool]:
+    """(outdated, template_missing) for a job's tracked source template."""
+    if not job.source_template or not job.source_template_hash:
+        return False, False
+    current = _template_hash(job.source_template)
+    if current is None:
+        return False, True
+    return current != job.source_template_hash, False
+
+
+def scheduled_jobs_routes(app, bp, cache, database):
     """Register scheduled-job CRUD routes and the periodic checker."""
 
     _sqlexec = database.connect
@@ -74,15 +107,22 @@ def scheduled_jobs_routes(app, cache, database):
         except Exception as exc:
             log.error("Reschedule error: %s", exc, exc_info=True)
 
-    @app.route('/api/slurm/scheduled/list')
+    def _with_outdated(job: ScheduledJob) -> dict:
+        outdated, template_missing = _job_outdated(job)
+        result = job.as_dict()
+        result["outdated"] = outdated
+        result["template_missing"] = template_missing
+        return result
+
+    @bp.route('/api/slurm/scheduled/list')
     def api_scheduled_list():
         with _sqlexec() as sess:
             rows = sess.execute(
                 select(ScheduledJob).order_by(ScheduledJob._id.desc())
             ).scalars().all()
-            return jsonify([r.as_dict() for r in rows])
+            return jsonify([_with_outdated(r) for r in rows])
 
-    @app.route('/api/slurm/scheduled/create', methods=['POST'])
+    @bp.route('/api/slurm/scheduled/create', methods=['POST'])
     def api_scheduled_create():
         data = request.json
         if not data:
@@ -103,6 +143,8 @@ def scheduled_jobs_routes(app, cache, database):
         if next_run is None:
             return jsonify({"error": "Invalid cron expression"}), 400
 
+        source_template = (data.get("source_template") or "").strip() or None
+
         job = ScheduledJob(
             name=name,
             enabled=data.get("enabled", True),
@@ -112,17 +154,19 @@ def scheduled_jobs_routes(app, cache, database):
             sbatch_args=data.get("sbatch_args", []),
             job_name_prefix=data.get("job_name_prefix"),
             next_run_time=next_run,
+            source_template=source_template,
+            source_template_hash=_template_hash(source_template) if source_template else None,
         )
 
         with _sqlexec() as sess:
             sess.add(job)
             sess.commit()
-            result = job.as_dict()
+            result = _with_outdated(job)
 
         _reschedule_checker()
         return jsonify(result), 201
 
-    @app.route('/api/slurm/scheduled/<int:job_id>', methods=['PUT'])
+    @bp.route('/api/slurm/scheduled/<int:job_id>', methods=['PUT'])
     def api_scheduled_update(job_id):
         data = request.json
         if not data:
@@ -152,15 +196,21 @@ def scheduled_jobs_routes(app, cache, database):
                 job.job_name_prefix = data["job_name_prefix"]
             if "enabled" in data:
                 job.enabled = data["enabled"]
+            if "source_template" in data:
+                source_template = (data.get("source_template") or "").strip() or None
+                job.source_template = source_template
+                job.source_template_hash = (
+                    _template_hash(source_template) if source_template else None
+                )
 
             job.modified_time = datetime.utcnow()
             sess.commit()
-            result = job.as_dict()
+            result = _with_outdated(job)
 
         _reschedule_checker()
         return jsonify(result)
 
-    @app.route('/api/slurm/scheduled/<int:job_id>', methods=['DELETE'])
+    @bp.route('/api/slurm/scheduled/<int:job_id>', methods=['DELETE'])
     def api_scheduled_delete(job_id):
         with _sqlexec() as sess:
             job = sess.get(ScheduledJob, job_id)
@@ -171,7 +221,7 @@ def scheduled_jobs_routes(app, cache, database):
         _reschedule_checker()
         return jsonify({"status": "deleted"})
 
-    @app.route('/api/slurm/scheduled/<int:job_id>/toggle', methods=['POST'])
+    @bp.route('/api/slurm/scheduled/<int:job_id>/toggle', methods=['POST'])
     def api_scheduled_toggle(job_id):
         with _sqlexec() as sess:
             job = sess.get(ScheduledJob, job_id)
@@ -186,7 +236,7 @@ def scheduled_jobs_routes(app, cache, database):
         _reschedule_checker()
         return jsonify(result)
 
-    @app.route('/api/slurm/scheduled/<int:job_id>/run-now', methods=['POST'])
+    @bp.route('/api/slurm/scheduled/<int:job_id>/run-now', methods=['POST'])
     def api_scheduled_run_now(job_id):
         with _sqlexec() as sess:
             job = sess.get(ScheduledJob, job_id)
@@ -196,7 +246,7 @@ def scheduled_jobs_routes(app, cache, database):
         _reschedule_checker()
         return jsonify(result)
 
-    @app.route('/api/slurm/scheduled/<int:job_id>/runs')
+    @bp.route('/api/slurm/scheduled/<int:job_id>/runs')
     def api_scheduled_runs(job_id):
         with _sqlexec() as sess:
             rows = sess.execute(
@@ -206,6 +256,53 @@ def scheduled_jobs_routes(app, cache, database):
                 .limit(50)
             ).scalars().all()
             return jsonify([r.as_dict() for r in rows])
+
+    @bp.route('/api/slurm/scheduled/<int:job_id>/template-diff')
+    def api_scheduled_template_diff(job_id):
+        """Compare a job's stored script against its source template's current content."""
+        with _sqlexec() as sess:
+            job = sess.get(ScheduledJob, job_id)
+            if not job:
+                return jsonify({"error": "Not found"}), 404
+            if not job.source_template:
+                return jsonify({"error": "This job has no source template"}), 400
+
+            latest_script = _template_content(job.source_template)
+            if latest_script is None:
+                return jsonify({
+                    "error": f"Template '{job.source_template}' no longer exists"
+                }), 404
+
+            return jsonify({
+                "source_template": job.source_template,
+                "current_script": job.script,
+                "latest_script": latest_script,
+                "outdated": _job_outdated(job)[0],
+            })
+
+    @bp.route('/api/slurm/scheduled/<int:job_id>/sync-template', methods=['POST'])
+    def api_scheduled_sync_template(job_id):
+        """Overwrite a job's script with its source template's current content."""
+        with _sqlexec() as sess:
+            job = sess.get(ScheduledJob, job_id)
+            if not job:
+                return jsonify({"error": "Not found"}), 404
+            if not job.source_template:
+                return jsonify({"error": "This job has no source template"}), 400
+
+            latest_script = _template_content(job.source_template)
+            if latest_script is None:
+                return jsonify({
+                    "error": f"Template '{job.source_template}' no longer exists"
+                }), 404
+
+            job.script = latest_script
+            job.source_template_hash = _template_hash(job.source_template)
+            job.modified_time = datetime.utcnow()
+            sess.commit()
+            result = _with_outdated(job)
+
+        return jsonify(result)
 
     def _submit_scheduled_job(sess: Session, job: ScheduledJob) -> dict:
         """Submit a scheduled job by calling the core submit function directly."""

@@ -9,7 +9,7 @@ from dashboard.server.database.models import Metric, Pack
 from dashboard.server.visibility import lookup_by_share_token
 
 
-def share_routes(app, sqlexec):
+def share_routes(bp, sqlexec):
     HIDDEN_METRICS = [
         "__iter__",
         "iter_create",
@@ -29,7 +29,7 @@ def share_routes(app, sqlexec):
     def _not_found():
         return jsonify({"error": "Not found"}), 404
 
-    @app.route("/api/share/<share_token>")
+    @bp.route("/api/share/<share_token>")
     def api_share_show(share_token):
         with sqlexec() as sess:
             exec_row = lookup_by_share_token(sess, share_token)
@@ -37,7 +37,7 @@ def share_routes(app, sqlexec):
                 return _not_found()
             return jsonify(exec_row.as_dict(include_private_fields=True))
 
-    @app.route("/api/share/<share_token>/packs")
+    @bp.route("/api/share/<share_token>/packs")
     def api_share_packs(share_token):
         with sqlexec() as sess:
             exec_row = lookup_by_share_token(sess, share_token)
@@ -52,7 +52,7 @@ def share_routes(app, sqlexec):
                     results.append(col.as_dict())
             return jsonify(results)
 
-    @app.route("/api/share/<share_token>/packs/<int:pack_id>/metrics")
+    @bp.route("/api/share/<share_token>/packs/<int:pack_id>/metrics")
     def api_share_pack_metrics(share_token, pack_id):
         with sqlexec() as sess:
             exec_row = lookup_by_share_token(sess, share_token)
@@ -71,7 +71,7 @@ def share_routes(app, sqlexec):
                     results.append(col.as_dict())
             return results
 
-    @app.route("/api/share/<share_token>/packs/<string:pack_name>/metrics")
+    @bp.route("/api/share/<share_token>/packs/<string:pack_name>/metrics")
     def api_share_pack_summary_metrics(share_token, pack_name):
         with sqlexec() as sess:
             exec_row = lookup_by_share_token(sess, share_token)
@@ -94,7 +94,7 @@ def share_routes(app, sqlexec):
                     results.append(col.as_dict())
             return jsonify(results)
 
-    @app.route("/api/share/<share_token>/report/fast")
+    @bp.route("/api/share/<share_token>/report/fast")
     def api_share_report_fast(share_token):
         from .plot import sql_direct_report
         from .report_cache import get_cached_report, store_report, _table_exists

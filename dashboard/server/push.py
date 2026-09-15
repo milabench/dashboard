@@ -44,16 +44,122 @@ def _sse_heartbeat():
 MAX_ZIP_SIZE = int(os.getenv("MAX_ZIP_SIZE", 500 * 1024 * 1024))  # 500 MB
 MAX_ENTRY_SIZE = int(os.getenv("MAX_ENTRY_SIZE", 100 * 1024 * 1024))  # 100 MB per entry
 MAX_ENTRIES = int(os.getenv("MAX_ZIP_ENTRIES", 50_000))
+ALLOWED_EXTENSIONS = {'zip'}
 
 
-def push_routes(app, database):
+def _allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _resolve_push_key(database, key):
+    """Look up a push key and return (name, metadata) or (None, None)."""
+    with database.connect() as sess:
+        row = sess.execute(
+            select(PushKey).where(PushKey.key == key)
+        ).scalar_one_or_none()
+        if not row:
+            print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
+            return None, None
+        meta = row.metadata_ if isinstance(row.metadata_, dict) else {}
+        return row.name, meta or {}
+
+
+def _parse_key_metadata(raw):
+    """Validate optional push-key metadata; return (meta_dict, error_response)."""
+    if raw is None:
+        return {}, None
+    if not isinstance(raw, dict):
+        return None, (jsonify({
+            "status": "ERR",
+            "message": "metadata must be a JSON object",
+        }), 400)
+    return raw, None
+
+
+def _parse_upload_metadata():
+    """Parse optional per-upload metadata from the multipart form."""
+    user_meta = {}
+    raw = request.form.get('metadata')
+    if raw:
+        try:
+            user_meta = json.loads(raw)
+            if not isinstance(user_meta, dict):
+                user_meta = {}
+        except (json.JSONDecodeError, TypeError):
+            user_meta = {}
+    return user_meta
+
+
+def _build_meta_layers(contributor, key_meta, user_meta):
+    """Build meta_tags / meta_forced for SQLAlchemy ingest.
+
+    Precedence (low → high):
+      per-upload metadata → archived run metadata → push-key metadata → contributor
+    """
+    meta_tags = dict(user_meta or {})
+    meta_forced = {
+        **(key_meta or {}),
+        "contributor": contributor,
+    }
+    return meta_tags, meta_forced
+
+
+def _public_ui_base_url():
+    origin = request.headers.get("Origin")
+    if origin:
+        return origin.rstrip("/")
+    referer = request.headers.get("Referer")
+    if referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return request.url_root.rstrip("/")
+
+
+def _parse_push_visibility():
+    private = request.form.get("private", "").lower() in ("1", "true", "yes")
+    vis = request.form.get("visibility")
+    if vis is not None:
+        try:
+            private = int(vis) == 1
+        except ValueError:
+            pass
+    return private
+
+
+def _parse_push_release_at(private):
+    raw = request.form.get("release_at")
+    if not raw:
+        return None
+    try:
+        return parse_release_at(raw)
+    except ValueError as err:
+        raise ValueError(str(err)) from err
+
+
+def _writer_kwargs(database, meta_tags, meta_forced, private, release_at):
+    return dict(
+        engine=database.engine,
+        meta_tags=meta_tags,
+        meta_forced=meta_forced,
+        visibility=1 if private else 0,
+        release_at=release_at if private else None,
+    )
+
+
+def push_public_routes(bp, app, database):
+    """Zip ingestion: how contributors get benchmark data onto the dashboard.
+
+    Protected by a push key (see ``push_admin_routes`` for key issuance), so
+    this stays reachable on the public deployment.
+    """
     UPLOAD_FOLDER = '/tmp/'
-    ALLOWED_EXTENSIONS = {'zip'}
 
     app.config['UPLOAD_FOLDER'] = os.getenv("UPLOAD_FOLDER", UPLOAD_FOLDER)
     app.config['MAX_CONTENT_LENGTH'] = MAX_ZIP_SIZE
 
-    @app.after_request
+    @bp.after_request
     def mark_legacy_zip_endpoint(response):
         if request.path == "/api/push/zip":
             response.headers["Deprecation"] = "true"
@@ -65,153 +171,14 @@ def push_routes(app, database):
             )
         return response
 
-    def allowed_file(filename):
-        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-    def resolve_push_key(key):
-        """Look up a push key and return (name, metadata) or (None, None)."""
-        with database.connect() as sess:
-            row = sess.execute(
-                select(PushKey).where(PushKey.key == key)
-            ).scalar_one_or_none()
-            if not row:
-                print(f"[push] Key lookup failed. Received key: {repr(key[:8])}...{repr(key[-4:])} (len={len(key)})")
-                return None, None
-            meta = row.metadata_ if isinstance(row.metadata_, dict) else {}
-            return row.name, meta or {}
-
-    def _parse_key_metadata(raw):
-        """Validate optional push-key metadata; return (meta_dict, error_response)."""
-        if raw is None:
-            return {}, None
-        if not isinstance(raw, dict):
-            return None, (jsonify({
-                "status": "ERR",
-                "message": "metadata must be a JSON object",
-            }), 400)
-        return raw, None
-
-    @app.route('/api/push/key/request', methods=['POST'])
-    def request_push_key():
-        """Generate a new push key for a given name."""
-        data = request.json or {}
-        name = data.get('name', '').strip()
-
-        if not name:
-            return jsonify({"status": "ERR", "message": "Name is required"}), 400
-
-        key_meta, err = _parse_key_metadata(data.get('metadata'))
-        if err:
-            return err
-
-        with database.connect() as sess:
-            existing = sess.execute(
-                select(PushKey).where(PushKey.name == name)
-            ).scalar_one_or_none()
-
-            if existing:
-                return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
-
-            key = secrets.token_hex(32)
-            push_key = PushKey(name=name, key=key, metadata_=key_meta)
-            sess.add(push_key)
-            sess.commit()
-
-            return jsonify({
-                "status": "OK",
-                "name": name,
-                "key": key,
-                "metadata": key_meta,
-                "message": "Save this key - it will not be shown again."
-            })
-
-    @app.route('/api/push/key/list')
-    def list_push_keys():
-        """List all registered push key names and metadata (without secrets)."""
-        with database.connect() as sess:
-            rows = sess.execute(select(PushKey)).scalars().all()
-            return jsonify([
-                {
-                    "name": row.name,
-                    "metadata": row.metadata_ if isinstance(row.metadata_, dict) else {},
-                }
-                for row in rows
-            ])
-
-    def _parse_upload_metadata():
-        """Parse optional per-upload metadata from the multipart form."""
-        user_meta = {}
-        raw = request.form.get('metadata')
-        if raw:
-            try:
-                user_meta = json.loads(raw)
-                if not isinstance(user_meta, dict):
-                    user_meta = {}
-            except (json.JSONDecodeError, TypeError):
-                user_meta = {}
-        return user_meta
-
-    def _build_meta_layers(contributor, key_meta, user_meta):
-        """Build meta_tags / meta_forced for SQLAlchemy ingest.
-
-        Precedence (low → high):
-          per-upload metadata → archived run metadata → push-key metadata → contributor
-        """
-        meta_tags = dict(user_meta or {})
-        meta_forced = {
-            **(key_meta or {}),
-            "contributor": contributor,
-        }
-        return meta_tags, meta_forced
-
-    def _public_ui_base_url():
-        origin = request.headers.get("Origin")
-        if origin:
-            return origin.rstrip("/")
-        referer = request.headers.get("Referer")
-        if referer:
-            from urllib.parse import urlparse
-            parsed = urlparse(referer)
-            if parsed.scheme and parsed.netloc:
-                return f"{parsed.scheme}://{parsed.netloc}"
-        return request.url_root.rstrip("/")
-
-    def _parse_push_visibility():
-        private = request.form.get("private", "").lower() in ("1", "true", "yes")
-        vis = request.form.get("visibility")
-        if vis is not None:
-            try:
-                private = int(vis) == 1
-            except ValueError:
-                pass
-        return private
-
-    def _parse_push_release_at(private):
-        raw = request.form.get("release_at")
-        if not raw:
-            return None
-        try:
-            return parse_release_at(raw)
-        except ValueError as err:
-            raise ValueError(str(err)) from err
-
-    def _writer_kwargs(meta_tags, meta_forced, private, release_at):
-        return dict(
-            engine=database.engine,
-            meta_tags=meta_tags,
-            meta_forced=meta_forced,
-            visibility=1 if private else 0,
-            release_at=release_at if private else None,
-        )
-
-    @app.route('/api/push/zip', methods=['POST'])
+    @bp.route('/api/push/zip', methods=['POST'])
     def upload_zip_file_legacy():
         """Deprecated non-streaming upload endpoint."""
         push_key = request.form.get('key') or request.headers.get('X-Push-Key')
         if not push_key:
             return jsonify({"status": "ERR", "message": "Push key is required"}), 401
 
-        contributor, key_meta = resolve_push_key(push_key)
+        contributor, key_meta = _resolve_push_key(database, push_key)
         if not contributor:
             return jsonify({"status": "ERR", "message": "Invalid push key"}), 403
 
@@ -223,7 +190,7 @@ def push_routes(app, database):
         if file.filename == '':
             return jsonify({"status": "ERR", "message": "No file selected"}), 400
 
-        if file and allowed_file(file.filename):
+        if file and _allowed_file(file.filename):
             try:
                 fd, dest = tempfile.mkstemp(suffix=".zip", dir=app.config['UPLOAD_FOLDER'])
                 os.close(fd)
@@ -238,7 +205,7 @@ def push_routes(app, database):
                     return jsonify({"status": "ERR", "message": str(err)}), 400
                 share_token = None
                 with SQLAlchemy(
-                    **_writer_kwargs(meta_tags, meta_forced, private, release_at),
+                    **_writer_kwargs(database, meta_tags, meta_forced, private, release_at),
                 ) as backend:
                     publish_zipped_run(backend, dest, stop_on_exception=True)
                     exec_id = backend._run_id
@@ -268,14 +235,14 @@ def push_routes(app, database):
 
         return jsonify({"status": "ERR", "message": "Only .zip files are allowed"}), 400
 
-    @app.route('/api/push/zip/stream', methods=['POST'])
+    @bp.route('/api/push/zip/stream', methods=['POST'])
     def upload_zip_stream():
         """Push a zip file and stream progress as SSE events."""
         push_key = request.form.get('key') or request.headers.get('X-Push-Key')
         if not push_key:
             return jsonify({"status": "ERR", "message": "Push key is required"}), 401
 
-        contributor, key_meta = resolve_push_key(push_key)
+        contributor, key_meta = _resolve_push_key(database, push_key)
         if not contributor:
             return jsonify({"status": "ERR", "message": "Invalid push key"}), 403
 
@@ -283,7 +250,7 @@ def push_routes(app, database):
             return jsonify({"status": "ERR", "message": "No file provided"}), 400
 
         file = request.files['file']
-        if file.filename == '' or not allowed_file(file.filename):
+        if file.filename == '' or not _allowed_file(file.filename):
             return jsonify({"status": "ERR", "message": "Only .zip files are allowed"}), 400
 
         fd, dest = tempfile.mkstemp(suffix=".zip", dir=app.config['UPLOAD_FOLDER'])
@@ -346,7 +313,7 @@ def push_routes(app, database):
                     pushed_exec_ids = []
                     pushed_share_links = []
                     with SQLAlchemy(
-                        **_writer_kwargs(meta_tags, meta_forced, private, release_at),
+                        **_writer_kwargs(database, meta_tags, meta_forced, private, release_at),
                     ) as backend:
                         with multilogger(backend, stop_on_exception=True) as log:
                             for runname, rundata in data.items():
@@ -409,7 +376,92 @@ def push_routes(app, database):
             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
         )
 
-    @app.route('/api/push/folder/<string:jr_job_id>', methods=['GET'])
+
+def push_admin_routes(bp, session_factory=None):
+    """Push-key issuance/listing — an admin manually mints keys and hands
+    them out to contributors out-of-band; never exposed on the public site.
+
+    Accepts a ``target`` ('dev' or 'prod', default 'dev'): a key must live
+    in the *same* database that will later validate it, so minting a key
+    for the public site means writing it directly into prod here.
+
+    ``session_factory(target)`` defaults to ``admin_db.admin_session``
+    (real dev/prod Postgres via secrets.toml) — tests inject a fake
+    returning an in-memory-SQLite-backed session instead.
+    """
+    from .admin_db import TARGETS
+    if session_factory is None:
+        from .admin_db import admin_session as session_factory
+
+    def _session_for(target: str):
+        if target not in TARGETS:
+            raise ValueError(f"Invalid target {target!r}; expected one of {TARGETS}")
+        return session_factory(target)
+
+    @bp.route('/api/push/key/request', methods=['POST'])
+    def request_push_key():
+        """Generate a new push key for a given name."""
+        data = request.json or {}
+        name = data.get('name', '').strip()
+
+        if not name:
+            return jsonify({"status": "ERR", "message": "Name is required"}), 400
+
+        key_meta, err = _parse_key_metadata(data.get('metadata'))
+        if err:
+            return err
+
+        try:
+            target = data.get('target', 'dev')
+            session_cm = _session_for(target)
+        except ValueError as verr:
+            return jsonify({"status": "ERR", "message": str(verr)}), 400
+
+        with session_cm as sess:
+            existing = sess.execute(
+                select(PushKey).where(PushKey.name == name)
+            ).scalar_one_or_none()
+
+            if existing:
+                return jsonify({"status": "ERR", "message": f'Name "{name}" is already taken'}), 409
+
+            key = secrets.token_hex(32)
+            push_key = PushKey(name=name, key=key, metadata_=key_meta)
+            sess.add(push_key)
+            sess.commit()
+
+            return jsonify({
+                "status": "OK",
+                "name": name,
+                "key": key,
+                "metadata": key_meta,
+                "message": "Save this key - it will not be shown again."
+            })
+
+    @bp.route('/api/push/key/list')
+    def list_push_keys():
+        """List all registered push key names and metadata (without secrets)."""
+        try:
+            target = request.args.get('target', 'dev')
+            session_cm = _session_for(target)
+        except ValueError as verr:
+            return jsonify({"status": "ERR", "message": str(verr)}), 400
+
+        with session_cm as sess:
+            rows = sess.execute(select(PushKey)).scalars().all()
+            return jsonify([
+                {
+                    "name": row.name,
+                    "metadata": row.metadata_ if isinstance(row.metadata_, dict) else {},
+                }
+                for row in rows
+            ])
+
+
+def push_dev_routes(bp, database):
+    """Local jobrunner-folder ingestion — depends on the local Slurm job cache."""
+
+    @bp.route('/api/push/folder/<string:jr_job_id>', methods=['GET'])
     def upload_job_folder(jr_job_id: str):
         """Push a job runner folder to the database"""
 
@@ -444,7 +496,6 @@ def push_routes(app, database):
         }
 
 
-
 def push_zip_folder(file_path, url='http://localhost:5000/push'):
     #
     # TODO: zip the folder with python and upload it with requests
@@ -461,6 +512,8 @@ def push_zip_folder(file_path, url='http://localhost:5000/push'):
 
 def push_server(config):
     """Simple push server that takes a zip folder of runs to push to the database"""
+    from .blueprints import make_blueprints
+    public_bp, dev_bp, admin_bp = make_blueprints()
 
     database = Database(database_uri())
 
@@ -468,7 +521,12 @@ def push_server(config):
     app.config.update(config)
 
     app.extensions["database"] = database
-    push_routes(app, database)
+    push_public_routes(public_bp, app, database)
+    push_admin_routes(admin_bp)
+    push_dev_routes(dev_bp, database)
+    app.register_blueprint(public_bp)
+    app.register_blueprint(dev_bp)
+    app.register_blueprint(admin_bp)
 
     return app
 

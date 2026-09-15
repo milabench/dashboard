@@ -31,11 +31,11 @@ def session(engine):
 @pytest.fixture
 def push_app(engine):
     """Flask app with push routes against an in-memory SQLite DB."""
-    from dashboard.server.push import push_routes
+    from dashboard.server.push import push_public_routes, push_admin_routes
+    from dashboard.server.blueprints import make_blueprints
 
     app = Flask(__name__)
     app.config["TESTING"] = True
-    app.config["UPLOAD_FOLDER"] = "/tmp"
 
     class FakeDatabase:
         def __init__(self, eng):
@@ -47,7 +47,18 @@ def push_app(engine):
                 yield sess
 
     db = FakeDatabase(engine)
-    push_routes(app, db)
+
+    @contextmanager
+    def fake_session_factory(target):
+        # Single fake DB stands in for both 'dev' and 'prod' in tests.
+        with SASession(engine) as sess:
+            yield sess
+
+    public_bp, _dev_bp, admin_bp = make_blueprints()
+    push_public_routes(public_bp, app, db)
+    push_admin_routes(admin_bp, session_factory=fake_session_factory)
+    app.register_blueprint(public_bp)
+    app.register_blueprint(admin_bp)
     return app, db
 
 
@@ -128,8 +139,6 @@ class TestPushKeyAPI:
         assert resp.status_code == 409
 
     def test_resolve_returns_name_and_metadata(self, push_app, engine):
-        from dashboard.server.push import push_routes
-
         # Re-bind to inspect resolve via upload auth path
         app, db = push_app
         client = app.test_client()
