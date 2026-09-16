@@ -529,6 +529,7 @@ export const ExecutionReport = ({ shareToken }: { shareToken?: string } = {}) =>
                             </HStack>
                             <HtmlReportView
                                 executionId={Number(executionId)}
+                                shareToken={shareToken}
                                 onClose={closeSidePanel}
                             />
                         </VStack>

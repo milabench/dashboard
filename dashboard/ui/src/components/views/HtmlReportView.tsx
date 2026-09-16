@@ -5,13 +5,18 @@ import axios from 'axios';
 
 interface HtmlReportViewProps {
     executionId: string | number;
+    shareToken?: string;
     onClose: () => void;
 }
 
-export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onClose }) => {
+export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, shareToken, onClose }) => {
     const [reportHtml, setReportHtml] = React.useState<string>('');
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
+
+    const endpoint = shareToken
+        ? `/html/report/share/${shareToken}`
+        : `/html/report/${executionId}`;
 
     React.useEffect(() => {
         const fetchHtmlReport = async () => {
@@ -19,7 +24,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                 setIsLoading(true);
                 setError(null);
 
-                const response = await axios.get(`/html/report/${executionId}`);
+                const response = await axios.get(endpoint);
                 setReportHtml(response.data);
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -36,7 +41,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
         };
 
         fetchHtmlReport();
-    }, [executionId]);
+    }, [endpoint]);
 
     if (isLoading) {
         return (
@@ -107,7 +112,7 @@ export const HtmlReportView: React.FC<HtmlReportViewProps> = ({ executionId, onC
                     borderColor="var(--color-border)"
                 >
                     <Text fontSize="sm" color="var(--color-text-muted)">
-                        Execution ID: {executionId} | Generated using /html/report/{executionId} endpoint
+                        Execution ID: {executionId} | Generated using {endpoint} endpoint
                     </Text>
                 </Box>
 

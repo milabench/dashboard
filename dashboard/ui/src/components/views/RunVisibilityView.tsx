@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { toaster } from '../ui/toaster';
 import { useViewMode } from '../../contexts/ViewModeContext';
 import { getAdminRuns, setRunVisibility, type AdminRunSummary } from '../../services/api';
+import { copyTextToClipboard } from '../../utils/download';
 
 const PAGE_SIZE = 50;
 
@@ -62,10 +63,18 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
         if (!run.share_path) return;
         const url = `${window.location.origin}${run.share_path}`;
         try {
-            await navigator.clipboard.writeText(url);
+            await copyTextToClipboard(url);
             toaster.create({ title: 'Share link copied', type: 'success', duration: 3000 });
         } catch {
-            toaster.create({ title: 'Could not copy link', type: 'error', duration: 3000 });
+            // Clipboard access can be blocked entirely (insecure context, no
+            // permission, embedded browser) — the link is still shown next to
+            // the button so it can always be copied by hand.
+            toaster.create({
+                title: 'Could not copy automatically',
+                description: url,
+                type: 'error',
+                duration: 8000,
+            });
         }
     };
 
@@ -78,9 +87,21 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
         setBusy(true);
         try {
             const result = await setRunVisibility(run._id, 'private', {}, target);
-            toaster.create({ title: 'Share link generated', type: 'success', duration: 3000 });
             if (result.share_path) {
-                await navigator.clipboard.writeText(`${window.location.origin}${result.share_path}`).catch(() => {});
+                const url = `${window.location.origin}${result.share_path}`;
+                try {
+                    await copyTextToClipboard(url);
+                    toaster.create({ title: 'Share link generated and copied', type: 'success', duration: 3000 });
+                } catch {
+                    toaster.create({
+                        title: 'Share link generated',
+                        description: url,
+                        type: 'success',
+                        duration: 8000,
+                    });
+                }
+            } else {
+                toaster.create({ title: 'Share link generated', type: 'success', duration: 3000 });
             }
             invalidate();
         } catch (error: any) {
@@ -115,9 +136,20 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
             </Table.Cell>
             <Table.Cell borderColor="var(--color-border)">
                 {run.share_path ? (
-                    <Button size="xs" variant="outline" onClick={copyShareLink}>
-                        Copy share link
-                    </Button>
+                    <HStack gap={2}>
+                        <Button size="xs" variant="outline" onClick={copyShareLink}>
+                            Copy link
+                        </Button>
+                        <a
+                            href={`${window.location.origin}${run.share_path}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`${window.location.origin}${run.share_path}`}
+                            style={{ fontSize: '0.75rem', color: 'var(--color-primary)' }}
+                        >
+                            Open link
+                        </a>
+                    </HStack>
                 ) : (
                     <Button size="xs" variant="outline" loading={busy} onClick={generateShareLink}>
                         Generate link

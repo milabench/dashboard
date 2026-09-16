@@ -98,3 +98,43 @@ def admin_tools_routes(bp):
             return jsonify({"status": "ERR", "message": str(err)}), 500
 
         return jsonify({"status": "OK", "log": log})
+
+    @bp.route("/api/admin/views/recreate", methods=["POST"])
+    def api_admin_views_recreate():
+        """Drop and recreate materialized views from their current SQL —
+        unlike refresh, this picks up definition changes (e.g. a filter
+        added to the view's WHERE clause). Requires admin credentials, same
+        as ``dashboard db views recreate``.
+        """
+        import sqlalchemy
+        from sqlalchemy.orm import sessionmaker
+
+        from dashboard.cli.database.views import create_views, DEFAULT_VIEW_OWNER
+        from dashboard.server.database.models import from_json, to_json
+
+        body = request.get_json(silent=True) or {}
+        try:
+            target = _target_from(body)
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        names = body.get("views") or None
+        owner = body.get("owner") or DEFAULT_VIEW_OWNER
+
+        try:
+            engine = sqlalchemy.create_engine(
+                resolve_target_admin_uri(target),
+                echo=False,
+                future=True,
+                json_serializer=to_json,
+                json_deserializer=from_json,
+            )
+            try:
+                with sessionmaker(bind=engine)() as sess:
+                    _, log = _run_captured(create_views, sess, names, True, owner)
+            finally:
+                engine.dispose()
+        except Exception as err:
+            return jsonify({"status": "ERR", "message": str(err)}), 500
+
+        return jsonify({"status": "OK", "log": log})

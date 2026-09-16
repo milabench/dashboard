@@ -1197,6 +1197,18 @@ export const refreshViews = async (target: DbTarget = 'dev'): Promise<AdminToolR
     }
 };
 
+export const recreateViews = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
+    try {
+        const response = await api.post('/admin/views/recreate', { target }, { timeout: 60000 });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
 // ── Admin: data invalidation (known-bad runs/benches) ───────────────
 
 export interface InvalidationRule {

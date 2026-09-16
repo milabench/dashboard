@@ -16,6 +16,7 @@ import {
     runMigrationUpgrade,
     getViewsStatus,
     refreshViews,
+    recreateViews,
     backfillRunGroups,
     type AdminToolResult,
 } from '../../services/api';
@@ -163,7 +164,7 @@ export const AdminToolsView: React.FC = () => {
 
                 <ToolSection
                     title="Materialized Views"
-                    description="Refreshes gpu_summary_mv (the Supported GPUs / Latest GPU runs table)."
+                    description="Refreshes gpu_summary_mv (the Supported GPUs / Latest GPU runs table). Refresh only updates the data — if the view's own SQL (e.g. a filter) changed, use Recreate instead."
                 >
                     <HStack gap={3}>
                         <Button
@@ -181,6 +182,20 @@ export const AdminToolsView: React.FC = () => {
                             onClick={() => runAction(setViewsBusy, setViewsResult, () => refreshViews(dbTarget), 'Views refreshed')}
                         >
                             Refresh views ({dbTarget})
+                        </Button>
+                        <Button
+                            size="sm"
+                            colorPalette="red"
+                            variant="outline"
+                            loading={viewsBusy}
+                            onClick={() => {
+                                if (!window.confirm(
+                                    `Drop and recreate materialized views on ${dbTarget}? This picks up any SQL/definition changes (e.g. visibility filters), not just fresh data.`
+                                )) return;
+                                runAction(setViewsBusy, setViewsResult, () => recreateViews(dbTarget), 'Views recreated');
+                            }}
+                        >
+                            Recreate views ({dbTarget})
                         </Button>
                     </HStack>
                     <LogPanel log={viewsResult?.log} />

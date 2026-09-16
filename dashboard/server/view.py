@@ -161,6 +161,16 @@ def pandas_to_html_relative(df, default_float="{:.2f}".format):
 
 
 
+# GPU names excluded from the public /api/scaling results regardless of the
+# requested ``gpus`` filter — e.g. hardware whose scaling numbers aren't
+# ready to be shown publicly yet.
+HIDDEN_SCALING_GPUS = frozenset({"MI355X"})
+
+
+def _drop_hidden_scaling_gpus(rows):
+    return [row for row in rows if row.get("gpu") not in HIDDEN_SCALING_GPUS]
+
+
 def _scaling_from_db(sqlexec, gpus):
     """Return scaling rows from Postgres, or None if the table is missing/empty."""
     try:
@@ -801,6 +811,23 @@ def view_server(config):
 
         return report(run_id, profile=profile)
 
+    @public_bp.route('/html/report/share/<string:share_token>')
+    def html_report_share(share_token):
+        """Same as ``html_report``, but authorized via a share token instead
+        of the run being public — lets a private run's Pandas report be
+        viewed from its share link."""
+        from .visibility import lookup_by_share_token
+
+        profile = request.cookies.get('scoreProfile')
+
+        with sqlexec() as sess:
+            exec_row = lookup_by_share_token(sess, share_token)
+            if exec_row is None:
+                return jsonify({"error": "Not found"}), 404
+            run_id = exec_row._id
+
+        return report(run_id, profile=profile)
+
     @public_bp.route('/html/exec/<int:exec_id>/packs/<pack_id>/metrics')
     def html_pack_metrics(exec_id, pack_id):
         import altair as alt
@@ -892,12 +919,12 @@ def view_server(config):
 
         db_rows = _scaling_from_db(sqlexec, gpus)
         if db_rows is not None:
-            return jsonify(db_rows)
+            return jsonify(_drop_hidden_scaling_gpus(db_rows))
 
         output = _scaling_from_yaml(gpus)
         if isinstance(output, dict) and "error" in output:
             return jsonify(output), 404
-        return jsonify(output)
+        return jsonify(_drop_hidden_scaling_gpus(output))
 
     @public_bp.route('/html/scaling/x=<string:x>/y=<string:y>')
     def scaling_plot(x, y):
