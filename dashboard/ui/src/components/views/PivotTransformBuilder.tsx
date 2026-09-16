@@ -52,14 +52,13 @@ function FieldSelect({
     disabled?: boolean;
 }) {
     return (
-        <NativeSelect.Root size="sm" flex={flex ?? '1'} minW={minW ?? '100px'}>
+        <NativeSelect.Root size="sm" flex={flex ?? '1'} minW={minW ?? '100px'} disabled={disabled}>
             <NativeSelect.Field
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 bg="var(--color-bg-card)"
                 borderColor="var(--color-border)"
                 color="var(--color-text)"
-                disabled={disabled}
             >
                 {allowEmpty && <option value="">{placeholder}</option>}
                 {fields.map((f) => (

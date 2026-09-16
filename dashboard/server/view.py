@@ -35,7 +35,6 @@ from .share import share_routes
 from .embargo import register_embargo_scheduler
 from .visibility import public_exec_filter, require_public_exec, valid_pack_filter
 from .report import datafile_processor
-from .timeline_dev import timeline_processor
 from .metal import baremetal_server
 from .sync import sync_routes
 from .run_groups import run_group_routes, run_group_admin_routes
@@ -43,10 +42,8 @@ from .runs_admin import runs_admin_routes
 from .invalidation_admin import invalidation_admin_routes
 from .admin_tools import admin_tools_routes
 from .gpu_specs import gpu_specs_routes, gpu_specs_dev_routes
-from .milabench_health import milabench_health_routes
-from .scaling_live import scaling_live_routes
-from .scaling_suggest import scaling_suggest_routes
-from .bench_doc import bench_doc_routes
+from .experimental import register_experimental_routes
+from .preview import preview_enabled, register_preview_routes
 
 
 def _get_version():
@@ -259,6 +256,7 @@ def view_server(config):
 
     dev_mode = os.environ.get("DEV_MODE", "true").lower() not in ("0", "false", "no")
     app.config["DEV_MODE"] = dev_mode
+    app.config["PREVIEW_ENABLED"] = preview_enabled()
 
     push_public_routes(public_bp, app, database)
     share_routes(public_bp, sqlexec)
@@ -271,7 +269,12 @@ def view_server(config):
 
     @public_bp.route('/api/status')
     def api_status():
-        return jsonify({"status": "ok", "version": _get_version(), "dev_mode": dev_mode})
+        return jsonify({
+            "status": "ok",
+            "version": _get_version(),
+            "dev_mode": dev_mode,
+            "preview_available": preview_enabled() and not dev_mode,
+        })
 
     @public_bp.route('/api/routes')
     def api_routes():
@@ -291,26 +294,7 @@ def view_server(config):
         admin_tools_routes(admin_bp)
 
         gpu_specs_dev_routes(dev_bp, sqlexec)
-        milabench_health_routes(dev_bp, sqlexec)
-
-        # Experimental/DEV-only table — self-heal it via the app role
-        # (same pattern as the gpus/scheduled_job tables above) instead of
-        # requiring an admin-credentialed Alembic migration for something
-        # not yet promoted out of DEV.
-        try:
-            from .database.scaling_live import LiveScalingObservation
-            from dashboard.server.database.models import Base as MetricsBase
-            with sqlexec() as sess:
-                MetricsBase.metadata.create_all(
-                    sess.bind, tables=[LiveScalingObservation.__table__], checkfirst=True
-                )
-                sess.commit()
-        except Exception as err:
-            print(f"[scaling_live] Could not create scaling_observations_live table: {err}")
-
-        scaling_live_routes(dev_bp, sqlexec)
-        scaling_suggest_routes(dev_bp, sqlexec)
-        bench_doc_routes(dev_bp, sqlexec)
+        register_experimental_routes(dev_bp, app, cache, sqlexec)
         push_dev_routes(dev_bp, database)
 
         try:
@@ -330,12 +314,8 @@ def view_server(config):
         except:
             pass
 
-        try:
-            timeline_processor(app, dev_bp, cache)
-        except Exception as exc:
-            import traceback
-            print(f"[timeline] timeline_processor FAILED: {exc}")
-            traceback.print_exc()
+    if preview_enabled() and not dev_mode:
+        register_preview_routes(app, cache, sqlexec, register_experimental_routes)
 
     @socketio.on('connect')
     def handle_connect():
@@ -461,7 +441,7 @@ def view_server(config):
             if require_public_exec(sess, exec_id) is None:
                 return jsonify({"error": "Not found"}), 404
 
-        stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Pack.name.startswith(pack_name)).join(Pack, Metric.pack_id == Pack._id)
+        stmt = sqlalchemy.select(Metric).where(Metric.exec_id == exec_id, Pack.name == pack_name).join(Pack, Metric.pack_id == Pack._id)
         stmt = _exclude_hidden(stmt)
 
         results = []
@@ -832,7 +812,7 @@ def view_server(config):
 
         chart = alt.Chart(f"/api/exec/{exec_id}/packs/{pack_id}/metrics").transform_joinaggregate(
             min_order="min(order)",
-            groupby=["name"],
+            groupby=["name", "gpu_id"],
         ).transform_calculate(
             elapsed="datum.order - datum.min_order",
         ).mark_line().encode(

@@ -48,6 +48,8 @@ import { VegaProvider } from './contexts/VegaContext'
 import { HealthProvider } from './contexts/HealthContext'
 import { ViewModeProvider } from './contexts/ViewModeContext'
 import { MaintenanceBanner } from './components/layout/MaintenanceBanner'
+import { PreviewRoute } from './components/layout/PreviewRoute'
+import PreviewUnlockView from './components/views/PreviewUnlockView'
 
 // Create the theme system for Chakra UI v3
 const system = createSystem(defaultConfig);
@@ -75,20 +77,21 @@ function App() {
                 <Route path="/realtime" element={<RealtimeMetricsView />} />
                 <Route path="/datafile" element={<DatafileView />} />
                 <Route path="/datafile/vega" element={<VegaPlotBuilderView />} />
-                <Route path="/timeline" element={<TimelineDevView />} />
+                <Route path="/timeline" element={<PreviewRoute><TimelineDevView /></PreviewRoute>} />
                 <Route path="/baremetal" element={<BaremetalView />} />
                 <Route path="/scheduled" element={<ScheduledJobsView />} />
                 <Route path="/db-sync" element={<DatabaseSyncView />} />
-                <Route path="/health" element={<HealthView />} />
-                <Route path="/scaling-live" element={<ScalingLiveView />} />
-                <Route path="/bench-doc" element={<BenchmarkDocView />} />
+                <Route path="/preview" element={<PreviewUnlockView />} />
+                <Route path="/health" element={<PreviewRoute><HealthView /></PreviewRoute>} />
+                <Route path="/scaling-live" element={<PreviewRoute><ScalingLiveView /></PreviewRoute>} />
+                <Route path="/bench-doc" element={<PreviewRoute><BenchmarkDocView /></PreviewRoute>} />
                 <Route path="/push-keys" element={<PushKeysView />} />
                 <Route path="/run-visibility" element={<RunVisibilityView />} />
                 <Route path="/invalidation" element={<InvalidationRulesView />} />
                 <Route path="/admin-tools" element={<AdminToolsView />} />
 
                 <Route path="/executions" element={<Executions />} />
-                <Route path="/breakdown" element={<BreakdownView />} />
+                <Route path="/breakdown" element={<PreviewRoute><BreakdownView /></PreviewRoute>} />
                 <Route path="/executions/:id" element={<ExecutionReport />} />
                 <Route path="/share/:token" element={<ShareExecutionReport />} />
                 <Route path="/pivot/view/table" element={<PivotTableSharePage />} />

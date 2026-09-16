@@ -61,11 +61,14 @@ def _get_pack_ids(pack):
     return job_id, gpu_id
 
 
-def _normalize_allocmem_gpu_id(gpu_id, devices):
+def _normalize_gpu_id(gpu_id, devices):
     """Map local CUDA index 0 to the physical GPU for single-device per_gpu packs."""
     if len(devices) == 1 and str(gpu_id) == "0":
         return str(devices[0])
-    return gpu_id
+    return str(gpu_id)
+
+
+_normalize_allocmem_gpu_id = _normalize_gpu_id
 
 
 class SQLAlchemy:
@@ -357,8 +360,10 @@ class SQLAlchemy:
             )
         )
 
-    def _change_gpudata(self, run_id, pack_id, k, v, jobid, metric_time=None):
+    def _change_gpudata(self, run_id, pack_id, k, v, jobid, metric_time=None, devices=None):
+        devices = devices or []
         for gpu_id, values in v.items():
+            gpu_id = _normalize_gpu_id(gpu_id, devices)
             for metric, value in values.items():
                 unit = None
                 match metric:
@@ -443,7 +448,15 @@ class SQLAlchemy:
             # GPU data would have been too hard to query
             # so the gpu_id is moved to its own column
             # and each metric is pushed as a separate document
-            self._change_gpudata(run_id, pack_id, "gpudata", gpudata, job_id, metric_time=metric_time)
+            self._change_gpudata(
+                run_id,
+                pack_id,
+                "gpudata",
+                gpudata,
+                job_id,
+                metric_time=metric_time,
+                devices=state.pack.config.get("devices", []),
+            )
 
         elif (torchmem := data.pop("torchmem", None)) is not None:
             self._change_allocmem(

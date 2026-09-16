@@ -48,7 +48,12 @@ const handleError = (error: unknown): never => {
     } as ApiError;
 };
 
-export const getHealth = async (): Promise<{ status: string; version?: { dashboard: string; milabench: string }; dev_mode?: boolean }> => {
+export const getHealth = async (): Promise<{
+    status: string;
+    version?: { dashboard: string; milabench: string };
+    dev_mode?: boolean;
+    preview_available?: boolean;
+}> => {
     const response = await api.get('/status', { timeout: 5000 });
     return response.data;
 };

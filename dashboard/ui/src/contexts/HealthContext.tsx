@@ -11,6 +11,7 @@ interface HealthContextValue {
     lastChecked: Date | null;
     version: VersionInfo | null;
     devMode: boolean;
+    previewAvailable: boolean;
 }
 
 const HealthContext = createContext<HealthContextValue>({
@@ -18,6 +19,7 @@ const HealthContext = createContext<HealthContextValue>({
     lastChecked: null,
     version: null,
     devMode: false,
+    previewAvailable: false,
 });
 
 export const useHealth = () => useContext(HealthContext);
@@ -29,6 +31,7 @@ export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
     const [version, setVersion] = useState<VersionInfo | null>(null);
     const [devMode, setDevMode] = useState(false);
+    const [previewAvailable, setPreviewAvailable] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const checkHealth = useCallback(async () => {
@@ -39,9 +42,11 @@ export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setVersion(data.version);
             }
             setDevMode(!!data?.dev_mode);
+            setPreviewAvailable(!!data?.preview_available);
         } catch {
             setIsBackendOnline(false);
             setDevMode(false);
+            setPreviewAvailable(false);
         }
         setLastChecked(new Date());
     }, []);
@@ -55,7 +60,7 @@ export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, [checkHealth]);
 
     return (
-        <HealthContext.Provider value={{ isBackendOnline, lastChecked, version, devMode }}>
+        <HealthContext.Provider value={{ isBackendOnline, lastChecked, version, devMode, previewAvailable }}>
             {children}
         </HealthContext.Provider>
     );

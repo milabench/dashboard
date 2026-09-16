@@ -4,7 +4,7 @@ from argklass.command import ParentCommand
 
 
 class Database(ParentCommand):
-    """Manage database objects: migrations, backups, views, indexes, cache, GPUs, scaling, runs."""
+    """Manage database objects: migrations, backups, views, indexes, cache, GPUs, scaling, runs, repair."""
 
     name: str = "db"
 

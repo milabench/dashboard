@@ -125,6 +125,72 @@ def test_torchmem_expanded_per_device():
     assert by_name["torchmem.max_allocated"].order == 123.0
 
 
+def test_gpudata_remaps_physical_gpu_for_per_gpu_pack():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    backend = SQLAlchemy(engine=engine)
+    pack_cfg = {
+        "run_name": "r1",
+        "name": "lightning",
+        "devices": [3],
+        "job-number": 1,
+    }
+    pack = SimpleNamespace(config=pack_cfg)
+    backend.on_new_run(SimpleNamespace(data={}, pack=pack))
+    backend.on_new_pack(SimpleNamespace(tag="lightning.D3", pack=pack, data={}))
+    state = backend.states["lightning.D3"]
+    state.step = DATA
+    state.start = 0
+
+    entry = SimpleNamespace(
+        tag="lightning.D3",
+        pack=pack,
+        event="data",
+        data={
+            "time": 789.0,
+            "gpudata": {
+                "0": {
+                    "memory": [4096.0, 81920.0],
+                    "load": 0.95,
+                    "power": 300.0,
+                    "temperature": 55.0,
+                }
+            },
+        },
+    )
+    backend.on_data(entry)
+
+    by_name = {m.name: m for m in backend.pending_metrics}
+    assert by_name["gpu.load"].gpu_id == "3"
+    assert by_name["gpu.load"].value == 0.95
+    assert by_name["gpu.power"].gpu_id == "3"
+    assert by_name["gpu.memory"].gpu_id == "3"
+
+
+def test_gpudata_preserves_device_index_for_multigpu_pack():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    backend, pack = _backend_ready_for_data(engine)
+    pack.config["devices"] = [0, 1, 2, 3, 4, 5, 6, 7]
+
+    entry = SimpleNamespace(
+        tag="bench.0",
+        pack=pack,
+        event="data",
+        data={
+            "time": 100.0,
+            "gpudata": {
+                "0": {"memory": [1000.0, 81920.0], "load": 0.5, "power": 100.0},
+                "7": {"memory": [2000.0, 81920.0], "load": 0.9, "power": 200.0},
+            },
+        },
+    )
+    backend.on_data(entry)
+
+    loads = {m.gpu_id: m.value for m in backend.pending_metrics if m.name == "gpu.load"}
+    assert loads == {"0": 0.5, "7": 0.9}
+
+
 def test_torchmem_remaps_physical_gpu_for_per_gpu_pack():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)

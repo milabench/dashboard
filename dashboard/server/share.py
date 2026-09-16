@@ -82,7 +82,7 @@ def share_routes(bp, sqlexec):
                 sqlalchemy.select(Metric)
                 .where(
                     Metric.exec_id == exec_row._id,
-                    Pack.name.startswith(pack_name),
+                    Pack.name == pack_name,
                 )
                 .join(Pack, Metric.pack_id == Pack._id)
             )

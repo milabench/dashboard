@@ -58,7 +58,7 @@ export const MetricsView = ({ selectedPack, executionId, shareToken }: MetricsVi
                 width: cellWidth,
                 height: cellHeight,
                 transform: [
-                    { joinaggregate: [{ op: 'min', field: 'order', as: 'min_order' }], groupby: ['name'] },
+                    { joinaggregate: [{ op: 'min', field: 'order', as: 'min_order' }], groupby: ['name', 'gpu_id'] },
                     { calculate: 'datum.order - datum.min_order', as: 'elapsed' },
                 ],
                 mark: 'line',

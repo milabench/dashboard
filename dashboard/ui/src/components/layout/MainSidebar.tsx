@@ -3,7 +3,7 @@ import { Box, HStack, VStack, Text, Badge, Spacer } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { ColorModeButton } from "../ui/color-mode"
-import { useViewMode, type ViewMode, type DbTarget } from '../../contexts/ViewModeContext';
+import { useViewMode, usePreview, type ViewMode, type DbTarget } from '../../contexts/ViewModeContext';
 
 interface NavItem {
     label: string;
@@ -43,17 +43,19 @@ const publicNavItems: NavItem[] = [
     },
 ];
 
+const experimentalNavItems: NavItem[] = [
+    { label: 'Health', path: '/health' },
+    { label: 'Scaling Live', path: '/scaling-live' },
+    { label: 'Benchmark Docs', path: '/bench-doc' },
+    { label: 'Timeline', path: '/timeline' },
+    { label: 'Breakdown', path: '/breakdown' },
+];
+
 const devNavItems: NavItem[] = [
     { label: 'Dashboard', path: '/dashboard' },
     {
         label: 'Experimental',
-        routes: [
-            { label: 'Health', path: '/health' },
-            { label: 'Scaling Live', path: '/scaling-live' },
-            { label: 'Benchmark Docs', path: '/bench-doc' },
-            { label: 'Timeline', path: '/timeline' },
-            { label: 'Breakdown', path: '/breakdown' },
-        ]
+        routes: experimentalNavItems,
     },
     {
         label: 'Slurm',
@@ -74,6 +76,13 @@ const devNavItems: NavItem[] = [
     },
 ];
 
+const previewNavItems: NavItem[] = [
+    {
+        label: 'Experimental',
+        routes: experimentalNavItems,
+    },
+];
+
 const adminNavItems: NavItem[] = [
     { label: 'Database Sync', path: '/db-sync' },
     { label: 'Push Keys', path: '/push-keys' },
@@ -86,22 +95,23 @@ function navItemsForMode(mode: ViewMode): NavItem[] {
     switch (mode) {
         case 'dev': return devNavItems;
         case 'admin': return adminNavItems;
+        case 'preview': return previewNavItems;
         default: return publicNavItems;
     }
 }
 
-const MODE_LABELS: Record<ViewMode, string> = {
+const DEV_MODE_LABELS: Record<Exclude<ViewMode, 'preview'>, string> = {
     public: 'Public',
     dev: 'Dev',
     admin: 'Admin',
 };
 
-const ModeToggle: React.FC = () => {
+const ModeToggle: React.FC<{ modes: ViewMode[]; labels: Record<string, string> }> = ({ modes, labels }) => {
     const { mode, setMode } = useViewMode();
 
     return (
         <HStack gap={0} borderRadius="md" borderWidth={1} borderColor="var(--color-sidebar-border)" overflow="hidden" mb={4}>
-            {(['public', 'dev', 'admin'] as ViewMode[]).map((m) => (
+            {modes.map((m) => (
                 <Box
                     key={m}
                     as="button"
@@ -115,7 +125,7 @@ const ModeToggle: React.FC = () => {
                     _hover={{ bg: 'var(--color-sidebar-hover)' }}
                     onClick={() => setMode(m)}
                 >
-                    {MODE_LABELS[m]}
+                    {labels[m]}
                 </Box>
             ))}
         </HStack>
@@ -161,7 +171,8 @@ const DbTargetToggle: React.FC = () => {
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
     const [currentProfile, setCurrentProfile] = useState<string>('NONE');
-    const { mode, devMode } = useViewMode();
+    const { mode, devMode, setMode } = useViewMode();
+    const { previewAvailable, previewUnlocked, lockPreview } = usePreview();
 
     useEffect(() => {
         const savedProfile = Cookies.get('scoreProfile');
@@ -252,8 +263,39 @@ export const MainSidebar: React.FC = () => {
                     />
                 </Link>
             </Box>
-            {devMode && <ModeToggle />}
+            {devMode && (
+                <ModeToggle
+                    modes={['public', 'dev', 'admin']}
+                    labels={DEV_MODE_LABELS}
+                />
+            )}
+            {!devMode && previewAvailable && previewUnlocked && (
+                <ModeToggle
+                    modes={['public', 'preview']}
+                    labels={{ public: 'Public', preview: 'Preview' }}
+                />
+            )}
             {devMode && mode === 'admin' && <DbTargetToggle />}
+            {!devMode && previewUnlocked && mode === 'preview' && (
+                <Box mb={4}>
+                    <Box
+                        as="button"
+                        w="100%"
+                        py={1}
+                        fontSize="xs"
+                        borderRadius="md"
+                        borderWidth={1}
+                        borderColor="var(--color-sidebar-border)"
+                        _hover={{ bg: 'var(--color-sidebar-hover)' }}
+                        onClick={() => {
+                            lockPreview();
+                            setMode('public');
+                        }}
+                    >
+                        Lock preview
+                    </Box>
+                </Box>
+            )}
             <VStack gap={2} align="stretch" flex={1} overflowY="auto">
                 {visibleNavItems.map((item) => renderNavItem(item))}
             </VStack>

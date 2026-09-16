@@ -20,8 +20,6 @@ export function PivotTableSharePage() {
     const [searchParams] = useSearchParams();
     const [triggerGeneration, setTriggerGeneration] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
-    const [executionTime, setExecutionTime] = useState<number | null>(null);
-
     const fields = useMemo(
         () => parsePivotFieldsFromSearchParams(searchParams) ?? [],
         [searchParams],
@@ -85,12 +83,6 @@ export function PivotTableSharePage() {
                         Running query… (timeout {PIVOT_TIMEOUT_MS / 1000}s)
                     </Text>
                 </Box>
-            )}
-
-            {executionTime !== null && !isGenerating && (
-                <Text mb={3} fontSize="xs" color="var(--color-text-muted)">
-                    Loaded in {executionTime < 1000 ? `${executionTime.toFixed(0)}ms` : `${(executionTime / 1000).toFixed(2)}s`}
-                </Text>
             )}
 
             <PivotTableView

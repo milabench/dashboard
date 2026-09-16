@@ -234,7 +234,7 @@ interface CascadeSelectProps {
     options: string[];
     value: string[];
     onChange: (next: string[]) => void;
-    size?: number;
+    visibleRows?: number;
     hint?: string;
 }
 
@@ -243,7 +243,7 @@ const CascadeSelect: React.FC<CascadeSelectProps> = ({
     options,
     value,
     onChange,
-    size = 10,
+    visibleRows = 10,
     hint,
 }) => (
     <Box flex={1} minW={0}>
@@ -264,9 +264,9 @@ const CascadeSelect: React.FC<CascadeSelectProps> = ({
         )}
         <chakra.select
             multiple
-            size={size}
             w="100%"
             value={value}
+            {...({ size: visibleRows } as React.SelectHTMLAttributes<HTMLSelectElement>)}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                 const next = Array.from(e.target.selectedOptions).map((o) => o.value);
                 onChange(next);
@@ -300,14 +300,14 @@ const SelectedBenchmarksPanel: React.FC<{
     options: string[];
     value: string[];
     onChange: (next: string[]) => void;
-    size?: number;
-}> = ({ options, value, onChange, size = 10 }) => (
+    visibleRows?: number;
+}> = ({ options, value, onChange, visibleRows = 10 }) => (
     <CascadeSelect
         label="Benchmarks"
         options={options}
         value={value}
         onChange={onChange}
-        size={size}
+        visibleRows={visibleRows}
         hint="Group filters update this list; edit directly anytime"
     />
 );
