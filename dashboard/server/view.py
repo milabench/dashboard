@@ -40,7 +40,9 @@ from .sync import sync_routes
 from .run_groups import run_group_routes, run_group_admin_routes
 from .runs_admin import runs_admin_routes
 from .invalidation_admin import invalidation_admin_routes
+from .feature_flags import feature_flag_admin_routes, public_feature_flag_routes
 from .admin_tools import admin_tools_routes
+from .deploy import deploy_routes
 from .gpu_specs import gpu_specs_routes, gpu_specs_dev_routes
 from .experimental import register_experimental_routes
 from .preview import preview_enabled, register_preview_routes
@@ -294,6 +296,7 @@ def view_server(config):
         return jsonify(sorted(rules, key=lambda r: r["rule"]))
 
     gpu_specs_routes(public_bp, sqlexec)
+    public_feature_flag_routes(public_bp, sqlexec)
 
     if dev_mode:
         sync_routes(admin_bp)
@@ -302,6 +305,8 @@ def view_server(config):
         runs_admin_routes(admin_bp)
         invalidation_admin_routes(admin_bp)
         admin_tools_routes(admin_bp)
+        deploy_routes(admin_bp)
+        feature_flag_admin_routes(admin_bp)
 
         gpu_specs_dev_routes(dev_bp, sqlexec)
         register_experimental_routes(dev_bp, app, cache, sqlexec)

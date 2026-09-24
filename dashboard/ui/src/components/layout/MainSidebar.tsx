@@ -89,6 +89,8 @@ const adminNavItems: NavItem[] = [
     { label: 'Run Visibility', path: '/run-visibility' },
     { label: 'Data Invalidation', path: '/invalidation' },
     { label: 'Admin Tools', path: '/admin-tools' },
+    { label: 'Feature Flags', path: '/feature-flags' },
+    { label: 'Deploy', path: '/deploy' },
 ];
 
 function navItemsForMode(mode: ViewMode): NavItem[] {

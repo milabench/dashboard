@@ -1153,6 +1153,7 @@ export interface AdminToolResult {
     status: string;
     log?: string;
     message?: string;
+    actions_url?: string;
 }
 
 export const getMigrationStatus = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
@@ -1200,6 +1201,71 @@ export const refreshViews = async (target: DbTarget = 'dev'): Promise<AdminToolR
 export const recreateViews = async (target: DbTarget = 'dev'): Promise<AdminToolResult> => {
     try {
         const response = await api.post('/admin/views/recreate', { target }, { timeout: 60000 });
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data) {
+            return error.response.data;
+        }
+        return handleError(error);
+    }
+};
+
+export interface FeatureFlag {
+    _id: number;
+    name: string;
+    enabled: boolean;
+    description: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export const getFeatureFlags = async (target: DbTarget = 'dev'): Promise<FeatureFlag[]> => {
+    try {
+        const response = await api.get('/admin/feature-flags', { params: { target } });
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
+export const createFeatureFlag = async (
+    name: string,
+    enabled: boolean,
+    description: string,
+    target: DbTarget = 'dev',
+): Promise<FeatureFlag> => {
+    const response = await api.post('/admin/feature-flags', { name, enabled, description, target });
+    return response.data;
+};
+
+export const updateFeatureFlag = async (
+    name: string,
+    changes: { enabled?: boolean; description?: string },
+    target: DbTarget = 'dev',
+): Promise<FeatureFlag> => {
+    const response = await api.patch(`/admin/feature-flags/${encodeURIComponent(name)}`, {
+        ...changes,
+        target,
+    });
+    return response.data;
+};
+
+export const deleteFeatureFlag = async (name: string, target: DbTarget = 'dev'): Promise<void> => {
+    await api.delete(`/admin/feature-flags/${encodeURIComponent(name)}`, { data: { target } });
+};
+
+export type DeployTarget = 'backend' | 'frontend';
+
+export const triggerDeploy = async (
+    target: DeployTarget,
+    dashboardRef: string = 'main',
+): Promise<AdminToolResult> => {
+    try {
+        const response = await api.post(
+            `/admin/deploy/${target}`,
+            { dashboard_ref: dashboardRef },
+            { timeout: 15000 },
+        );
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error) && error.response?.data) {

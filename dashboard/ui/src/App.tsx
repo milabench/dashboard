@@ -35,6 +35,8 @@ import { PushKeysView } from './components/views/PushKeysView';
 import { RunVisibilityView } from './components/views/RunVisibilityView';
 import { InvalidationRulesView } from './components/views/InvalidationRulesView';
 import { AdminToolsView } from './components/views/AdminToolsView';
+import { DeployView } from './components/views/DeployView';
+import { FeatureFlagsView } from './components/views/FeatureFlagsView';
 import { DatabaseSyncView } from './components/views/DatabaseSyncView';
 import { SupportedGpusView } from './components/views/SupportedGpusView';
 import { HealthView } from './components/views/HealthView';
@@ -50,6 +52,7 @@ import { ViewModeProvider } from './contexts/ViewModeContext'
 import { MaintenanceBanner } from './components/layout/MaintenanceBanner'
 import { PreviewRoute } from './components/layout/PreviewRoute'
 import PreviewUnlockView from './components/views/PreviewUnlockView'
+import { GoogleAnalytics } from './components/analytics/GoogleAnalytics'
 
 // Create the theme system for Chakra UI v3
 const system = createSystem(defaultConfig);
@@ -65,6 +68,7 @@ function App() {
           <VegaProvider>
           <Toaster />
           <Router>
+            <GoogleAnalytics />
             <MaintenanceBanner />
             <Layout>
               <Routes>
@@ -89,6 +93,8 @@ function App() {
                 <Route path="/run-visibility" element={<RunVisibilityView />} />
                 <Route path="/invalidation" element={<InvalidationRulesView />} />
                 <Route path="/admin-tools" element={<AdminToolsView />} />
+                <Route path="/deploy" element={<DeployView />} />
+                <Route path="/feature-flags" element={<FeatureFlagsView />} />
 
                 <Route path="/executions" element={<Executions />} />
                 <Route path="/breakdown" element={<PreviewRoute><BreakdownView /></PreviewRoute>} />

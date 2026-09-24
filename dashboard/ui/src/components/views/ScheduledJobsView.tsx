@@ -17,6 +17,7 @@ import {
     Input,
     Field,
     NativeSelect,
+    Textarea,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { LuPlay, LuTrash2, LuPower, LuChevronDown, LuChevronRight, LuCircleAlert, LuPencil, LuRefreshCw } from 'react-icons/lu';
@@ -269,6 +270,7 @@ const EditScheduledJobDialog: React.FC<{
     const [jobNamePrefix, setJobNamePrefix] = useState('');
     const [script, setScript] = useState('');
     const [sourceTemplate, setSourceTemplate] = useState('');
+    const [sbatchArgsText, setSbatchArgsText] = useState('');
 
     const { data: templates } = useQuery<string[]>({
         queryKey: ['slurm-templates'],
@@ -285,6 +287,7 @@ const EditScheduledJobDialog: React.FC<{
         setJobNamePrefix(job.job_name_prefix || '');
         setScript(job.script);
         setSourceTemplate(job.source_template || '');
+        setSbatchArgsText((job.sbatch_args || []).join('\n'));
     }, [job]);
 
     const cron = cronPreset || cronCustom;
@@ -319,12 +322,18 @@ const EditScheduledJobDialog: React.FC<{
             toaster.create({ title: 'Script is required', type: 'warning', duration: 3000 });
             return;
         }
+        const sbatch_args = sbatchArgsText
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+
         saveMut.mutate({
             name: name.trim(),
             cron_expression: cron.trim(),
             job_name_prefix: jobNamePrefix.trim() || null,
             script,
             source_template: sourceTemplate || null,
+            sbatch_args,
         });
     };
 
@@ -411,6 +420,22 @@ const EditScheduledJobDialog: React.FC<{
                             Setting or changing this only tracks which file the script came from
                             for drift detection -- it does not touch the script below.
                         </Text>
+                        <Field.Root>
+                            <Field.Label>
+                                Sbatch arguments
+                                <Text as="span" fontSize="xs" color="var(--color-text-muted)" fontWeight="normal" ml={2}>
+                                    one per line, e.g. -w cn-d004 or --gpus-per-task=8
+                                </Text>
+                            </Field.Label>
+                            <Textarea
+                                fontFamily="mono"
+                                fontSize="sm"
+                                rows={4}
+                                value={sbatchArgsText}
+                                onChange={(e) => setSbatchArgsText(e.target.value)}
+                                placeholder={'--partition=milabench\n--nodes=1\n-w cn-d004'}
+                            />
+                        </Field.Root>
                         <Box flex="1" minH="0" display="flex" flexDirection="column">
                             <Text fontSize="sm" fontWeight="medium" mb={1}>Script</Text>
                             <MonacoEditor value={script} onChange={setScript} height="100%" />

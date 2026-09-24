@@ -269,6 +269,38 @@ class InvalidationRule(Base):
         }
 
 
+class FeatureFlag(Base):
+    """A named on/off switch, toggleable from the admin UI without a
+    deploy — a kill switch for a risky code path, or a gradual rollout
+    gate. Checked via ``feature_flags.is_enabled(session, name)``; a name
+    with no row yet falls back to the caller's own default so code can
+    gate itself safely before the flag is ever created.
+    """
+
+    __tablename__ = "feature_flags"
+
+    _id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(128), unique=True, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    description = Column(String(512), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_feature_flag_name", "name"),
+    )
+
+    def as_dict(self):
+        return {
+            "_id": self._id,
+            "name": self.name,
+            "enabled": self.enabled,
+            "description": self.description,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Metric(Base):
     __tablename__ = "metrics"
 
