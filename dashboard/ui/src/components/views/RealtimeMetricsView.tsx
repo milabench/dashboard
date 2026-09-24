@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box,
     VStack,
@@ -17,7 +17,7 @@ import {
     SimpleGrid,
     Link,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { webSocketService, type MetricData } from '../../services/websocket';
 import type { BenchLogEntry } from '../../services/types';
 import {
@@ -31,20 +31,47 @@ interface MetricEntry {
     id: string;
     timestamp: Date;
     jobId: string;
-    data: any;
+    data: unknown;
     rawLine: string;
 }
 
 interface BenchmarkStats {
     id: number;
     name: string;
-    config: any;
-    meta: any;
+    config: unknown;
+    meta: unknown;
     start: number;
     data: number;
     stop: number;
     error: number;
     end: number;
+}
+
+/** Per-benchmark accumulator tracked internally while streaming metric events. */
+interface BenchAccumulator {
+    id: number;
+    config: unknown;
+    meta: unknown;
+    start: number;
+    data: number;
+    stop: number;
+    error: number;
+    line: number;
+    end: number;
+    stdout: number;
+    stderr: number;
+}
+
+/** Run-level metadata emitted by the "meta" event. */
+interface RunMeta {
+    arch?: unknown;
+    milabench?: {
+        version?: string;
+        tag?: string;
+        commit?: string;
+        date?: string;
+    };
+    [key: string]: unknown;
 }
 
 interface JobMetrics {
@@ -56,13 +83,13 @@ interface JobMetrics {
 
 
 function metricStreamProcessor(
-    onUpdate: (jobId: string, accumulatedData: Record<string, any>, currentBench: any) => void,
-    onMeta: (meta: any) => void,
+    onUpdate: (jobId: string, accumulatedData: Record<string, BenchAccumulator>, currentBench: BenchAccumulator) => void,
+    onMeta: (meta: RunMeta) => void,
 ) {
-    let accumulatedData: Record<string, any> = {};
+    const accumulatedData: Record<string, Record<string, BenchAccumulator>> = {};
     let hasMeta = false;
 
-    function setDefault<T, K extends keyof any>(
+    function setDefault<T, K extends PropertyKey>(
         obj: Record<K, T>,
         key: K,
         value: T
@@ -74,9 +101,9 @@ function metricStreamProcessor(
     }
 
     const processor = (jobId: string, data: BenchLogEntry) => {
-        let jobData = setDefault(accumulatedData, jobId, {});
+        const jobData = setDefault(accumulatedData, jobId, {});
 
-        let currentBench = setDefault(jobData, data.tag, {
+        const currentBench = setDefault(jobData, data.tag, {
             id: Object.keys(jobData).length,
             config: null,
             meta: null,
@@ -98,7 +125,8 @@ function metricStreamProcessor(
             case "meta":
                 currentBench["meta"] = data.data;
                 if (!hasMeta) {
-                    onMeta(data.data);
+                    // The "meta" event's payload carries run-level metadata (arch, milabench version/tag/commit/date).
+                    onMeta(data.data as RunMeta);
                     hasMeta = true;
                 }
                 break;
@@ -110,11 +138,11 @@ function metricStreamProcessor(
             case "data":
                 currentBench["data"] += 1;
 
-                if ("gpudata" in data.data) {
-
+                if (typeof data.data === 'object' && data.data !== null && "gpudata" in data.data) {
+                    // Reserved for future per-device GPU metric tracking; no separate counter yet.
                 }
-                if ("cpudata" in data.data) {
-
+                if (typeof data.data === 'object' && data.data !== null && "cpudata" in data.data) {
+                    // Reserved for future per-device CPU metric tracking; no separate counter yet.
                 }
 
                 break;
@@ -159,9 +187,15 @@ export const RealtimeMetricsView: React.FC = () => {
     const [jobMetrics, setJobMetrics] = useState<{ [jobId: string]: JobMetrics }>({});
     const [activeJobs, setActiveJobs] = useState<string[]>([]);
     const [selectedJobId, setSelectedJobId] = useState<string>('');
-    const [runMeta, setRunMeta] = useState<any>(null);
+    const [runMeta, setRunMeta] = useState<RunMeta | null>(null);
 
-    const metricProcessor = metricStreamProcessor(
+    // Memoized with an empty dep array: metricStreamProcessor's callbacks only close
+    // over stable setState setters, and the WebSocket connect effect below (which
+    // registers metricProcessor with the socket once on mount) needs a stable
+    // reference here -- recreating it every render would either reset its internal
+    // accumulator state or, if added as-is to that effect's deps, force the socket
+    // to reconnect on every render.
+    const metricProcessor = useMemo(() => metricStreamProcessor(
         (jobId, jobData) => {
             // Update the jobMetrics state with the new accumulated data
             setJobMetrics(prev => {
@@ -182,7 +216,7 @@ export const RealtimeMetricsView: React.FC = () => {
 
                 // Convert the accumulated data structure to our JobMetrics format
                 job.benchmarks = {};
-                Object.entries(jobData).forEach(([tag, benchData]: [string, any]) => {
+                Object.entries(jobData).forEach(([tag, benchData]) => {
                     job.benchmarks[tag] = {
                         id: benchData.id,
                         name: tag,
@@ -203,7 +237,7 @@ export const RealtimeMetricsView: React.FC = () => {
             // Display the meta information about the run
             setRunMeta(meta);
         }
-    );
+    ), []);
 
     useEffect(() => {
         // Connect to WebSocket when component mounts
@@ -267,13 +301,14 @@ export const RealtimeMetricsView: React.FC = () => {
         return () => {
             webSocketService.disconnect();
         };
-    }, []);
+    }, [metricProcessor]);
 
     // Removed auto-scroll as it's annoying when reading data
 
     useEffect(() => {
         if (activeJobs.length === 0) {
             if (selectedJobId) {
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the selection in reaction to the real-time (WebSocket-driven) activeJobs list becoming empty; selectedJobId is also independently set by direct user tab selection, so this can't be folded into a plain render-time derivation.
                 setSelectedJobId('');
             }
             return;
@@ -311,7 +346,7 @@ export const RealtimeMetricsView: React.FC = () => {
                         </Card.Header>
                         <Card.Body>
                             <VStack gap={4} align="stretch">
-                                {runMeta.arch && (
+                                {Boolean(runMeta.arch) && (
                                     <Box>
                                         <Text fontWeight="bold" fontSize="sm">System Architecture:</Text>
                                         <Code display="block" p={2} mt={1}>

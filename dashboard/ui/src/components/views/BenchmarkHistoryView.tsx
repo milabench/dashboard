@@ -17,7 +17,6 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
-import { useColorMode } from '../ui/color-mode';
 import { downloadJson, safeFilename } from '../../utils/download';
 import { buildBenchHistorySpec, type HistoryRecord } from '../../utils/benchHistoryChart';
 
@@ -43,7 +42,6 @@ const METRICS: { key: MetricKey; label: string }[] = [
 
 export const BenchmarkHistoryView: React.FC = () => {
     usePageTitle('Benchmark History');
-    const { colorMode } = useColorMode();
     const plotRef = useRef<VegaPlotHandle>(null);
     const [exporting, setExporting] = useState(false);
 
@@ -130,7 +128,7 @@ export const BenchmarkHistoryView: React.FC = () => {
         },
         w,
         h,
-    ), [filteredHistoryData, selectedBench, metric, hideMinMax, colorMode]);
+    ), [filteredHistoryData, selectedBench, metric, hideMinMax]);
 
     const hasData = filteredHistoryData && filteredHistoryData.length > 0;
 

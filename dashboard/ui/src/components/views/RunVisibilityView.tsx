@@ -14,9 +14,10 @@ import {
     Spinner,
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
-import { toaster } from '../ui/toaster';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { toaster } from '../ui/toaster-store';
+import { useViewMode } from '../../hooks/useViewMode';
 import { getAdminRuns, setRunVisibility, type AdminRunSummary } from '../../services/api';
+import type { ApiError } from '../../services/types';
 import { copyTextToClipboard } from '../../utils/download';
 
 const PAGE_SIZE = 50;
@@ -39,8 +40,8 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
             await setRunVisibility(run._id, 'public', {}, target);
             toaster.create({ title: `#${run._id} is now public`, type: 'success', duration: 3000 });
             invalidate();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 4000 });
         } finally {
             setBusy(false);
         }
@@ -52,8 +53,8 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
             await setRunVisibility(run._id, 'private', { releaseAt: releaseAt || null }, target);
             toaster.create({ title: `#${run._id} is now private`, type: 'success', duration: 3000 });
             invalidate();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 4000 });
         } finally {
             setBusy(false);
         }
@@ -104,8 +105,8 @@ function RunRow({ run, target }: { run: AdminRunSummary; target: 'dev' | 'prod' 
                 toaster.create({ title: 'Share link generated', type: 'success', duration: 3000 });
             }
             invalidate();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 4000 });
         } finally {
             setBusy(false);
         }

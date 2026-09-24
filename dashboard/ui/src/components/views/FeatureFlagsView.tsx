@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { AxiosError } from 'axios';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,8 +15,8 @@ import {
     Spinner,
     Field,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { toaster } from '../ui/toaster-store';
+import { useViewMode } from '../../hooks/useViewMode';
 import {
     getFeatureFlags,
     createFeatureFlag,
@@ -45,8 +46,8 @@ function FlagRow({ flag, target }: { flag: FeatureFlag; target: 'dev' | 'prod' }
                 type: 'success',
                 duration: 3000,
             });
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: error instanceof Error ? error.message : undefined, type: 'error', duration: 4000 });
         } finally {
             setBusy(false);
         }
@@ -61,8 +62,8 @@ function FlagRow({ flag, target }: { flag: FeatureFlag; target: 'dev' | 'prod' }
             await deleteFeatureFlag(flag.name, target);
             invalidate();
             toaster.create({ title: `${flag.name} deleted`, type: 'success', duration: 3000 });
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: error instanceof Error ? error.message : undefined, type: 'error', duration: 4000 });
         } finally {
             setBusy(false);
         }
@@ -122,10 +123,11 @@ export const FeatureFlagsView: React.FC = () => {
             setNewDescription('');
             queryClient.invalidateQueries({ queryKey: ['featureFlags', dbTarget] });
             toaster.create({ title: `${name} created`, type: 'success', duration: 3000 });
-        } catch (error: any) {
+        } catch (error) {
+            const axiosError = error as AxiosError<{ error?: string }>;
             toaster.create({
                 title: 'Failed to create flag',
-                description: error?.response?.data?.error ?? error?.message,
+                description: axiosError.response?.data?.error ?? axiosError.message,
                 type: 'error',
                 duration: 4000,
             });

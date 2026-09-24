@@ -12,7 +12,6 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot from '../charts/VegaPlot';
-import { useColorMode } from '../ui/color-mode';
 import { buildVendorColorScale } from '../../utils/gpuColors';
 
 interface GpuEvolutionRecord {
@@ -57,6 +56,12 @@ const METRICS: { key: MetricKey; label: string; unit: string }[] = [
     { key: 'memgb', label: 'Memory',      unit: 'GB' },
 ];
 
+/** Reads a metric field whose key is chosen dynamically (e.g. `${metric}_per_watt`), which may
+ * not correspond to an actual key of GpuEvolutionRecord (there's no memgb_per_watt field). */
+function getMetricValue(record: GpuEvolutionRecord, field: string): number | null {
+    return (record as unknown as Record<string, number | null | undefined>)[field] ?? null;
+}
+
 function exportCsv(data: GpuEvolutionRecord[]) {
     const cols: (keyof GpuEvolutionRecord)[] = [
         'name', 'vendor', 'architecture', 'release',
@@ -88,7 +93,6 @@ function exportCsv(data: GpuEvolutionRecord[]) {
 
 export const GpuComparisonView: React.FC = () => {
     usePageTitle('Theoretical FLOPS Spec Comparison');
-    const { colorMode } = useColorMode();
 
     const [vendor, setVendor] = useState<string>('');
     const [metric, setMetric] = useState<MetricKey>('fp16');
@@ -111,12 +115,12 @@ export const GpuComparisonView: React.FC = () => {
         const metaInfo = METRICS.find(m => m.key === metric);
         const yTitle = isPerWatt ? `${metaInfo?.unit}/W` : (metaInfo?.unit || '');
 
-        const filtered = gpuData.filter((d: any) => d[field] != null);
+        const filtered = gpuData.filter((d) => getMetricValue(d, field) != null);
         if (filtered.length === 0) return null;
 
         const chartWidth = Math.max(300, w - 200);
         const chartHeight = Math.max(250, h - 200);
-        const vendorScale = buildVendorColorScale(filtered.map((d: any) => d.vendor));
+        const vendorScale = buildVendorColorScale(filtered.map((d) => d.vendor));
 
         return {
             $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -198,13 +202,13 @@ export const GpuComparisonView: React.FC = () => {
                     },
                 },
             ],
-        } as Record<string, any>;
-    }, [gpuData, metric, showPerWatt, colorMode]);
+        } as Record<string, unknown>;
+    }, [gpuData, metric, showPerWatt]);
 
     const hasData = gpuData && gpuData.length > 0;
     const isPerWatt = showPerWatt === 'per_watt';
     const activeField = isPerWatt ? `${metric}_per_watt` : metric;
-    const hasMatchingData = hasData && gpuData.some((d: any) => d[activeField] != null);
+    const hasMatchingData = hasData && gpuData.some((d) => getMetricValue(d, activeField) != null);
 
     return (
         <Box p={4} h="100%" display="flex" flexDirection="column" overflowX="hidden" overflowY="auto" bg="var(--color-bg-page)">

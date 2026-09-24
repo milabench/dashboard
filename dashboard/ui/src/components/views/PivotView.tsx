@@ -19,8 +19,9 @@ import {
     Field,
     Progress,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { api, getAllSavedQueries, saveQuery, PIVOT_TIMEOUT_MS, fetchLatestDistinctGPURunIds } from '../../services/api';
+import type { SavedQuery } from '../../services/types';
 import { PivotTableView } from './PivotTableView';
 import { PivotContextPanel, type PivotContextPanelState } from './PivotContextPanel';
 import { PivotFieldPickerPanel, type PivotFieldPickerState } from './PivotFieldPickerPanel';
@@ -206,9 +207,52 @@ export const PivotView = () => {
         queryFn: getAllSavedQueries,
     });
 
+    const updateURLParams = useCallback(() => {
+        const params = new URLSearchParams();
+
+        const rows = fields.filter(f => f.type === 'row').map(f => f.field);
+        const cols = fields.filter(f => f.type === 'column').map(f => f.field);
+
+        params.append('rows', rows.join(','));
+        params.append('cols', cols.join(','));
+        params.append('values', encodePivotValuesParam(fields));
+
+        const filters = fields.filter(f => f.type === 'filter').map(f => ({
+            field: f.field,
+            operator: f.operator,
+            value: f.value
+        }));
+
+        if (filters.length > 0) {
+            params.append('filters', btoa(JSON.stringify(filters)));
+        }
+
+        const fieldLabels = encodePivotFieldLabels(fields);
+        if (fieldLabels) {
+            params.append('fieldLabels', fieldLabels);
+        }
+
+        if (isRelativePivot) {
+            params.append('relative', 'true');
+        }
+
+        const plot = searchParams.get('plot');
+        if (plot) {
+            params.set('plot', plot);
+        }
+
+        const savedQuery = searchParams.get('savedQuery');
+        if (savedQuery) {
+            params.set('savedQuery', savedQuery);
+        }
+
+        setSearchParams(params);
+    }, [fields, isRelativePivot, searchParams, setSearchParams]);
+
     // Load defaults from URL or wait for latest GPU exec ids before first URL sync.
     useEffect(() => {
         const fromUrl = parsePivotFieldsFromSearchParams(searchParams);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the `relative` URL param and (below) waits on an async query for default exec ids before the first URL sync; not a pure render-time derivation.
         setIsRelativePivot(searchParams.get('relative') === 'true');
         if (fromUrl) {
             setFields(fromUrl);
@@ -226,6 +270,7 @@ export const PivotView = () => {
 
     useEffect(() => {
         if (isSaveModalOpen && loadedSavedQueryName && !saveQueryName.trim()) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable save-name field from the loaded saved query when the modal opens; the field remains independently editable afterward, so it can't be a pure derivation.
             setSaveQueryName(loadedSavedQueryName);
         }
     }, [isSaveModalOpen, loadedSavedQueryName, saveQueryName]);
@@ -235,7 +280,7 @@ export const PivotView = () => {
         if (hasInitialized) {
             updateURLParams();
         }
-    }, [fields, isRelativePivot, hasInitialized]);
+    }, [fields, isRelativePivot, hasInitialized, updateURLParams]);
 
     const rememberPointer = (event: React.DragEvent | React.MouseEvent) => {
         lastPointerRef.current = { x: event.clientX, y: event.clientY };
@@ -473,48 +518,6 @@ export const PivotView = () => {
         newFields.splice(index, 1);
         setFields(newFields);
     };
-
-    const updateURLParams = useCallback(() => {
-        const params = new URLSearchParams();
-
-        const rows = fields.filter(f => f.type === 'row').map(f => f.field);
-        const cols = fields.filter(f => f.type === 'column').map(f => f.field);
-
-        params.append('rows', rows.join(','));
-        params.append('cols', cols.join(','));
-        params.append('values', encodePivotValuesParam(fields));
-
-        const filters = fields.filter(f => f.type === 'filter').map(f => ({
-            field: f.field,
-            operator: f.operator,
-            value: f.value
-        }));
-
-        if (filters.length > 0) {
-            params.append('filters', btoa(JSON.stringify(filters)));
-        }
-
-        const fieldLabels = encodePivotFieldLabels(fields);
-        if (fieldLabels) {
-            params.append('fieldLabels', fieldLabels);
-        }
-
-        if (isRelativePivot) {
-            params.append('relative', 'true');
-        }
-
-        const plot = searchParams.get('plot');
-        if (plot) {
-            params.set('plot', plot);
-        }
-
-        const savedQuery = searchParams.get('savedQuery');
-        if (savedQuery) {
-            params.set('savedQuery', savedQuery);
-        }
-
-        setSearchParams(params);
-    }, [fields, isRelativePivot, searchParams, setSearchParams]);
 
     const handleRelativePivotChange = useCallback((newValue: boolean) => {
         setIsRelativePivot(newValue);
@@ -1291,6 +1294,7 @@ export const PivotView = () => {
             });
 
             const fullUrl = params.toString() ? `${url}?${params.toString()}` : url;
+            // eslint-disable-next-line react-hooks/immutability -- full-page navigation to a different view triggered from a click handler (not render); window.location is a browser global with no immutable equivalent, and restructuring this into an effect would risk changing the navigation/modal-close timing.
             window.location.href = fullUrl;
         }
 
@@ -1500,7 +1504,7 @@ export const PivotView = () => {
                                 {savedQueries && savedQueries.length > 0 ? (
                                     savedQueries
                                         .filter((query: { query: { url: string } }) => query.query.url === PIVOT_SAVED_QUERY_URL)
-                                        .map((query: any) => (
+                                        .map((query: SavedQuery) => (
                                             <Box
                                                 key={query._id}
                                                 p={4}

@@ -7,16 +7,17 @@ import {
     forwardRef,
 } from 'react';
 import { Box, Text, Spinner } from '@chakra-ui/react';
-import { useVega } from '../../contexts/VegaContext';
-import { useColorMode } from '../ui/color-mode';
+import type { View } from 'vega';
+import { useVega } from '../../hooks/useVega';
+import { useColorMode } from '../../hooks/useColorMode';
 import { exportVegaViewPng } from '../../utils/download';
 
-export type SpecBuilder = (width: number, height: number) => Record<string, any> | null;
+export type SpecBuilder = (width: number, height: number) => Record<string, unknown> | null;
 
 export interface VegaPlotProps {
-    spec: Record<string, any> | SpecBuilder;
+    spec: Record<string, unknown> | SpecBuilder;
     height?: string;
-    configOverrides?: Record<string, any>;
+    configOverrides?: Record<string, unknown>;
     /** Plot container overflow (dynamic specs default to hidden). */
     overflow?: 'hidden' | 'visible' | 'auto';
 }
@@ -31,26 +32,33 @@ export type VegaPlotHandle = {
 async function buildConfig(
     container: HTMLElement,
     colorMode: string,
-    overrides: Record<string, any> = {},
+    overrides: Record<string, unknown> = {},
 ) {
-    let bt: Record<string, any> = {};
+    let bt: Record<string, unknown> = {};
     if (colorMode === 'dark') {
         try {
             const themes = await import('vega-themes');
-            bt = (themes as any).dark || {};
+            bt = (themes.dark as Record<string, unknown>) || {};
         } catch { /* ignore */ }
     }
 
     const font = getComputedStyle(container).fontFamily || 'sans-serif';
 
-    const base: Record<string, any> = {
+    // bt's fields come from vega-themes' loosely-typed Config union, and
+    // base's are merged in dynamically from caller-provided overrides —
+    // both are plain runtime objects being shallow-merged, so pull them out
+    // through this narrowing helper rather than fighting the exact types.
+    const asRecord = (v: unknown): Record<string, unknown> =>
+        (typeof v === 'object' && v !== null && !Array.isArray(v)) ? v as Record<string, unknown> : {};
+
+    const base: Record<string, unknown> = {
         ...bt,
         background: 'transparent',
         font,
         padding: { left: 5, top: 5, right: 5, bottom: 5 },
-        title: { ...bt.title, font },
+        title: { ...asRecord(bt.title), font },
         axis: {
-            ...bt.axis,
+            ...asRecord(bt.axis),
             labelFont: font,
             titleFont: font,
             labelPadding: 6,
@@ -59,7 +67,7 @@ async function buildConfig(
             labelSeparation: 8,
         },
         legend: {
-            ...bt.legend,
+            ...asRecord(bt.legend),
             orient: 'bottom',
             direction: 'horizontal',
             labelFont: font,
@@ -70,12 +78,12 @@ async function buildConfig(
             rowPadding: 4,
             columnPadding: 40,
         },
-        header: { ...bt.header, labelFont: font, titleFont: font, labelPadding: 10 },
+        header: { ...asRecord(bt.header), labelFont: font, titleFont: font, labelPadding: 10 },
     };
 
     for (const [key, val] of Object.entries(overrides)) {
         if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-            base[key] = { ...base[key], ...val };
+            base[key] = { ...asRecord(base[key]), ...val };
         } else {
             base[key] = val;
         }
@@ -92,7 +100,7 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
     const { colorMode } = useColorMode();
     const sizeRef = useRef<HTMLDivElement>(null);
     const plotRef = useRef<HTMLDivElement>(null);
-    const viewRef = useRef<any>(null);
+    const viewRef = useRef<View | null>(null);
     const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
     const [renderError, setRenderError] = useState<string | null>(null);
     const usesDynamicSpec = typeof spec === 'function';
@@ -140,7 +148,7 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
             if (!dims) return null;
             return (spec as SpecBuilder)(dims.w, dims.h);
         }
-        return spec as Record<string, any>;
+        return spec as Record<string, unknown>;
     }, [spec, dims, usesDynamicSpec]);
 
     useEffect(() => {
@@ -162,11 +170,11 @@ const VegaPlot = forwardRef<VegaPlotHandle, VegaPlotProps>(function VegaPlot(
                 if (!cancelled) {
                     viewRef.current = result?.view ?? null;
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('Vega render error:', err);
                 if (!cancelled) {
                     viewRef.current = null;
-                    setRenderError(err?.message ?? 'Failed to render chart');
+                    setRenderError(err instanceof Error ? err.message : 'Failed to render chart');
                 }
             }
         };

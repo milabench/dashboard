@@ -62,6 +62,7 @@ export function PivotFieldPickerPanel({
 
     useEffect(() => {
         if (!picker) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the search box when the picker closes; this effect also owns a focus timer/cleanup, so it can't be reduced to a pure render-time derivation.
             setSearch('');
             return;
         }

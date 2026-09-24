@@ -20,7 +20,7 @@ import { useSearchParams } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot from '../charts/VegaPlot';
-import { useColorMode } from '../ui/color-mode';
+import { useColorMode } from '../../hooks/useColorMode';
 import { buildGpuColorScale, cssColor, guessVendor } from '../../utils/gpuColors';
 import {
     buildBreakdownSearchParams,
@@ -393,6 +393,7 @@ export const BreakdownView: React.FC = () => {
             : defaultBreakdownSelection(items, configGroups);
         applyBreakdownSelection(fromUrl, selectionSetters);
         lastUrlKeyRef.current = breakdownSelectionUrlKey(fromUrl);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time initialization gated on async query data (items/configGroups) and the URL's search params being ready; the `initialized` flag prevents re-running.
         setInitialized(true);
     }, [items, configGroups, loadingConfigGroups, initialized, searchParams, selectionSetters]);
 

@@ -12,7 +12,7 @@ import {
     Input,
     Field,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Loading } from '../common/Loading';
 
 type VegaEmbedFn = (el: HTMLElement, spec: unknown, opts?: Record<string, unknown>) => Promise<unknown>;
@@ -114,7 +114,8 @@ export const VegaPlotBuilderView: React.FC = () => {
     }, [data, vegaMark, vegaX, vegaY, vegaColor, vegaSize, vegaShape]);
 
     useEffect(() => {
-        if (!containerRef.current || !Array.isArray(data)) return;
+        const container = containerRef.current;
+        if (!container || !Array.isArray(data)) return;
         let cancelled = false;
         loadVegaEmbed()
             .then((vegaEmbed) => {
@@ -132,9 +133,7 @@ export const VegaPlotBuilderView: React.FC = () => {
             });
         return () => {
             cancelled = true;
-            if (containerRef.current) {
-                containerRef.current.innerHTML = '';
-            }
+            container.innerHTML = '';
         };
     }, [data, vegaSpec]);
 

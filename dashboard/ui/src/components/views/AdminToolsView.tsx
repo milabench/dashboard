@@ -9,8 +9,8 @@ import {
     Button,
     Code,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { toaster } from '../ui/toaster-store';
+import { useViewMode } from '../../hooks/useViewMode';
 import {
     getMigrationStatus,
     runMigrationUpgrade,
@@ -20,6 +20,7 @@ import {
     backfillRunGroups,
     type AdminToolResult,
 } from '../../services/api';
+import type { ApiError } from '../../services/types';
 
 const AUTO_STRATEGIES = ['hardware', 'config', 'software', 'milabench', 'platform', 'strict'] as const;
 
@@ -93,8 +94,8 @@ export const AdminToolsView: React.FC = () => {
                 type: isError ? 'error' : 'success',
                 duration: isError ? 6000 : 3000,
             });
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 6000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError)?.message, type: 'error', duration: 6000 });
         } finally {
             setBusy(false);
         }
@@ -110,8 +111,8 @@ export const AdminToolsView: React.FC = () => {
                 type: result.errors > 0 ? 'warning' : 'success',
                 duration: 5000,
             });
-        } catch (error: any) {
-            toaster.create({ title: 'Backfill failed', description: error?.message, type: 'error', duration: 5000 });
+        } catch (error: unknown) {
+            toaster.create({ title: 'Backfill failed', description: error instanceof Error ? error.message : undefined, type: 'error', duration: 5000 });
         } finally {
             setBackfillBusy(null);
         }

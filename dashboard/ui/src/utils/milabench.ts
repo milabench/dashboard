@@ -1,7 +1,7 @@
 export const MILABENCH_GITHUB_REPO = 'https://github.com/mila-iqia/milabench';
 
 /** True when commit looks like a real git SHA (not a placeholder). */
-export function isMilabenchCommit(commit: string | null | undefined): boolean {
+export function isMilabenchCommit(commit: string | null | undefined): commit is string {
     if (!commit) return false;
     return /^[0-9a-f]{7,40}$/i.test(commit.trim());
 }

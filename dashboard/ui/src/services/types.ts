@@ -89,7 +89,7 @@ export type PipeType = "data" | "stderr" | "stdout";
 
 export interface BenchLogEntry {
     event: EventType;
-    data: any;
+    data: unknown;
     pipe: PipeType;
     tag: string;
 }
@@ -162,6 +162,65 @@ export interface SlurmJob {
         set: boolean;
         infinite: boolean;
     };
+}
+
+/** A Slurm numeric field as returned by the Slurm REST API (`scontrol`-style). */
+export interface SlurmNumericField {
+    number: number;
+    set: boolean;
+    infinite: boolean;
+}
+
+export interface SlurmJobResourceNode {
+    memory_allocated?: number;
+    [key: string]: unknown;
+}
+
+export interface SlurmJobResources {
+    allocated_nodes?: SlurmJobResourceNode[];
+    [key: string]: unknown;
+}
+
+/**
+ * Detailed job info as returned by `getSlurmJobInfo` — a passthrough of the
+ * Slurm REST API's `scontrol show job` response, richer than `SlurmJob`.
+ */
+export interface SlurmJobDetail {
+    job_id?: string;
+    name?: string;
+    job_state?: string[];
+    partition?: string;
+    user_name?: string;
+    account?: string;
+    qos?: string;
+    priority?: SlurmNumericField;
+    node_count?: SlurmNumericField;
+    nodes?: string;
+    tasks?: SlurmNumericField;
+    cpus?: SlurmNumericField;
+    cpus_per_task?: SlurmNumericField;
+    tasks_per_node?: SlurmNumericField;
+    memory_per_node?: SlurmNumericField;
+    tres_alloc_str?: string;
+    submit_time?: SlurmNumericField;
+    start_time?: SlurmNumericField;
+    end_time?: SlurmNumericField;
+    eligible_time?: SlurmNumericField;
+    accrue_time?: SlurmNumericField;
+    time_limit?: SlurmNumericField;
+    command?: string;
+    current_working_directory?: string;
+    standard_output?: string;
+    standard_error?: string;
+    comment?: string;
+    exit_code?: { return_code?: SlurmNumericField; [key: string]: unknown };
+    restart_cnt?: number;
+    state_reason?: string;
+    elapsed?: string;
+    time?: string;
+    gres_detail?: string[] | string;
+    job_resources?: SlurmJobResources;
+    [key: string]: unknown;
 }
 
 export interface SlurmJobsResponse {
@@ -286,7 +345,7 @@ export interface SlurmJobAccounting {
     partition: string;
     nodes: string;
     user: string;
-    [key: string]: any; // For additional fields that might be present
+    [key: string]: unknown; // For additional fields that might be present
 }
 
 export interface PersitedJobInfo {
@@ -411,6 +470,14 @@ export interface PipelineTemplate {
     pipeline: Pipeline;
 }
 
+/** Payload sent to persist a pipeline as a reusable template file. */
+export interface PipelineTemplatePayload {
+    name: string;
+    type: 'pipeline';
+    definition: PipelineNode;
+    job_id: string | null;
+}
+
 export interface PipelineCreateRequest {
     name: string;
     pipeline: Pipeline;
@@ -437,8 +504,8 @@ export interface PushZipResponse {
 
 export interface PushFolderResponse {
     status: "OK";
-    success: any[];
-    failures: Array<[any, string]>;
+    success: string[];
+    failures: Array<[string, string]>;
 }
 
 export interface EarlySyncResponse {
@@ -450,7 +517,7 @@ export interface MetalHost {
     url?: string;
     ssh?: string;
     remote_folder?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export interface MetalJob extends SlurmJob {
@@ -495,6 +562,61 @@ export interface ScheduledJobRun {
     submitted_at: string | null;
     status: string;
     error: string | null;
+}
+
+export interface SavedQueryPayload {
+    url: string;
+    parameters: Record<string, unknown>;
+}
+
+export interface SavedQuery {
+    _id: number;
+    name: string;
+    query: SavedQueryPayload;
+    created_time: string;
+}
+
+/** A row of the `/api/report/fast` (and run-group composite-report) benchmark report. */
+export interface FastReportRow {
+    exec_id: number;
+    bench: string;
+    total: number;
+    fail: number;
+    n: number;
+    ngpu: number;
+    perf: number;
+    sem: number;
+    std: number;
+    score: number;
+    weight: number;
+    enabled: number;
+    log_score: number;
+    order: number;
+    weight_total: number;
+}
+
+/**
+ * One batch-size/memory observation for a benchmark on a GPU, as returned by
+ * `/api/scaling` — either from the `scaling_observations` DB table
+ * (`ScalingObservation.as_api_dict`) or, as a fallback, parsed directly from
+ * milabench's `config/scaling/*.yaml` snapshots (which may carry additional
+ * ad hoc fields beyond the ones listed here).
+ */
+export interface ScalingObservation {
+    gpu: string;
+    bench: string;
+    batch_size?: number;
+    cpu?: number | null;
+    memory?: number | null;
+    torchmem?: number | null;
+    jaxmem?: number | null;
+    perf?: number | null;
+    torch?: string | null;
+    backend?: string | null;
+    backend_version?: string | null;
+    revision?: string | null;
+    time?: number;
+    [key: string]: unknown;
 }
 
 export interface RunGroup {

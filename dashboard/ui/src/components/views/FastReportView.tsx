@@ -9,9 +9,10 @@ import {
     NativeSelect,
     Button
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { LuCopy } from 'react-icons/lu';
 import { api } from '../../services/api';
+import type { FastReportRow } from '../../services/types';
 
 interface FastReportViewProps {
     executionId: string | number;
@@ -36,29 +37,32 @@ interface FastReportViewProps {
 //     return String(value);
 // };
 
-const renderCellValue = (value: any, col: string): string => {
+/** Row shape after projecting a `FastReportRow` down to the subset of columns this view displays. */
+interface FastReportDisplayRow {
+    bench: string;
+    fail: number;
+    n: number;
+    ngpu: number;
+    perf: number;
+    'std%': number;
+    'sem%': number;
+    score: number;
+    log_score: number;
+    weight: number;
+    enabled: number;
+}
+
+const renderCellValue = (value: unknown, col: string): string => {
     if (value === null || value === undefined) {
         return '-';
     }
 
-    if (col === "fail") {
-        return value.toFixed(0);
-    }
-
-    if (col === "n") {
-        return value.toFixed(0);
-    }
-
-    if (col === "ngpu") {
-        return value.toFixed(0);
-    }
-
-    if (col === "weight") {
+    if (typeof value === 'number' && (col === "fail" || col === "n" || col === "ngpu" || col === "weight")) {
         return value.toFixed(0);
     }
 
     if (col === "enabled") {
-        if (value > 0) {
+        if ((value as number) > 0) {
             return "Yes";
         } else {
             return "No";
@@ -79,7 +83,7 @@ const renderCellValue = (value: any, col: string): string => {
 };
 
 // Helper function to get all unique keys from the data array
-const getAllKeys = (data: any[], priorityMap: Record<string, number> = {}): string[] => {
+const getAllKeys = (data: unknown[], priorityMap: Record<string, number> = {}): string[] => {
     const keys = new Set<string>();
     data.forEach(item => {
         if (typeof item === 'object' && item !== null) {
@@ -113,15 +117,14 @@ const columnPriority = {
 export const FastReportView: React.FC<FastReportViewProps> = ({
     executionId,
     shareToken,
-    onClose: _onClose,
 }) => {
-    const [reportData, setReportData] = React.useState<any>(null);
+    const [reportData, setReportData] = React.useState<FastReportRow[] | FastReportRow | null>(null);
     const [isLoading, setIsLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
     const [dropMinMax, setDropMinMax] = React.useState(true);
     const [filterType, setFilterType] = React.useState<string>('all');
 
-    const fetchFastReport = async (dropMinMaxValue: boolean) => {
+    const fetchFastReport = React.useCallback(async (dropMinMaxValue: boolean) => {
         try {
             setIsLoading(true);
             setError(null);
@@ -151,11 +154,12 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [executionId, shareToken]);
 
     React.useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- fetchFastReport performs an async API call; the setState calls happen inside its async body/callbacks, not synchronously during the effect.
         fetchFastReport(dropMinMax);
-    }, [executionId, shareToken, dropMinMax]);
+    }, [fetchFastReport, dropMinMax]);
 
     const handleDropMinMaxToggle = (value: boolean) => {
         setDropMinMax(value);
@@ -172,7 +176,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
             const csvHeader = columns.join(',');
             const csvRows = filteredDataArray.map(row => {
                 return columns.map(column => {
-                    const value = (row as any)[column];
+                    const value = row[column as keyof FastReportDisplayRow];
                     return renderCellValue(value, column);
                 }).join(',');
             });
@@ -187,7 +191,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
                 type: 'success',
                 duration: 3000,
             });
-        } catch (err) {
+        } catch {
             toaster.create({
                 title: 'Failed to copy table',
                 description: 'Unable to copy table data to clipboard',
@@ -210,7 +214,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
                 type: 'success',
                 duration: 3000,
             });
-        } catch (err) {
+        } catch {
             toaster.create({
                 title: 'Failed to copy JSON',
                 description: 'Unable to copy JSON data to clipboard',
@@ -236,17 +240,18 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
         );
     }
 
-    let acc = { "log_score": 0, "weight": 0, "total": 0 };
+    const acc = { "log_score": 0, "weight": 0, "total": 0 };
 
     // Ensure reportData is an array
-    const dataArray = (Array.isArray(reportData) ? reportData : [reportData]).map(item => {
+    const dataArray: FastReportDisplayRow[] = (Array.isArray(reportData) ? reportData : [reportData]).map(raw => {
+        const item = raw as FastReportRow;
         // Compute total log_score and weight
         acc["log_score"] += item["log_score"];
         acc["weight"] += item["weight"] * item["enabled"];
         acc["total"] = item["weight_total"];
 
         // Only show a subset of the results to aboid crowding the table
-        let newRow = {
+        const newRow = {
             "bench": item["bench"],
             "fail": item["fail"],
             "n": item["n"],
@@ -365,7 +370,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
                             </Table.Header>
                             <Table.Body>
                                 {filteredDataArray.map((row, rowIndex) => {
-                                    let classNames = [
+                                    const classNames = [
                                         row.enabled ? 'bench-enabled' : 'bench-disabled',
                                         `bench-${row.bench}`,
                                         row.fail ? 'bench-fail' : 'bench-pass',
@@ -378,7 +383,7 @@ export const FastReportView: React.FC<FastReportViewProps> = ({
                                             {columns.map((column) => (
                                                 <Table.Cell key={column} fontSize="xs" px={2} py={2}>
                                                     <Text fontSize="xs" lineClamp={2}>
-                                                        {renderCellValue((row as any)[column], column)}
+                                                        {renderCellValue(row[column as keyof FastReportDisplayRow], column)}
                                                     </Text>
                                                 </Table.Cell>
                                             ))}

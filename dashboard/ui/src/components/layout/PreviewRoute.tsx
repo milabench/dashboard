@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useHealth } from '../../contexts/HealthContext';
-import { usePreview } from '../../contexts/ViewModeContext';
+import { useHealth } from '../../hooks/useHealth';
+import { usePreview } from '../../hooks/useViewMode';
 
 interface PreviewRouteProps {
     children: React.ReactNode;

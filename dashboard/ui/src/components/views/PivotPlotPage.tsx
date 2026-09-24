@@ -29,7 +29,7 @@ import {
     searchParamsToSavedQueryParameters,
 } from '../../utils/pivotUrlParams';
 import { chartDataFromMeltRows } from '../../utils/pivotToChartData';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { PivotPlotView, PlotSidebarActionPanel, type PivotPlotPageActions } from './PivotPlotView';
 import { PivotShareActions } from './PivotShareActions';
 
@@ -141,6 +141,7 @@ export function PivotPlotPage() {
 
     useEffect(() => {
         if (showSidebarShell) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- headerToolbar is also written by a child callback (handleRenderToolbar), so it can't be replaced with a plain render-time derivation; this clears a stale toolbar registered by the child before the sidebar shell is shown again.
             setHeaderToolbar(null);
         }
     }, [showSidebarShell]);
@@ -152,6 +153,7 @@ export function PivotPlotPage() {
 
     useEffect(() => {
         if (isSaveModalOpen && loadedSavedQueryName && !saveQueryName.trim()) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the editable save-name field from the loaded saved query when the modal opens; the field remains independently editable afterward, so it can't be a pure derivation.
             setSaveQueryName(loadedSavedQueryName);
         }
     }, [isSaveModalOpen, loadedSavedQueryName, saveQueryName]);

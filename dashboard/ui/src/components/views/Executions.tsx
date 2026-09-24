@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Box, Heading, Text, Badge } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getExecutions } from '../../services/api';

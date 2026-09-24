@@ -16,8 +16,8 @@ import {
     Field,
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
-import { toaster } from '../ui/toaster';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { toaster } from '../ui/toaster-store';
+import { useViewMode } from '../../hooks/useViewMode';
 import {
     createInvalidationRule,
     deleteInvalidationRule,
@@ -27,6 +27,7 @@ import {
     recomputeInvalidationRules,
     type AdminRunSummary,
 } from '../../services/api';
+import type { ApiError } from '../../services/types';
 
 function formatDate(iso: string | null): string {
     if (!iso) return '-';
@@ -114,8 +115,8 @@ export const InvalidationRulesView: React.FC = () => {
             });
             resetForm();
             invalidateAll();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 5000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 5000 });
         } finally {
             setSubmitting(false);
         }
@@ -131,8 +132,8 @@ export const InvalidationRulesView: React.FC = () => {
                 duration: 3000,
             });
             invalidateAll();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 4000 });
         }
     };
 
@@ -147,8 +148,8 @@ export const InvalidationRulesView: React.FC = () => {
                 duration: 4000,
             });
             invalidateAll();
-        } catch (error: any) {
-            toaster.create({ title: 'Failed', description: error?.message, type: 'error', duration: 4000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed', description: (error as ApiError).message, type: 'error', duration: 4000 });
         } finally {
             setRecomputing(false);
         }

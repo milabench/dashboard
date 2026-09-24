@@ -19,7 +19,6 @@ import { api, getBenchDoc, getRunGroups, getScalingLive, refreshScalingLive, typ
 import type { RunGroup } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
-import { useColorMode } from '../ui/color-mode';
 import { buildVendorColorScale, guessVendor } from '../../utils/gpuColors';
 import { buildBenchHistorySpec, buildVendorGpuLegends, type HistoryRecord } from '../../utils/benchHistoryChart';
 
@@ -54,7 +53,6 @@ function formatDuration(seconds: number | null | undefined): string {
 // inherits that feature's coverage limits (see scaling_live_compute.py).
 const BenchmarkDocView: React.FC = () => {
     usePageTitle('Benchmark Docs');
-    const { colorMode } = useColorMode();
     const queryClient = useQueryClient();
     const historyPlotRef = useRef<VegaPlotHandle>(null);
     const scalingPlotRef = useRef<VegaPlotHandle>(null);
@@ -145,7 +143,7 @@ const BenchmarkDocView: React.FC = () => {
         enabled: !!selectedBench,
     });
 
-    const scalingPoints = scalingData ?? [];
+    const scalingPoints = useMemo(() => scalingData ?? [], [scalingData]);
     const hasScalingData = scalingPoints.length > 0;
 
     const handleRefreshScaling = async () => {
@@ -175,7 +173,7 @@ const BenchmarkDocView: React.FC = () => {
         },
         w,
         h,
-    ), [historyData, selectedBench, metric, colorMode]);
+    ), [historyData, selectedBench, metric]);
 
     const scalingSpecBuilder = useCallback((w: number, h: number) => {
         if (scalingPoints.length === 0) return null;
@@ -220,7 +218,7 @@ const BenchmarkDocView: React.FC = () => {
                     },
                 },
             ],
-        } as Record<string, any>;
+        } as Record<string, unknown>;
     }, [scalingPoints, selectedBench, scalingY]);
 
     return (

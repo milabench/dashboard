@@ -18,8 +18,9 @@ import { usePageTitle } from '../../hooks/usePageTitle';
 import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
 import { buildVendorColorScale, cssColor, guessVendor } from '../../utils/gpuColors';
 import { downloadJson, exportVegaViewPng, safeFilename } from '../../utils/download';
-import { useVega } from '../../contexts/VegaContext';
-import { useColorMode } from '../ui/color-mode';
+import { useVega } from '../../hooks/useVega';
+import { useColorMode } from '../../hooks/useColorMode';
+import type { ScalingObservation } from '../../services/types';
 
 const PARAM_X = 'x';
 const PARAM_Y = 'y';
@@ -67,13 +68,13 @@ const Scaling = () => {
         queryKey: ['scalingData'],
         queryFn: async () => {
             const response = await api.get('/scaling');
-            return response.data;
+            return response.data as ScalingObservation[];
         },
     });
 
     const allBenches: string[] = useMemo(() => {
         if (!Array.isArray(scalingData)) return [];
-        return Array.from(new Set(scalingData.map((d: any) => String(d.bench ?? '')))).sort();
+        return Array.from(new Set(scalingData.map((d) => String(d.bench ?? '')))).sort();
     }, [scalingData]);
 
     const effectiveSelected = selectedBenches ?? allBenches;
@@ -101,7 +102,7 @@ const Scaling = () => {
         if (!Array.isArray(scalingData)) return scalingData;
         if (allSelected) return scalingData;
         const set = new Set(effectiveSelected);
-        return scalingData.filter((d: any) => set.has(String(d.bench ?? '')));
+        return scalingData.filter((d) => set.has(String(d.bench ?? '')));
     }, [scalingData, effectiveSelected, allSelected]);
 
     const hasData = Array.isArray(filteredData) && filteredData.length > 0;
@@ -113,25 +114,25 @@ const Scaling = () => {
 
     const plotHeight = useMemo(() => {
         if (!Array.isArray(filteredData) || filteredData.length === 0) return 400;
-        const benchCount = new Set(filteredData.map((d: any) => d.bench)).size;
+        const benchCount = new Set(filteredData.map((d) => d.bench)).size;
         const cols = Math.min(4, benchCount);
         const rows = Math.ceil(benchCount / cols);
         return rows * (CELL_HEIGHT + CELL_PADDING + ROW_OVERHEAD) + 120;
     }, [filteredData]);
 
-    const specBuilder = useCallback((w: number, _h: number) => {
+    const specBuilder = useCallback((w: number) => {
         if (!filteredData || filteredData.length === 0) return null;
 
-        const values = filteredData.map((d: any) => ({
+        const values = filteredData.map((d) => ({
             ...d,
             vendor: guessVendor(String(d.gpu ?? '')),
         }));
 
-        const benchCount = new Set(values.map((d: any) => d.bench)).size;
+        const benchCount = new Set(values.map((d) => d.bench)).size;
         const cols = Math.min(4, benchCount);
         const cellWidth = Math.max(120, Math.floor(w / (cols + 1)) - CELL_PADDING);
         const cellHeight = CELL_HEIGHT;
-        const vendorScale = buildVendorColorScale(values.map((d: any) => d.vendor));
+        const vendorScale = buildVendorColorScale(values.map((d) => d.vendor));
         const legendStyle = {
             labelColor: cssColor('--color-text', '#1a202c'),
             symbolSize: 120,
@@ -258,7 +259,7 @@ const Scaling = () => {
             },
         };
 
-        const layers: any[] = [hitLayer];
+        const layers: Record<string, unknown>[] = [hitLayer];
         if (display === 'points' || display === 'both') {
             layers.push({
                 ...pointLayer,
@@ -284,7 +285,7 @@ const Scaling = () => {
                 layer: layers,
             },
             resolve: { scale: { y: 'independent', x: 'independent', size: 'independent' } },
-        } as Record<string, any>;
+        } as Record<string, unknown>;
     }, [filteredData, xAxis, yAxis, display]);
 
     const handleExportJson = () => {
@@ -313,11 +314,11 @@ const Scaling = () => {
         if (!hasData || !vegaEmbed) return;
         setExportingPerBench(true);
 
-        const benches = Array.from(new Set(filteredData.map((d: any) => d.bench))).sort() as string[];
+        const benches = Array.from(new Set(filteredData.map((d) => d.bench))).sort() as string[];
         const bgColor = getComputedStyle(document.documentElement)
             .getPropertyValue('--color-bg-page').trim() || '#ffffff';
 
-        const vegaConfig: Record<string, any> = {
+        const vegaConfig: Record<string, unknown> = {
             background: bgColor,
             padding: 20,
             legend: { orient: 'right', direction: 'vertical' },
@@ -325,7 +326,7 @@ const Scaling = () => {
         if (colorMode === 'dark') {
             try {
                 const themes = await import('vega-themes');
-                Object.assign(vegaConfig, (themes as any).dark ?? {}, { background: bgColor });
+                Object.assign(vegaConfig, (themes.dark as Record<string, unknown>) ?? {}, { background: bgColor });
             } catch { /* ignore */ }
         }
 
@@ -334,10 +335,10 @@ const Scaling = () => {
             setExportProgress(`${i + 1} / ${benches.length}`);
 
             const benchValues = filteredData
-                .filter((d: any) => d.bench === bench)
-                .map((d: any) => ({ ...d, vendor: guessVendor(String(d.gpu ?? '')) }));
+                .filter((d) => d.bench === bench)
+                .map((d) => ({ ...d, vendor: guessVendor(String(d.gpu ?? '')) }));
 
-            const vendorScale = buildVendorColorScale(benchValues.map((d: any) => d.vendor));
+            const vendorScale = buildVendorColorScale(benchValues.map((d) => d.vendor));
             const axisEnc = {
                 x: { field: xAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
                 y: { field: yAxis, type: 'quantitative', scale: { zero: false }, axis: { format: '~s' } },
@@ -356,7 +357,7 @@ const Scaling = () => {
                 },
             };
 
-            const layers: any[] = [];
+            const layers: Record<string, unknown>[] = [];
             if (display === 'points' || display === 'both') {
                 layers.push({
                     mark: { type: 'point', filled: true, size: 120 },
@@ -380,7 +381,7 @@ const Scaling = () => {
                 });
             }
 
-            const spec = {
+            const spec: Record<string, unknown> = {
                 $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
                 title: bench,
                 width: 640,

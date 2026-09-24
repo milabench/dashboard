@@ -1,8 +1,9 @@
 import { io, Socket } from 'socket.io-client';
+import type { BenchLogEntry } from './types';
 
 export interface MetricData {
     jr_job_id: string;
-    data: any;
+    data: BenchLogEntry;
     raw_line: string;
 }
 
@@ -40,7 +41,7 @@ class WebSocketServiceImpl implements WebSocketService {
             console.log('Disconnected from WebSocket server');
         });
 
-        this.socket.on('connect_error', (error: any) => {
+        this.socket.on('connect_error', (error: Error) => {
             console.error('WebSocket connection error:', error);
         });
     }

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Box, Heading, Center, Text } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../services/api';
-import type { Pack } from '../../services/types';
+import type { Pack, Metric } from '../../services/types';
 import VegaPlot from '../charts/VegaPlot';
 
 interface MetricsViewProps {
@@ -10,6 +10,12 @@ interface MetricsViewProps {
     executionId: number;
     shareToken?: string;
 }
+
+const HIDDEN_METRICS = new Set([
+    '__iter__', 'iter_create', 'iter_start',
+    'return_code', 'status', 'walltime',
+]);
+const HIDDEN_PREFIXES = ['process.'];
 
 export const MetricsView = ({ selectedPack, executionId, shareToken }: MetricsViewProps) => {
     const packIdentifier = selectedPack
@@ -28,22 +34,16 @@ export const MetricsView = ({ selectedPack, executionId, shareToken }: MetricsVi
         enabled: !!packIdentifier,
     });
 
-    const HIDDEN_METRICS = new Set([
-        '__iter__', 'iter_create', 'iter_start',
-        'return_code', 'status', 'walltime',
-    ]);
-    const HIDDEN_PREFIXES = ['process.'];
-
     const specBuilder = useCallback((w: number, h: number) => {
         if (!metricsData || metricsData.length === 0) return null;
 
-        const filtered = metricsData.filter((d: any) =>
+        const filtered = metricsData.filter((d: Metric) =>
             !HIDDEN_METRICS.has(d.name) &&
             !HIDDEN_PREFIXES.some((p) => d.name.startsWith(p))
         );
         if (filtered.length === 0) return null;
 
-        const metricCount = new Set(filtered.map((d: any) => d.name)).size;
+        const metricCount = new Set(filtered.map((d: Metric) => d.name)).size;
         const cols = Math.min(2, metricCount);
         const rows = Math.ceil(metricCount / cols);
         const cellPadding = 50;
@@ -76,7 +76,7 @@ export const MetricsView = ({ selectedPack, executionId, shareToken }: MetricsVi
                 },
             },
             resolve: { scale: { y: 'independent', x: 'independent' } },
-        } as Record<string, any>;
+        } as Record<string, unknown>;
     }, [metricsData]);
 
     return (

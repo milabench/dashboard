@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Heading, Text, VStack, Badge } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import axios from 'axios';
 
 interface HtmlReportViewProps {

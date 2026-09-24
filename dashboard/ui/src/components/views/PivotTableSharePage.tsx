@@ -35,11 +35,14 @@ export function PivotTableSharePage() {
         enabled: false,
     });
 
+    const apiParamsKey = apiParams.toString();
+
     useEffect(() => {
         if (canFetch) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- flips a trigger flag that kicks off an async pivot fetch in the child table view when URL-derived filters change; not a pure derivation.
             setTriggerGeneration(true);
         }
-    }, [canFetch, apiParams.toString()]);
+    }, [canFetch, apiParamsKey]);
 
     if (!hasPivotUrlConfig(searchParams)) {
         return (

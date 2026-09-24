@@ -18,7 +18,7 @@ import {
     NativeSelect
 } from '@chakra-ui/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import {
     getMetalHosts,
@@ -26,7 +26,7 @@ import {
     getMetalJobs,
     submitMetalJob
 } from '../../services/api';
-import type { MetalJob, SlurmJob } from '../../services/types';
+import type { MetalJob, SlurmJob, ApiError } from '../../services/types';
 
 const statusColor = (status?: string) => {
     switch ((status || '').toLowerCase()) {
@@ -104,8 +104,8 @@ export const BaremetalView: React.FC = () => {
                     try {
                         const jobs = await getMetalJobs(host.name);
                         return jobs.map((job) => ({ ...job, host: host.name }));
-                    } catch (error: any) {
-                        errors[host.name] = error?.message || 'Failed to fetch jobs';
+                    } catch (error) {
+                        errors[host.name] = (error as ApiError)?.message || 'Failed to fetch jobs';
                         return [];
                     }
                 })
@@ -135,10 +135,10 @@ export const BaremetalView: React.FC = () => {
                 });
             }
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Registration failed',
-                description: error?.message || 'Unknown error',
+                description: error.message || 'Unknown error',
                 type: 'error'
             });
         }
@@ -175,10 +175,10 @@ export const BaremetalView: React.FC = () => {
                 });
             }
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Job submission failed',
-                description: error?.message || 'Unknown error',
+                description: error.message || 'Unknown error',
                 type: 'error'
             });
         }
@@ -201,7 +201,7 @@ export const BaremetalView: React.FC = () => {
         });
     };
 
-    const jobs = jobsQuery.data || [];
+    const jobs = useMemo(() => jobsQuery.data || [], [jobsQuery.data]);
     const dependencyJobs = useMemo(() => {
         return jobs.filter((job) => {
             const status = formatJobStatus(job).toLowerCase();

@@ -13,7 +13,7 @@ import {
     Separator,
 } from '@chakra-ui/react';
 import { LuDownload, LuUpload, LuDatabase, LuArrowRight, LuArrowUpRight } from 'react-icons/lu';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import {
     getSyncRemoteInfo,
     downloadLocalBackup,
@@ -21,7 +21,8 @@ import {
     restoreBackup,
     pushToRemote,
 } from '../../services/api';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { useViewMode } from '../../hooks/useViewMode';
+import type { ApiError } from '../../services/types';
 
 export const DatabaseSyncView: React.FC = () => {
     usePageTitle('Database Sync');
@@ -71,10 +72,10 @@ export const DatabaseSyncView: React.FC = () => {
                 type: 'success',
                 duration: 5000,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             toaster.create({
                 title: 'Backup failed',
-                description: error?.message || 'Failed to create local backup',
+                description: error instanceof Error ? error.message : 'Failed to create local backup',
                 type: 'error',
                 duration: 5000,
             });
@@ -112,10 +113,10 @@ export const DatabaseSyncView: React.FC = () => {
                 type: 'success',
                 duration: 5000,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             toaster.create({
                 title: 'Backup failed',
-                description: error?.message || 'Failed to create remote backup',
+                description: error instanceof Error ? error.message : 'Failed to create remote backup',
                 type: 'error',
                 duration: 5000,
             });
@@ -141,10 +142,10 @@ export const DatabaseSyncView: React.FC = () => {
                 setRestoreFile(null);
                 if (restoreFileRef.current) restoreFileRef.current.value = '';
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Restore failed',
-                description: error?.message || 'Failed to restore backup',
+                description: (error as ApiError)?.message || 'Failed to restore backup',
                 type: 'error',
                 duration: 5000,
             });
@@ -181,10 +182,10 @@ export const DatabaseSyncView: React.FC = () => {
                 type: isError ? 'error' : 'success',
                 duration: 8000,
             });
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Push failed',
-                description: error?.message || 'Failed to push to remote',
+                description: (error as ApiError)?.message || 'Failed to push to remote',
                 type: 'error',
                 duration: 5000,
             });

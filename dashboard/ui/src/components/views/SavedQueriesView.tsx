@@ -17,17 +17,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { LuTrash2, LuExternalLink } from 'react-icons/lu';
 import { getAllSavedQueries, deleteSavedQuery } from '../../services/api';
+import type { SavedQuery } from '../../services/types';
 import { PIVOT_PLOT_SAVED_QUERY_URL, PIVOT_SAVED_QUERY_URL } from '../../utils/pivotUrlParams';
-import { toaster } from '../ui/toaster';
-interface SavedQuery {
-    _id: number;
-    name: string;
-    query: {
-        url: string;
-        parameters: Record<string, any>;
-    };
-    created_time: string;
-}
+import { toaster } from '../ui/toaster-store';
 
 const SavedQueriesView: React.FC = () => {
     usePageTitle('Saved Queries');

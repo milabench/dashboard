@@ -1,13 +1,14 @@
 import React from 'react';
-import { useColorMode } from '../ui/color-mode';
+import { useColorMode } from '../../hooks/useColorMode';
 import { Box } from '@chakra-ui/react';
 import Editor from '@monaco-editor/react';
+import type { editor as MonacoEditorNs } from 'monaco-editor';
 
 // Monaco Editor component for bash script editing
 export const MonacoEditor: React.FC<{
     value: string;
     onChange: (value: string) => void;
-    onMount?: (editor: any) => void;
+    onMount?: (editor: MonacoEditorNs.IStandaloneCodeEditor) => void;
     height?: string;
     language?: string;
 }> = ({ value, onChange, onMount, height = "400px", language = 'shell' }) => {

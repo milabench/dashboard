@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Box, HStack, VStack, Text, Badge, Spacer } from '@chakra-ui/react';
 import { Link, useLocation } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import { ColorModeButton } from "../ui/color-mode"
-import { useViewMode, usePreview, type ViewMode, type DbTarget } from '../../contexts/ViewModeContext';
+import { useViewMode, usePreview, type ViewMode, type DbTarget } from '../../hooks/useViewMode';
 
 interface NavItem {
     label: string;
@@ -172,16 +172,9 @@ const DbTargetToggle: React.FC = () => {
 
 export const MainSidebar: React.FC = () => {
     const location = useLocation();
-    const [currentProfile, setCurrentProfile] = useState<string>('NONE');
+    const [currentProfile] = useState<string>(() => Cookies.get('scoreProfile') || 'NONE');
     const { mode, devMode, setMode } = useViewMode();
     const { previewAvailable, previewUnlocked, lockPreview } = usePreview();
-
-    useEffect(() => {
-        const savedProfile = Cookies.get('scoreProfile');
-        if (savedProfile) {
-            setCurrentProfile(savedProfile);
-        }
-    }, []);
 
     const visibleNavItems = navItemsForMode(mode);
 

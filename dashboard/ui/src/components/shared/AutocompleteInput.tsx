@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Box,
     Input,
@@ -34,7 +34,6 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 }) => {
     const [inputValue, setInputValue] = useState(value);
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
     const [selectedIndex, setSelectedIndex] = useState(-1);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -57,6 +56,7 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
     // Update input value when prop changes
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- inputValue is a local editable mirror of the `value` prop (also mutated by typing/selection), so it must be resynced after the prop changes from outside.
         setInputValue(value);
     }, [value]);
 
@@ -92,23 +92,25 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     };
 
     // Sort suggestions by similarity to input
-    useEffect(() => {
+    const filteredSuggestions = useMemo(() => {
         if (!inputValue.trim()) {
-            setFilteredSuggestions(suggestions);
-        } else {
-            const scoredSuggestions = suggestions
-                .map(suggestion => ({
-                    suggestion,
-                    score: calculateSimilarity(inputValue, suggestion)
-                }))
-                .filter(item => item.score > 0) // Only include items with some similarity
-                .sort((a, b) => b.score - a.score) // Sort by score descending
-                .map(item => item.suggestion);
-
-            setFilteredSuggestions(scoredSuggestions);
+            return suggestions;
         }
-        setSelectedIndex(-1);
+        return suggestions
+            .map(suggestion => ({
+                suggestion,
+                score: calculateSimilarity(inputValue, suggestion)
+            }))
+            .filter(item => item.score > 0) // Only include items with some similarity
+            .sort((a, b) => b.score - a.score) // Sort by score descending
+            .map(item => item.suggestion);
     }, [inputValue, suggestions]);
+
+    // Reset the highlighted suggestion whenever the (derived) list changes
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- selectedIndex is independently mutated by keyboard/mouse handlers, so it can't be a pure derivation; reset it whenever the filtered list changes.
+        setSelectedIndex(-1);
+    }, [filteredSuggestions]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newValue = e.target.value;

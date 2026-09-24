@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Box, Button, Heading, Input, Text, VStack } from '@chakra-ui/react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { usePreview } from '../../contexts/ViewModeContext';
+import { usePreview } from '../../hooks/useViewMode';
 import { usePageTitle } from '../../hooks/usePageTitle';
 
 export default function PreviewUnlockView() {
@@ -27,6 +27,7 @@ export default function PreviewUnlockView() {
         if (!urlToken || previewUnlocked || busy) {
             return;
         }
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off an async token-unlock request triggered by a URL param; busy state gates the in-flight request, not a pure derivation.
         setBusy(true);
         unlockPreview(urlToken)
             .catch((err: unknown) => {

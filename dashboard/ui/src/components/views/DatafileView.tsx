@@ -18,7 +18,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Loading } from '../common/Loading';
 import {
     getDatafileFields,
@@ -30,18 +30,10 @@ import {
 export const DatafileView: React.FC = () => {
     usePageTitle('Datafile View');
 
-    const [folderPath, setFolderPath] = useState<string>('');
+    const [folderPath, setFolderPath] = useState<string>(() => Cookies.get('folder') || '');
     const [fieldPatterns, setFieldPatterns] = useState<Record<string, string>>({});
     const navigate = useNavigate();
     const { open: isFolderDialogOpen, onOpen: onFolderDialogOpen, onClose: onFolderDialogClose } = useDisclosure();
-
-    // Load folder from cookie on mount
-    useEffect(() => {
-        const savedFolder = Cookies.get('folder');
-        if (savedFolder) {
-            setFolderPath(savedFolder);
-        }
-    }, []);
 
     // Fetch available fields
     const { data: fieldsData, isLoading: isLoadingFields, refetch: refetchFields } = useQuery<DatafileFields>({
@@ -53,6 +45,7 @@ export const DatafileView: React.FC = () => {
     // Keep patterns for any newly loaded fields
     useEffect(() => {
         if (!fieldsData) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- merges newly-loaded field names (from an async query) into existing patterns while preserving prior user edits.
         setFieldPatterns((prev) => {
             const next = { ...prev };
             for (const fieldName of Object.keys(fieldsData)) {
@@ -79,7 +72,7 @@ export const DatafileView: React.FC = () => {
 
     // Fetch metrics when filters are applied
     const hasFilters = Object.keys(selectedFields).length > 0;
-    const { data: metrics, isLoading: isLoadingMetrics, refetch: refetchMetrics } = useQuery<any[]>({
+    const { data: metrics, isLoading: isLoadingMetrics, refetch: refetchMetrics } = useQuery<unknown[]>({
         queryKey: ['datafileSelectedGroups', selectedFields],
         queryFn: () => previewDatafileSelection(selectedFields),
         enabled: hasFilters && !!folderPath,
@@ -159,21 +152,21 @@ export const DatafileView: React.FC = () => {
         setFieldPatterns((prev) => ({ ...prev, [fieldName]: pattern }));
     };
 
-    const getFieldValues = (fieldName: string): any[] => {
+    const getFieldValues = (fieldName: string): unknown[] => {
         if (!fieldsData || !fieldsData[fieldName]) {
             return [];
         }
         return fieldsData[fieldName];
     };
 
-    const renderMetricsTable = (metricsData: any[] | undefined) => {
+    const renderMetricsTable = (metricsData: unknown[] | undefined) => {
         if (!metricsData || metricsData.length === 0) {
             return <Text>No metrics data available. Add field filters and ensure patterns match.</Text>;
         }
 
         if (metricsData.length > 0 && typeof metricsData[0] === 'object') {
             const keys: string[] = Array.from(
-                metricsData.reduce((acc, row) => {
+                metricsData.reduce<Set<string>>((acc, row) => {
                     Object.keys((row as Record<string, unknown>) || {}).forEach((key) => acc.add(key));
                     return acc;
                 }, new Set<string>())
@@ -195,7 +188,7 @@ export const DatafileView: React.FC = () => {
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
-                                {metricsData.map((row: any, idx: number) => {
+                                {metricsData.map((row, idx: number) => {
                                     const rowData = row as Record<string, unknown>;
                                     return (
                                         <Table.Row key={idx}>
@@ -227,7 +220,7 @@ export const DatafileView: React.FC = () => {
                         Showing {metricsData.length} metric{metricsData.length !== 1 ? 's' : ''}
                     </Text>
                 </Box>
-                {metricsData.map((item: any, idx: number) => (
+                {metricsData.map((item, idx: number) => (
                     <Box key={idx} p={2} borderRadius="md" borderWidth={1}>
                         <Code fontSize="sm">{JSON.stringify(item)}</Code>
                     </Box>

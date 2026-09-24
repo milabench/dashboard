@@ -1,46 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useHealth } from './HealthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useHealth } from '../hooks/useHealth';
+import { ViewModeContext, type ViewMode, type DbTarget } from '../hooks/useViewMode';
 import { clearPreviewToken, readPreviewToken, storePreviewToken, verifyPreviewToken } from '../services/previewAuth';
 
-export type ViewMode = 'public' | 'dev' | 'admin' | 'preview';
-export type DbTarget = 'dev' | 'prod';
-
 const STORAGE_KEY = 'milabench.viewMode';
-
-interface ViewModeContextValue {
-    mode: ViewMode;
-    setMode: (mode: ViewMode) => void;
-    devMode: boolean;
-    dbTarget: DbTarget;
-    setDbTarget: (target: DbTarget) => void;
-    previewAvailable: boolean;
-    previewUnlocked: boolean;
-    unlockPreview: (token: string) => Promise<void>;
-    lockPreview: () => void;
-}
-
-const ViewModeContext = createContext<ViewModeContextValue>({
-    mode: 'public',
-    setMode: () => {},
-    devMode: false,
-    dbTarget: 'dev',
-    setDbTarget: () => {},
-    previewAvailable: false,
-    previewUnlocked: false,
-    unlockPreview: async () => {},
-    lockPreview: () => {},
-});
-
-export const useViewMode = () => useContext(ViewModeContext);
-export const usePreview = () => {
-    const ctx = useContext(ViewModeContext);
-    return {
-        previewAvailable: ctx.previewAvailable,
-        previewUnlocked: ctx.previewUnlocked,
-        unlockPreview: ctx.unlockPreview,
-        lockPreview: ctx.lockPreview,
-    };
-};
 
 function readStoredMode(): ViewMode {
     try {
@@ -57,15 +20,12 @@ function readStoredMode(): ViewMode {
 export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { devMode, previewAvailable } = useHealth();
     const [mode, setModeState] = useState<ViewMode>('public');
-    const [previewUnlocked, setPreviewUnlocked] = useState(false);
+    const [previewUnlocked, setPreviewUnlocked] = useState<boolean>(() => !!readPreviewToken());
     const [dbTarget, setDbTargetState] = useState<DbTarget>('dev');
 
     useEffect(() => {
-        setPreviewUnlocked(!!readPreviewToken());
-    }, []);
-
-    useEffect(() => {
         if (devMode) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- devMode/previewAvailable are sourced from an async health poll (useHealth), so this reacts to that async result rather than deriving purely from render-time values.
             setModeState(readStoredMode());
             return;
         }
@@ -78,6 +38,7 @@ export const ViewModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     useEffect(() => {
         if (mode !== 'admin') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets dbTarget to 'dev' whenever mode leaves admin; dbTarget is independently owned by setDbTarget while in admin mode, so it can't be reduced to a pure derivation.
             setDbTargetState('dev');
         }
     }, [mode]);

@@ -22,7 +22,7 @@ import {
 import { Link as RouterLink } from 'react-router-dom';
 import { LuPlay, LuTrash2, LuPower, LuChevronDown, LuChevronRight, LuCircleAlert, LuPencil, LuRefreshCw } from 'react-icons/lu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Tooltip } from '../ui/tooltip';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import {
@@ -280,6 +280,7 @@ const EditScheduledJobDialog: React.FC<{
 
     useEffect(() => {
         if (!job) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates the edit dialog's form fields from whichever job record was selected for editing; every one of these fields is also independently mutated by the user typing in the form below, so this can't be replaced by a plain render-time derivation.
         setName(job.name);
         const preset = CRON_PRESETS.find(p => p.cron === job.cron_expression);
         setCronPreset(preset ? job.cron_expression : '');

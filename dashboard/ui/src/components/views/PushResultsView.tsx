@@ -12,7 +12,7 @@ import {
     Textarea,
 } from '@chakra-ui/react';
 import { LuUpload } from 'react-icons/lu';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { pushZipStream } from '../../services/api';
 
 export const PushResultsView: React.FC = () => {
@@ -96,10 +96,10 @@ export const PushResultsView: React.FC = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Upload failed',
-                description: error?.message || 'An error occurred during upload',
+                description: error instanceof Error ? error.message : 'An error occurred during upload',
                 type: 'error',
                 duration: 5000,
             });

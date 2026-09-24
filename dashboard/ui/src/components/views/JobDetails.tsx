@@ -32,7 +32,7 @@ import {
     getSlurmJobStdout,
     getSlurmJobStderr,
 } from '../../services/api';
-import type { SlurmJob } from '../../services/types';
+import type { SlurmJob, SlurmJobDetail } from '../../services/types';
 
 import { NO_JOB_ID, NO_JOB_STATE } from '../../Constant';
 
@@ -315,15 +315,15 @@ export const JobDetailsView: React.FC = () => {
 
 // Job Details Tabs Component
 const JobDetailsTabs: React.FC<{
-    jobInfo?: any;
+    jobInfo?: SlurmJobDetail;
     infoLoading: boolean;
-    infoError?: any;
+    infoError?: Error | null;
     stdout?: string;
     stdoutLoading: boolean;
-    stdoutError?: any;
+    stdoutError?: Error | null;
     stderr?: string;
     stderrLoading: boolean;
-    stderrError?: any;
+    stderrError?: Error | null;
 }> = ({ jobInfo, infoLoading, infoError, stdout, stdoutLoading, stdoutError, stderr, stderrLoading, stderrError }) => {
     const [activeTab, setActiveTab] = useState("job-info");
 

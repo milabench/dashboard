@@ -18,7 +18,7 @@ import {
     Checkbox,
 } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Loading } from '../common/Loading';
 import VegaPlot from '../charts/VegaPlot';
 import {
@@ -32,6 +32,8 @@ import {
     type TimelineReportResponse,
     type TimelineParams,
     type TimelineGpuReport,
+    type TimelineBucket,
+    type TimelineGpuBucketPower,
 } from '../../services/api';
 import { formatVllmReport, formatBucketAggregateReport } from '../../utils/timelineReport';
 
@@ -60,8 +62,8 @@ function ganttSpec(
     width: number,
     height: number,
     xDomain: XDomain,
-): Record<string, any> {
-    const layers: Record<string, any>[] = [];
+): Record<string, unknown> {
+    const layers: Record<string, unknown>[] = [];
     const xScale = xDomain ? { domain: xDomain } : undefined;
 
     // Shade the ramp-trimmed regions first (background, drawn under the
@@ -180,8 +182,8 @@ const K_FORMAT_AXIS = { labelExpr: "upper(format(datum.value, '.3~s'))" };
 //    (rendering as a gap). Two points, one at each true edge (same values,
 //    since a lump is one aggregate rate for its entire span), draws a flat
 //    segment across the whole thing instead.
-function bucketsToLinePoints(data: Record<string, any>[]): Record<string, any>[] {
-    const out: Record<string, any>[] = [];
+function bucketsToLinePoints<T extends { start: number; time: number; in_window?: boolean }>(data: T[]): T[] {
+    const out: T[] = [];
     for (const b of data) {
         if (b.in_window === false) {
             out.push({ ...b, time: b.start });
@@ -194,15 +196,15 @@ function bucketsToLinePoints(data: Record<string, any>[]): Record<string, any>[]
 }
 
 function throughputSpec(
-    data: Record<string, any>[],
+    data: TimelineBucket[],
     width: number,
     height: number,
     trimWindow: [number, number] | null | undefined,
     xDomain: XDomain,
-): Record<string, any> {
+): Record<string, unknown> {
     data = bucketsToLinePoints(data);
     const xScale = xDomain ? { domain: xDomain } : undefined;
-    const layers: Record<string, any>[] = [
+    const layers: Record<string, unknown>[] = [
         {
             transform: [
                 { fold: ['rate', 'output_rate'], as: ['series', 'value'] },
@@ -266,12 +268,12 @@ function throughputSpec(
 }
 
 function latencySpec(
-    data: Record<string, any>[],
+    data: TimelineBucket[],
     metric: 'ttft' | 'itl',
     width: number,
     height: number,
     xDomain: XDomain,
-): Record<string, any> {
+): Record<string, unknown> {
     data = bucketsToLinePoints(data);
     const fields = [`${metric}_p50`, `${metric}_p90`, `${metric}_p95`, `${metric}_p99`];
     return {
@@ -297,7 +299,7 @@ function latencySpec(
 // axis with a descriptive title instead. Buckets with no gpu samples in
 // their window carry power_w/tokens_per_joule: null, which Vega-Lite
 // renders as a gap in the line rather than a false zero.
-function gpuSpec(data: Record<string, any>[], width: number, height: number, xDomain: XDomain): Record<string, any> {
+function gpuSpec(data: TimelineGpuBucketPower[], width: number, height: number, xDomain: XDomain): Record<string, unknown> {
     data = bucketsToLinePoints(data);
     const xScale = xDomain ? { domain: xDomain } : undefined;
     return {
@@ -341,21 +343,21 @@ function gpuSpec(data: Record<string, any>[], width: number, height: number, xDo
 // ends) versus kept (blue) — the dashed line marks the concurrency
 // threshold that decided the cut.
 function trimOverviewSpec(
-    fullBuckets: Record<string, any>[],
+    fullBuckets: TimelineBucket[],
     trimmedStart: number,
     trimmedEnd: number,
     concurrency: number | null,
     width: number,
     height: number,
     xDomain: XDomain,
-): Record<string, any> {
+): Record<string, unknown> {
     const n = fullBuckets.length;
     const xScale = xDomain ? { domain: xDomain } : undefined;
     const data = fullBuckets.map((b, i) => ({
         ...b,
         status: i < trimmedStart || i >= n - trimmedEnd ? 'trimmed' : 'kept',
     }));
-    const layers: Record<string, any>[] = [
+    const layers: Record<string, unknown>[] = [
         {
             data: { values: data },
             mark: { type: 'bar' },
@@ -432,6 +434,7 @@ function useTimelineStream(dbPath: string, runId: number | null, params: Timelin
 
     useEffect(() => {
         if (runId === null || !dbPath) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- part of the same streaming-fetch effect (see streamTimelineRun below); this branch just clears state when there's nothing to stream.
             setState(EMPTY_STREAM_STATE);
             return;
         }
@@ -444,23 +447,24 @@ function useTimelineStream(dbPath: string, runId: number | null, params: Timelin
         });
 
         streamTimelineRun(runId, dbPath, JSON.parse(paramsKey), (event, data) => {
-            if (event === 'requests') setState((s) => ({ ...s, requests: data, isLoadingRequests: false }));
-            else if (event === 'buckets') setState((s) => ({ ...s, bucketsData: data, isLoadingBuckets: false }));
-            else if (event === 'gantt') setState((s) => ({ ...s, gantt: data, isLoadingGantt: false }));
-            else if (event === 'report') setState((s) => ({ ...s, report: data, isLoadingReport: false }));
-            else if (event === 'gpu') setState((s) => ({ ...s, gpu: data, isLoadingGpu: false }));
+            if (event === 'requests') setState((s) => ({ ...s, requests: data as TimelineRequest[], isLoadingRequests: false }));
+            else if (event === 'buckets') setState((s) => ({ ...s, bucketsData: data as TimelineBucketsResponse, isLoadingBuckets: false }));
+            else if (event === 'gantt') setState((s) => ({ ...s, gantt: data as TimelineGanttJob[], isLoadingGantt: false }));
+            else if (event === 'report') setState((s) => ({ ...s, report: data as TimelineReportResponse, isLoadingReport: false }));
+            else if (event === 'gpu') setState((s) => ({ ...s, gpu: data as TimelineGpuReport, isLoadingGpu: false }));
             else if (event === 'error') {
+                const errorData = data as { error: string };
                 setState((s) => ({
                     ...s,
-                    error: data?.error || 'Timeline stream failed',
+                    error: errorData?.error || 'Timeline stream failed',
                     isLoadingRequests: false, isLoadingBuckets: false, isLoadingGantt: false, isLoadingReport: false, isLoadingGpu: false,
                 }));
             }
-        }, controller.signal).catch((err) => {
+        }, controller.signal).catch((err: unknown) => {
             if (controller.signal.aborted) return; // superseded by a newer stream, not a real failure
             setState((s) => ({
                 ...s,
-                error: err?.message || 'Timeline stream failed',
+                error: err instanceof Error ? err.message : 'Timeline stream failed',
                 isLoadingRequests: false, isLoadingBuckets: false, isLoadingGantt: false, isLoadingReport: false, isLoadingGpu: false,
             }));
         });
@@ -522,11 +526,15 @@ export const TimelineDevView: React.FC = () => {
     // the dialog opens.
     const [dbPathDraft, setDbPathDraft] = useState(dbPath);
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the free-typed draft to the committed value each time the dialog opens; dbPathDraft is also independently mutated by the user typing in the dialog, so this can't be a plain render-time derivation.
         if (isDialogOpen) setDbPathDraft(dbPath);
     }, [isDialogOpen, dbPath]);
 
     const runId = searchParams.get('run') !== null ? Number(searchParams.get('run')) : null;
-    const setRunId = (id: number | null) => setParam('run', id != null ? String(id) : '');
+    const setRunId = useCallback(
+        (id: number | null) => setParam('run', id != null ? String(id) : ''),
+        [setParam]
+    );
 
     const numBuckets = searchParams.get('buckets') !== null ? Number(searchParams.get('buckets')) : 30;
     const setNumBuckets = (v: number) => setParam('buckets', v === 30 ? '' : String(v));
@@ -572,7 +580,7 @@ export const TimelineDevView: React.FC = () => {
         if (runs && runs.length && runId === null) {
             setRunId(runs[runs.length - 1].run_id);
         }
-    }, [runs, runId]);
+    }, [runs, runId, setRunId]);
 
     // Inputs update immediately (so typing feels responsive); the values
     // actually used for queries lag by 400ms, so a fetch only fires once
@@ -967,7 +975,7 @@ export const TimelineDevView: React.FC = () => {
                                         <Field.Root maxW="160px">
                                             <Field.Label>Filter</Field.Label>
                                             <NativeSelect.Root>
-                                                <NativeSelect.Field value={filterSuccess} onChange={(e) => { setFilterSuccess(e.target.value as any); setPage(0); }}>
+                                                <NativeSelect.Field value={filterSuccess} onChange={(e) => { setFilterSuccess(e.target.value as 'all' | 'ok' | 'fail'); setPage(0); }}>
                                                     <option value="all">All</option>
                                                     <option value="ok">Success only</option>
                                                     <option value="fail">Errors only</option>

@@ -45,26 +45,22 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
 
     // Custom function to load logs with chunked loading for large files
     const loadLogsChunked = async (jrJobId: string): Promise<string> => {
-        try {
-            // Get log size first
-            const logSize = await getSlurmJobLogSize(jrJobId);
-            setLogSize(logSize);
+        // Get log size first
+        const logSize = await getSlurmJobLogSize(jrJobId);
+        setLogSize(logSize);
 
-            // If size is small enough, load normally
-            if (logSize <= MAX_SIZE) {
-                setIsTruncated(false);
-                return await fetchLogData(jrJobId);
-            }
-
-            // For large files, load only the last 5MB to avoid browser performance issues
-            const start = Math.max(0, logSize - CHUNK_SIZE);
-            const end = logSize * 2;
-            setIsTruncated(true);
-
-            return await fetchLogData(jrJobId, start, end);
-        } catch (error) {
-            throw error;
+        // If size is small enough, load normally
+        if (logSize <= MAX_SIZE) {
+            setIsTruncated(false);
+            return await fetchLogData(jrJobId);
         }
+
+        // For large files, load only the last 5MB to avoid browser performance issues
+        const start = Math.max(0, logSize - CHUNK_SIZE);
+        const end = logSize * 2;
+        setIsTruncated(true);
+
+        return await fetchLogData(jrJobId, start, end);
     };
 
     // Get log data with auto-refresh every 30 seconds
@@ -91,6 +87,7 @@ export const LogDisplay: React.FC<LogDisplayProps> = ({
                 refetch();
             }, 2000); // 2 second delay to allow final output to be written
         }
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- tracks the previous value of isJobFinished to detect the false->true transition that triggers a delayed (timer-based) refetch; not a pure derivation.
         setPrevIsJobFinished(isJobFinished);
     }, [isJobFinished, prevIsJobFinished, refetch, logType]);
 

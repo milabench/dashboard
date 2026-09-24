@@ -17,7 +17,7 @@ import {
     Icon,
 } from '@chakra-ui/react';
 import { LuCheck, LuX, LuLock, LuCalendar } from 'react-icons/lu';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import AutocompleteInput from '../shared/AutocompleteInput';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -29,7 +29,8 @@ import {
     testSlurmSecret,
     createScheduledJob,
 } from '../../services/api';
-import type { SlurmProfile, SlurmJob } from '../../services/types';
+import type { SlurmProfile, SlurmJob, ApiError, ScheduledJob } from '../../services/types';
+import type { editor as MonacoEditorNs } from 'monaco-editor';
 
 const CRON_PRESETS: { label: string; cron: string }[] = [
     { label: 'Daily at midnight',       cron: '0 0 * * *' },
@@ -162,7 +163,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
             if (onClose) onClose();
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Submission Failed',
                 description: error.message || 'Failed to submit job',
@@ -183,7 +184,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 pendingEditorContent.current = content;
             }
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Template Loading Failed',
                 description: error.message || 'Failed to load template content',
@@ -204,7 +205,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-profiles'] });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Profile Save Failed',
                 description: error.message || 'Failed to save profile',
@@ -225,7 +226,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             });
             queryClient.invalidateQueries({ queryKey: ['slurm-templates'] });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Template Save Failed',
                 description: error.message || 'Failed to save template',
@@ -237,7 +238,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
 
     const saveScheduledMutation = useMutation({
         mutationFn: createScheduledJob,
-        onSuccess: (data: any) => {
+        onSuccess: (data: ScheduledJob) => {
             toaster.create({
                 title: 'Scheduled Job Created',
                 description: `"${data.name}" saved with schedule: ${data.cron_expression}`,
@@ -246,15 +247,30 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             });
             queryClient.invalidateQueries({ queryKey: ['scheduled-jobs'] });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Failed to Create Scheduled Job',
-                description: error?.response?.data?.error || error.message || 'Unknown error',
+                description: error.message || 'Unknown error',
                 type: 'error',
                 duration: 5000,
             });
         },
     });
+
+    // Refs for uncontrolled inputs - much more performant
+    const editorRef = useRef<MonacoEditorNs.IStandaloneCodeEditor | null>(null);
+    const jobNameRef = useRef<HTMLInputElement>(null);
+    const partitionRef = useRef<HTMLInputElement>(null);
+
+    const memRef = useRef<HTMLInputElement>(null);
+    const timeLimitRef = useRef<HTMLInputElement>(null);
+    const gpusPerTaskRef = useRef<HTMLInputElement>(null);
+
+
+    const exportVarsRef = useRef<HTMLInputElement>(null);
+    const nodelistRef = useRef<HTMLInputElement>(null);
+    const dependencyEventRef = useRef<HTMLSelectElement>(null);
+    const dependencyJobRef = useRef<HTMLSelectElement>(null);
 
     // Handler functions
     const handleProfileSelect = (profileName: string) => {
@@ -300,24 +316,9 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         }
     };
 
-    // Apply defaults on mount
+    // Guards for the one-time mount effect below
     const defaultProfileApplied = useRef(false);
     const defaultTemplateApplied = useRef(false);
-    useEffect(() => {
-        if (initialData) return;
-
-        const defaultProfile = '1x8xA100l';
-        const defaultTemplate = 'shared_run.sh';
-
-        if (!defaultProfileApplied.current && profiles?.some(p => p.name === defaultProfile) && !selectedProfile) {
-            handleProfileSelect(defaultProfile);
-            defaultProfileApplied.current = true;
-        }
-        if (!defaultTemplateApplied.current && templates?.includes(defaultTemplate) && !selectedTemplate) {
-            handleTemplateSelect(defaultTemplate);
-            defaultTemplateApplied.current = true;
-        }
-    }, [profiles, templates]);
 
     const handleSaveProfile = () => {
         const profileName = selectedProfile.trim();
@@ -480,78 +481,86 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
             source_template: templates?.includes(templateName) ? templateName : null,
         });
     };
-    // Refs for uncontrolled inputs - much more performant
-    const editorRef = useRef<any>(null);
-    const jobNameRef = useRef<HTMLInputElement>(null);
-    const partitionRef = useRef<HTMLInputElement>(null);
-
-    const memRef = useRef<HTMLInputElement>(null);
-    const timeLimitRef = useRef<HTMLInputElement>(null);
-    const gpusPerTaskRef = useRef<HTMLInputElement>(null);
-
-
-    const exportVarsRef = useRef<HTMLInputElement>(null);
-    const nodelistRef = useRef<HTMLInputElement>(null);
-    const dependencyEventRef = useRef<HTMLSelectElement>(null);
-    const dependencyJobRef = useRef<HTMLSelectElement>(null);
-
-    // Apply initial data when provided (e.g., from "Edit & Resubmit")
+    // Apply initial data when provided (e.g., from "Edit & Resubmit"), or otherwise
+    // apply the form defaults once profiles/templates have loaded. These two are
+    // mutually exclusive (initialData vs. no initialData) and are combined into a
+    // single effect below because they both initialize the same set of uncontrolled
+    // input refs -- keeping them as separate effects trips the compiler's
+    // cross-effect mutation check even though only one branch ever actually runs.
     const initialDataApplied = useRef(false);
     useEffect(() => {
-        if (!initialData || initialDataApplied.current) return;
-        initialDataApplied.current = true;
+        if (initialData) {
+            if (initialDataApplied.current) return;
+            initialDataApplied.current = true;
 
-        if (initialData.job_name && jobNameRef.current) {
-            jobNameRef.current.value = initialData.job_name;
-        }
-
-        // Script is applied via the MonacoEditor value prop or onMount callback
-        if (initialData.sbatch_args) {
-            const parseSbatchArg = (args: string[], prefix: string): string | undefined => {
-                const arg = args.find(a => a.startsWith(prefix));
-                return arg ? arg.split('=', 2)[1] : undefined;
-            };
-
-            const partition = parseSbatchArg(initialData.sbatch_args, '--partition=');
-            if (partition && partitionRef.current) partitionRef.current.value = partition;
-
-            const nodesVal = parseSbatchArg(initialData.sbatch_args, '--nodes=');
-            if (nodesVal) setNodes(nodesVal);
-
-            const ntasksVal = parseSbatchArg(initialData.sbatch_args, '--ntasks=');
-            if (ntasksVal) setNtasks(ntasksVal);
-
-            const cpusVal = parseSbatchArg(initialData.sbatch_args, '--cpus-per-task=');
-            if (cpusVal) setCpusPerTask(cpusVal);
-
-            const ntasksPerNodeVal = parseSbatchArg(initialData.sbatch_args, '--ntasks-per-node=');
-            if (ntasksPerNodeVal) setNtasksPerNode(ntasksPerNodeVal);
-
-            const memVal = parseSbatchArg(initialData.sbatch_args, '--mem=');
-            if (memVal && memRef.current) memRef.current.value = memVal;
-
-            const timeVal = parseSbatchArg(initialData.sbatch_args, '--time=');
-            if (timeVal && timeLimitRef.current) timeLimitRef.current.value = timeVal;
-
-            const gpusVal = parseSbatchArg(initialData.sbatch_args, '--gpus-per-task=');
-            if (gpusVal && gpusPerTaskRef.current) gpusPerTaskRef.current.value = gpusVal;
-
-            if (initialData.sbatch_args.includes('--exclusive')) setExclusive(true);
-
-            const exportVal = parseSbatchArg(initialData.sbatch_args, '--export=');
-            if (exportVal && exportVarsRef.current) exportVarsRef.current.value = exportVal;
-
-            // Handle -w (nodelist) - can be "-w value" or "-w=value"
-            const nodelistIdx = initialData.sbatch_args.findIndex(a => a === '-w' || a.startsWith('-w '));
-            if (nodelistIdx >= 0 && nodelistRef.current) {
-                const arg = initialData.sbatch_args[nodelistIdx];
-                const val = arg === '-w'
-                    ? initialData.sbatch_args[nodelistIdx + 1]
-                    : arg.replace(/^-w\s*/, '');
-                if (val) nodelistRef.current.value = val;
+            if (initialData.job_name && jobNameRef.current) {
+                jobNameRef.current.value = initialData.job_name;
             }
+
+            // Script is applied via the MonacoEditor value prop or onMount callback
+            if (initialData.sbatch_args) {
+                const parseSbatchArg = (args: string[], prefix: string): string | undefined => {
+                    const arg = args.find(a => a.startsWith(prefix));
+                    return arg ? arg.split('=', 2)[1] : undefined;
+                };
+
+                const partition = parseSbatchArg(initialData.sbatch_args, '--partition=');
+                if (partition && partitionRef.current) partitionRef.current.value = partition;
+
+                const nodesVal = parseSbatchArg(initialData.sbatch_args, '--nodes=');
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of form state from an initialData prop (e.g. "Edit & Resubmit"), guarded by initialDataApplied so it only runs once per mount.
+                if (nodesVal) setNodes(nodesVal);
+
+                const ntasksVal = parseSbatchArg(initialData.sbatch_args, '--ntasks=');
+                if (ntasksVal) setNtasks(ntasksVal);
+
+                const cpusVal = parseSbatchArg(initialData.sbatch_args, '--cpus-per-task=');
+                if (cpusVal) setCpusPerTask(cpusVal);
+
+                const ntasksPerNodeVal = parseSbatchArg(initialData.sbatch_args, '--ntasks-per-node=');
+                if (ntasksPerNodeVal) setNtasksPerNode(ntasksPerNodeVal);
+
+                const memVal = parseSbatchArg(initialData.sbatch_args, '--mem=');
+                if (memVal && memRef.current) memRef.current.value = memVal;
+
+                const timeVal = parseSbatchArg(initialData.sbatch_args, '--time=');
+                if (timeVal && timeLimitRef.current) timeLimitRef.current.value = timeVal;
+
+                const gpusVal = parseSbatchArg(initialData.sbatch_args, '--gpus-per-task=');
+                if (gpusVal && gpusPerTaskRef.current) gpusPerTaskRef.current.value = gpusVal;
+
+                if (initialData.sbatch_args.includes('--exclusive')) setExclusive(true);
+
+                const exportVal = parseSbatchArg(initialData.sbatch_args, '--export=');
+                if (exportVal && exportVarsRef.current) exportVarsRef.current.value = exportVal;
+
+                // Handle -w (nodelist) - can be "-w value" or "-w=value"
+                const nodelistIdx = initialData.sbatch_args.findIndex(a => a === '-w' || a.startsWith('-w '));
+                if (nodelistIdx >= 0 && nodelistRef.current) {
+                    const arg = initialData.sbatch_args[nodelistIdx];
+                    const val = arg === '-w'
+                        ? initialData.sbatch_args[nodelistIdx + 1]
+                        : arg.replace(/^-w\s*/, '');
+                    if (val) nodelistRef.current.value = val;
+                }
+            }
+            return;
         }
-    }, [initialData]);
+
+        // No initialData: apply the form defaults once profiles/templates are available.
+        const defaultProfile = '1x8xA100l';
+        const defaultTemplate = 'shared_run.sh';
+
+        if (!defaultProfileApplied.current && profiles?.some(p => p.name === defaultProfile) && !selectedProfile) {
+            handleProfileSelect(defaultProfile);
+            defaultProfileApplied.current = true;
+        }
+        if (!defaultTemplateApplied.current && templates?.includes(defaultTemplate) && !selectedTemplate) {
+            handleTemplateSelect(defaultTemplate);
+            defaultTemplateApplied.current = true;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- handleProfileSelect/handleTemplateSelect/selectedProfile/selectedTemplate intentionally excluded: this is a run-once (per initialData/profiles/templates arrival) effect guarded by ref flags; the handlers are recreated every render and adding them (or the state they set) as deps would just cause redundant re-invocations, not additional side effects, but wrapping them in useCallback risks changing their identity semantics elsewhere in this large form -- not worth the risk for a mount-time-only effect.
+    }, [initialData, profiles, templates]);
 
     // Minimal state only for displaying script args section (not for values)
     const [scriptArgsDisplay, setScriptArgsDisplay] = React.useState<Record<string, string>>({});
@@ -569,6 +578,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         }
 
         if (secretNames.length === 0) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- part of the async secret-resolution effect below (testSlurmSecret calls); this branch just short-circuits when there is nothing to check.
             setSecretStatus({});
             return;
         }
@@ -1181,8 +1191,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         <MonacoEditor
                                             height="100%"
                                             value={initialData?.script || ""}
-                                            onChange={() => refreshScriptArgs()}
-                                            onMount={(editor: any) => {
+                                            onMount={(editor: MonacoEditorNs.IStandaloneCodeEditor) => {
+                                                // eslint-disable-next-line react-hooks/immutability -- standard "store the imperative editor instance on mount" ref pattern. editorRef.current is read by several onClick handlers (Save Template, Submit, Save Scheduled, Apply Script Args) that appear earlier in this JSX tree, which is what the compiler is reacting to here; those are plain reads of an uncontrolled ref, not a React-owned value, so writing editorRef.current once here on mount is safe.
                                                 editorRef.current = editor;
                                                 if (initialData?.script) {
                                                     editor.setValue(initialData.script);
@@ -1193,6 +1203,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                                     refreshScriptArgs();
                                                 }
                                             }}
+                                            onChange={() => refreshScriptArgs()}
                                         />
                                     </Box>
                                 </Suspense>

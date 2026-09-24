@@ -22,7 +22,7 @@ import {
     Separator,
     useListCollection
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import {
     LuPlus,
     LuTrash2,
@@ -42,7 +42,9 @@ import type {
     PipelineJob,
     PipelineSequential,
     PipelineParallel,
-    SlurmProfile
+    SlurmProfile,
+    ApiError,
+    PipelineTemplatePayload
 } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
 
@@ -64,6 +66,49 @@ interface JobNodeData {
     name?: string;
     children: JobNodeData[];
 }
+
+/**
+ * Shape of a loaded pipeline template file. Current saves always write the
+ * `{ type: 'pipeline', name, definition, job_id }` server format; the other
+ * fields are a defensive fallback for template files written in an older,
+ * pre-server format.
+ */
+interface PipelineTemplateFileData {
+    type?: string;
+    name?: string;
+    definition?: PipelineNode;
+    job_id?: string | null;
+    // Legacy format fallback
+    pipelineName?: string;
+    rootNode?: JobNodeData;
+}
+
+// Convert backend PipelineNode format to frontend JobNodeData format.
+// Pure function of its argument (no component state/props involved), so it
+// lives at module scope rather than being redefined (and needing to be
+// re-memoized) on every render.
+const convertFromBackendFormat = (node: PipelineNode): JobNodeData => {
+    if (node.type === 'job') {
+        return {
+            type: 'job',
+            script: node.script || '',
+            profile: node.profile || '',
+            children: [] // Jobs can have children in UI for UX
+        };
+    } else if (node.type === 'sequential') {
+        return {
+            type: 'sequential',
+            name: node.name || 'Unnamed Sequential',
+            children: (node.jobs || []).map(convertFromBackendFormat)
+        };
+    } else {
+        return {
+            type: 'parallel',
+            name: node.name || 'Unnamed Parallel',
+            children: (node.jobs || []).map(convertFromBackendFormat)
+        };
+    }
+};
 
 const JobNode: React.FC<{
     node: JobNodeData;
@@ -172,7 +217,7 @@ const JobNode: React.FC<{
                                 size="sm"
                                 collection={nodeTypeCollection.collection}
                                 value={[node.type]}
-                                onValueChange={(details) => handleTypeChange(details.value[0] as any)}
+                                onValueChange={(details) => handleTypeChange(details.value[0] as 'job' | 'sequential' | 'parallel')}
                                 w="100%"
                             >
                                 <Select.HiddenSelect />
@@ -443,8 +488,8 @@ const PipelineBuilder: React.FC<{
     onClose: () => void;
     profiles: SlurmProfile[];
     templates: string[];
-    loadedTemplateData?: any;
-    onSaveTemplate: (data: any) => void;
+    loadedTemplateData?: PipelineTemplateFileData | null;
+    onSaveTemplate: (data: PipelineTemplatePayload) => void;
 }> = ({ isOpen, onClose, profiles, templates, loadedTemplateData, onSaveTemplate }) => {
     const [pipelineName, setPipelineName] = useState('');
     const [rootNode, setRootNode] = useState<JobNodeData>({
@@ -453,35 +498,12 @@ const PipelineBuilder: React.FC<{
         children: []
     });
 
-    // Convert backend PipelineNode format to frontend JobNodeData format
-    const convertFromBackendFormat = (node: PipelineNode): JobNodeData => {
-        if (node.type === 'job') {
-            return {
-                type: 'job',
-                script: node.script || '',
-                profile: node.profile || '',
-                children: [] // Jobs can have children in UI for UX
-            };
-        } else if (node.type === 'sequential') {
-            return {
-                type: 'sequential',
-                name: node.name || 'Unnamed Sequential',
-                children: (node.jobs || []).map(convertFromBackendFormat)
-            };
-        } else {
-            return {
-                type: 'parallel',
-                name: node.name || 'Unnamed Parallel',
-                children: (node.jobs || []).map(convertFromBackendFormat)
-            };
-        }
-    };
-
     // Load template data when provided
     React.useEffect(() => {
         if (loadedTemplateData) {
             // Handle server format: { type: 'pipeline', name: '...', definition: {...}, job_id: null }
             if (loadedTemplateData.type === 'pipeline') {
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates local editable pipeline-editor state from an externally-provided template prop (loaded asynchronously by the parent); rootNode/pipelineName are also independently mutated by user edits below, so this can't be replaced by a plain render-time derivation.
                 setPipelineName(loadedTemplateData.name || '');
                 if (loadedTemplateData.definition) {
                     setRootNode(convertFromBackendFormat(loadedTemplateData.definition));
@@ -525,7 +547,7 @@ const PipelineBuilder: React.FC<{
         };
 
         // Save as template file - format expected by server
-        const templateData = {
+        const templateData: PipelineTemplatePayload = {
             name: pipelineName,            // used for filename
             type: 'pipeline',              // required by JobNode.from_json
             definition: convertNode(rootNode), // the actual pipeline structure
@@ -652,8 +674,8 @@ const PipelinesHeader: React.FC<{
 // PipelineTemplatesTable Component
 const PipelineTemplatesTable: React.FC<{
     pipelineTemplateFiles: string[];
-    onLoadTemplate: (fileName: string) => Promise<any>;
-    onTemplateLoaded: (templateData: any) => void;
+    onLoadTemplate: (fileName: string) => Promise<Record<string, unknown>>;
+    onTemplateLoaded: (templateData: PipelineTemplateFileData) => void;
     isLoading: boolean;
 }> = ({ pipelineTemplateFiles, onLoadTemplate, onTemplateLoaded, isLoading }) => {
     if (pipelineTemplateFiles.length === 0) {
@@ -695,8 +717,8 @@ const PipelineTemplatesTable: React.FC<{
                                         <Button
                                             size="sm"
                                             onClick={() => {
-                                                onLoadTemplate(fileName).then((templateData) => {
-                                                    onTemplateLoaded(templateData);
+                                                onLoadTemplate(fileName).then((raw) => {
+                                                    onTemplateLoaded(raw as PipelineTemplateFileData);
                                                 });
                                             }}
                                             loading={isLoading}
@@ -848,7 +870,7 @@ export const PipelinesView: React.FC = () => {
     const onCreateClose = () => setIsCreateOpen(false);
     const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null);
     const [selectedRun, setSelectedRun] = useState<PipelineRun | null>(null);
-    const [loadedTemplateData, setLoadedTemplateData] = useState<any>(null);
+    const [loadedTemplateData, setLoadedTemplateData] = useState<PipelineTemplateFileData | null>(null);
 
     // Queries
     const { data: profiles = [] } = useQuery({
@@ -877,7 +899,7 @@ export const PipelinesView: React.FC = () => {
                 duration: 3000
             });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Failed to save pipeline template',
                 description: error.message,
@@ -896,7 +918,7 @@ export const PipelinesView: React.FC = () => {
                 duration: 3000
             });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Failed to load pipeline template',
                 description: error.message,

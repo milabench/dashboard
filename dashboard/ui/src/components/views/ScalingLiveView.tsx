@@ -80,7 +80,10 @@ const ScalingLiveView = () => {
         queryFn: () => getScalingLive(),
     });
 
-    const allPoints: LiveScalingPoint[] = Array.isArray(scalingData) ? scalingData : [];
+    const allPoints: LiveScalingPoint[] = useMemo(
+        () => (Array.isArray(scalingData) ? scalingData : []),
+        [scalingData],
+    );
 
     const points = useMemo(() => {
         if (!hideFixedBatchSize) return allPoints;
@@ -170,7 +173,7 @@ const ScalingLiveView = () => {
         return rows * (CELL_HEIGHT + CELL_PADDING + ROW_OVERHEAD) + 120;
     }, [points]);
 
-    const specBuilder = useCallback((w: number, _h: number) => {
+    const specBuilder = useCallback((w: number) => {
         if (points.length === 0) return null;
 
         const values = points.map((d) => ({
@@ -246,7 +249,7 @@ const ScalingLiveView = () => {
                 layer: [pointLayer],
             },
             resolve: { scale: { y: 'independent', x: 'independent', size: 'independent' } },
-        } as Record<string, any>;
+        } as Record<string, unknown>;
     }, [points, xAxis, yAxis]);
 
     const handleExportJson = () => {

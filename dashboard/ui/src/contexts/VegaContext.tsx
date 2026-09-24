@@ -1,24 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-type EmbedFn = (
-    el: HTMLElement,
-    spec: Record<string, any>,
-    opts?: Record<string, any>,
-) => Promise<any>;
-
-interface VegaContextValue {
-    embed: EmbedFn | null;
-    isLoaded: boolean;
-    error: string | null;
-}
-
-const VegaContext = createContext<VegaContextValue>({
-    embed: null,
-    isLoaded: false,
-    error: null,
-});
-
-export const useVega = () => useContext(VegaContext);
+import React, { useState, useEffect } from 'react';
+import { VegaContext, type EmbedFn } from '../hooks/useVega';
 
 export const VegaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [embed, setEmbed] = useState<EmbedFn | null>(null);
@@ -35,9 +16,9 @@ export const VegaProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     setEmbed(() => vegaEmbed.default);
                     setIsLoaded(true);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 if (!cancelled) {
-                    setError(err.message ?? 'Failed to load vega-embed');
+                    setError(err instanceof Error ? err.message : 'Failed to load vega-embed');
                 }
             }
         })();

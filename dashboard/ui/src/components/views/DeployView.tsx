@@ -12,8 +12,9 @@ import {
     Code,
     Link as ChakraLink,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { triggerDeploy, type AdminToolResult, type DeployTarget } from '../../services/api';
+import type { ApiError } from '../../services/types';
 
 const DEPLOY_REPO_URL = 'https://github.com/milabench/deploy/actions';
 
@@ -46,8 +47,8 @@ function DeployButton({
                 type: isError ? 'error' : 'success',
                 duration: isError ? 8000 : 5000,
             });
-        } catch (error: any) {
-            toaster.create({ title: 'Failed to trigger deploy', description: error?.message, type: 'error', duration: 6000 });
+        } catch (error) {
+            toaster.create({ title: 'Failed to trigger deploy', description: (error as ApiError)?.message, type: 'error', duration: 6000 });
         } finally {
             setBusy(false);
         }

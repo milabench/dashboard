@@ -103,6 +103,7 @@ export function PivotContextPanel({
             return;
         }
         if (panel.kind === 'filter') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds editable inputs from a newly selected context panel target; values stay independently editable afterward, so this isn't a pure render-time derivation.
             setFilterOperator(panel.operator || '==');
             setFilterValue(panel.value || '');
         }

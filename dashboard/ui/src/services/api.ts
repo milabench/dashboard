@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse, RunGroup } from './types';
+import type { Execution, Pack, Metric, Summary, ApiError, Weight, SlurmJob, SlurmJobSubmitResponse, SlurmJobLogResponse, SlurmJobAccounting, SlurmJobDetail, SlurmClusterInfo, SlurmProfile, SlurmClusterStatus, PersitedJobInfo, PushZipResponse, PushFolderResponse, SlurmJobStatusResponse, EarlySyncResponse, MetalHost, MetalJobSubmitResponse, RunGroup, SavedQuery, SavedQueryPayload, PipelineTemplatePayload, FastReportRow } from './types';
 import { meltPivotRows } from '../utils/pivotToChartData';
 import {
     parsePivotFieldsFromSearchParams,
@@ -18,7 +18,7 @@ export interface ProfileCopyRequest {
 export interface ExploreFilters {
     field: string;
     operator: string;
-    value: any;
+    value: string | string[];
 }
 
 export const api = axios.create({
@@ -36,7 +36,7 @@ const handleError = (error: unknown): never => {
     }
     if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
-        const data = axiosError.response?.data as any;
+        const data = axiosError.response?.data as { error?: string; message?: string } | undefined;
         throw {
             message: data?.error || data?.message || axiosError.message,
             status: axiosError.response?.status || 500,
@@ -557,7 +557,7 @@ export const getSavedQueries = async (): Promise<string[]> => {
     }
 };
 
-export const getAllSavedQueries = async (): Promise<any[]> => {
+export const getAllSavedQueries = async (): Promise<SavedQuery[]> => {
     try {
         const response = await api.get('/query/all');
         return response.data;
@@ -566,7 +566,7 @@ export const getAllSavedQueries = async (): Promise<any[]> => {
     }
 };
 
-export const getSavedQuery = async (name: string): Promise<any> => {
+export const getSavedQuery = async (name: string): Promise<SavedQuery> => {
     try {
         const response = await api.get(`/query/${name}`);
         return response.data;
@@ -584,7 +584,7 @@ export const deleteSavedQuery = async (name: string): Promise<{ status: string }
     }
 };
 
-export const saveQuery = async (name: string, query: any): Promise<{ status: string }> => {
+export const saveQuery = async (name: string, query: SavedQueryPayload): Promise<{ status: string }> => {
     try {
         const response = await api.post('/query/save', { name, query });
         return response.data;
@@ -593,7 +593,7 @@ export const saveQuery = async (name: string, query: any): Promise<{ status: str
     }
 };
 
-export const exploreExecutions = async (filters?: ExploreFilters[]): Promise<any[]> => {
+export const exploreExecutions = async (filters?: ExploreFilters[]): Promise<Execution[]> => {
     try {
         const params = filters ? { filters: btoa(JSON.stringify(filters)) } : {};
         const response = await api.get('/exec/explore', { params });
@@ -771,7 +771,7 @@ export const cancelSlurmJob = async (jobId: string): Promise<{ success: boolean;
     }
 };
 
-export const getSlurmJobInfo = async (jrJobId: string, jobId?: string): Promise<any> => {
+export const getSlurmJobInfo = async (jrJobId: string, jobId?: string): Promise<SlurmJobDetail> => {
     try {
         const url = jobId
             ? `/slurm/jobs/${jrJobId}/info/${jobId}`
@@ -1492,7 +1492,11 @@ export const getBenchDoc = async (bench: string): Promise<BenchDoc> => {
 
 export interface PushStreamEvent {
     event: string;
-    data: Record<string, any>;
+    data: {
+        message?: string;
+        name?: string;
+        [key: string]: unknown;
+    };
 }
 
 export const pushZipStream = async (
@@ -1592,7 +1596,7 @@ export const getPipelineTemplatesList = async (): Promise<string[]> => {
     }
 };
 
-export const savePipelineToFile = async (pipelineData: any): Promise<{ success?: boolean; error?: string }> => {
+export const savePipelineToFile = async (pipelineData: PipelineTemplatePayload): Promise<{ success?: boolean; error?: string }> => {
     try {
         const response = await api.post('/slurm/pipeline/template/save', pipelineData);
         return response.data;
@@ -1601,7 +1605,7 @@ export const savePipelineToFile = async (pipelineData: any): Promise<{ success?:
     }
 };
 
-export const loadPipelineFromFile = async (name: string): Promise<any> => {
+export const loadPipelineFromFile = async (name: string): Promise<Record<string, unknown>> => {
     try {
         const response = await api.get(`/slurm/pipeline/template/load/${name}`);
         return response.data;
@@ -1631,12 +1635,12 @@ export const earlySyncJob = async (jrJobId: string, jobId: string): Promise<Earl
 // Datafile-related API functions
 export interface DatafileLogEntry {
     text: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export interface DatafileMetricsPreview {
     full_length: number;
-    metrics: any[];
+    metrics: unknown[];
 }
 
 export const getDatafileBenchmarks = async (): Promise<string[]> => {
@@ -1650,7 +1654,7 @@ export const getDatafileBenchmarks = async (): Promise<string[]> => {
     }
 };
 
-export const getDatafileConfig = async (bench: string): Promise<any> => {
+export const getDatafileConfig = async (bench: string): Promise<unknown> => {
     try {
         const response = await api.get(`/datafile/config/${bench}`, {
             withCredentials: true,
@@ -1661,7 +1665,7 @@ export const getDatafileConfig = async (bench: string): Promise<any> => {
     }
 };
 
-export const getDatafileMeta = async (bench: string): Promise<any> => {
+export const getDatafileMeta = async (bench: string): Promise<unknown> => {
     try {
         const response = await api.get(`/datafile/meta/${bench}`, {
             withCredentials: true,
@@ -1706,7 +1710,7 @@ export const getDatafileMetricsPreview = async (bench: string): Promise<Datafile
 };
 
 export interface DatafileFields {
-    [fieldName: string]: any[];
+    [fieldName: string]: unknown[];
 }
 
 export const getDatafileFields = async (): Promise<DatafileFields> => {
@@ -1724,7 +1728,7 @@ export interface SelectedFields {
     [fieldName: string]: string; // field name -> pattern
 }
 
-export const previewDatafileSelection = async (selectedFields: SelectedFields): Promise<any[]> => {
+export const previewDatafileSelection = async (selectedFields: SelectedFields): Promise<unknown[]> => {
     try {
         const response = await api.post('/datafile/select/benchmark', selectedFields, {
             withCredentials: true,
@@ -1735,7 +1739,7 @@ export const previewDatafileSelection = async (selectedFields: SelectedFields): 
     }
 };
 
-export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields): Promise<any[]> => {
+export const getDatafileSelectedMetrics = async (selectedFields: SelectedFields): Promise<unknown[]> => {
     try {
         const response = await api.post('/datafile/select/metrics', selectedFields, {
             withCredentials: true,
@@ -1963,11 +1967,19 @@ export interface TimelineRequest {
 // 'done', or 'error' ({error: string}) if the run fails at any stage.
 // Aborting `signal` (e.g. a newer request superseding this one) closes the
 // connection, which stops whatever server-side stage hasn't started yet.
+export type TimelineStreamEventData =
+    | TimelineRequest[]
+    | TimelineBucketsResponse
+    | TimelineGanttJob[]
+    | TimelineReportResponse
+    | TimelineGpuReport
+    | { error: string };
+
 export const streamTimelineRun = async (
     runId: number,
     dbPath: string,
     params: TimelineParams,
-    onEvent: (event: string, data: any) => void,
+    onEvent: (event: string, data: TimelineStreamEventData) => void,
     signal?: AbortSignal,
 ): Promise<void> => {
     const query: Record<string, string> = {
@@ -2223,7 +2235,7 @@ export const backfillRunGroups = async (strategy?: string, target: DbTarget = 'd
 export const getRunGroupCompositeReport = async (
     groupId: number,
     opts: { dropMinMax?: boolean; profile?: string; intersectGroupId?: number } = {},
-): Promise<any[]> => {
+): Promise<FastReportRow[]> => {
     const params: Record<string, string> = {};
     if (opts.dropMinMax !== undefined) params.drop_min_max = opts.dropMinMax.toString();
     if (opts.profile) params.profile = opts.profile;

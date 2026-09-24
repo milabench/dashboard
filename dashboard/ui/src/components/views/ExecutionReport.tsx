@@ -14,7 +14,7 @@ import {
     Accordion,
     GridItem
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Tooltip } from '../ui/tooltip';
 import { useQuery } from '@tanstack/react-query';
 import { getExecution, getPacks, getSharedExecution, getSharedPacks } from '../../services/api';
@@ -97,6 +97,7 @@ export const ExecutionReport = ({ shareToken }: { shareToken?: string } = {}) =>
         const packParam = searchParams.get('pack');
 
         if (report === 'sql') {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link handling: reacts to URL search params and to `packs` resolving from an async query, not a pure render-time derivation.
             setSideView('FAST_REPORT');
         } else if (report === 'pandas') {
             setSideView('HTML_REPORT');

@@ -15,7 +15,7 @@ import {
 } from '@chakra-ui/react';
 import { MonacoEditor } from '../shared/MonacoEditor';
 import VegaPlot, { type VegaPlotHandle } from '../charts/VegaPlot';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { cssColor } from '../../utils/gpuColors';
 import { copyTextToClipboard, safeFilename } from '../../utils/download';
 import {
@@ -67,6 +67,7 @@ import { LuInfo } from 'react-icons/lu';
 import { Tooltip } from '../ui/tooltip';
 import { PivotTransformBuilder } from './PivotTransformBuilder';
 import { pivotMeltApiUrl } from '../../utils/pivotUrlParams';
+import { PIVOT_PLOT_SIDEBAR_PROPS } from './pivotPlotConstants';
 
 export interface PivotPlotPageActions {
     onSavePlot?: () => void;
@@ -95,12 +96,6 @@ export interface PivotPlotViewProps {
     /** When `chart-only`, hide builder sidebar and editing controls. */
     viewMode?: 'builder' | 'chart-only';
 }
-
-export const PIVOT_PLOT_SIDEBAR_PROPS = {
-    w: { base: '100%', lg: '340px' },
-    minW: { lg: '300px' },
-    maxW: { lg: '380px' },
-} as const;
 
 export function PlotSidebarTopActions({
     onSavePlot,
@@ -518,6 +513,7 @@ export function PivotPlotView({
             };
         }
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- initializes plot state from URL search params and async-loaded chartData (both external inputs); not a pure render-time derivation.
         setTemplateId(nextState.template);
         setPlotFields(nextState.fields);
         setTransforms(nextState.transforms ?? []);
@@ -570,6 +566,7 @@ export function PivotPlotView({
 
         const rowKeys = Object.keys(chartData.long[0] ?? {});
         const availableFields = plotSelectableFields(fromUrl.transforms ?? [], chartData.fields);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncs plot state when the URL's `plot` param changes externally (e.g. browser back/forward, loading a saved plot); reading/reacting to URL search params isn't a pure render-time derivation.
         setTemplateId(fromUrl.template);
         setPlotFields(validatePlotFields(fromUrl.template, fromUrl.fields, availableFields, rowKeys));
         setTransforms(fromUrl.transforms ?? []);
@@ -606,7 +603,7 @@ export function PivotPlotView({
         setLegendOptions((prev) => normalizePlotLegendOptions({ ...prev, direction }));
     };
 
-    const rows = chartData?.long ?? [];
+    const rows = useMemo(() => chartData?.long ?? [], [chartData]);
 
     const availablePlotFields = useMemo(
         () => plotSelectableFields(transforms, chartData?.fields ?? []),
@@ -643,7 +640,7 @@ export function PivotPlotView({
         return map;
     }, [availablePlotFields]);
 
-    const specBuilder = useCallback((_w: number, _h: number) => {
+    const specBuilder = useCallback(() => {
         if (!chartData) return null;
         const dataRows = hasActiveTransforms(transforms) ? rows : plotRows;
         if (dataRows.length === 0) return null;
@@ -662,8 +659,8 @@ export function PivotPlotView({
         });
     }, [chartData, templateId, plotFields, fieldMeta, transforms, rows, plotRows, facetLayout, axisOptions.swapAxes, plotSize]);
 
-    const plotSpecWithData = useCallback((_w: number, _h: number) => {
-        const base = customSpec ?? specBuilder(_w, _h);
+    const plotSpecWithData = useCallback(() => {
+        const base = customSpec ?? specBuilder();
         if (!base) return null;
         const dataRows = customSpec || hasActiveTransforms(transforms) ? rows : plotRows;
         return injectPlotData(base, dataRows);
@@ -675,7 +672,7 @@ export function PivotPlotView({
 
     const shareableSpec = useMemo(() => {
         if (!canRenderPlot) return null;
-        const base = customSpec ?? specBuilder(800, 500);
+        const base = customSpec ?? specBuilder();
         if (!base) return null;
 
         const withDataUrl = injectPlotDataUrl(base, pivotMeltApiUrl(searchParams));
@@ -784,7 +781,7 @@ export function PivotPlotView({
     };
 
     const openSpecEditor = useCallback(() => {
-        const built = specBuilder(800, 500);
+        const built = specBuilder();
         const base = customSpec ?? built;
         setSpecEditorText(base ? JSON.stringify(stripInlinePlotData(base), null, 2) : '{}');
         setSpecEditorError(null);
@@ -792,7 +789,7 @@ export function PivotPlotView({
     }, [specBuilder, customSpec, onSpecEditorOpen]);
 
     const syncSpecEditorFromTemplate = useCallback(() => {
-        const built = specBuilder(800, 500);
+        const built = specBuilder();
         if (!built) {
             setSpecEditorError('Fill required fields before syncing from the template');
             return;
@@ -826,7 +823,7 @@ export function PivotPlotView({
         setCustomSpec(null);
     }, []);
 
-    const handleExportPng = async () => {
+    const handleExportPng = useCallback(async () => {
         if (!plotRef.current?.isReady()) {
             toaster.create({
                 title: 'Plot not ready',
@@ -851,7 +848,7 @@ export function PivotPlotView({
         } finally {
             setExportingPng(false);
         }
-    };
+    }, [templateId, usedFields]);
 
     const handleCopyLink = async () => {
         try {
@@ -867,8 +864,8 @@ export function PivotPlotView({
         }
     };
 
-    const handleCopySpec = async () => {
-        const spec = customSpec ?? specBuilder(800, 500);
+    const handleCopySpec = useCallback(async () => {
+        const spec = customSpec ?? specBuilder();
         if (!spec) return;
         try {
             await copyTextToClipboard(JSON.stringify(stripInlinePlotData(spec), null, 2));
@@ -881,9 +878,9 @@ export function PivotPlotView({
                 duration: 5000,
             });
         }
-    };
+    }, [customSpec, specBuilder]);
 
-    const handleCopyData = async () => {
+    const handleCopyData = useCallback(async () => {
         if (rows.length === 0) return;
         try {
             await copyTextToClipboard(JSON.stringify(rows, null, 2));
@@ -893,14 +890,14 @@ export function PivotPlotView({
                 type: 'success',
                 duration: 3000,
             });
-        } catch (err) {
+        } catch {
             toaster.create({
                 title: 'Copy failed',
                 type: 'error',
                 duration: 5000,
             });
         }
-    };
+    }, [rows]);
 
     const toolbar = useMemo(
         () => (
@@ -955,6 +952,11 @@ export function PivotPlotView({
             exportingPng,
             rows.length,
             customSpec,
+            handleCopyData,
+            handleCopySpec,
+            handleExportPng,
+            handleResetCustomSpec,
+            openSpecEditor,
         ],
     );
 

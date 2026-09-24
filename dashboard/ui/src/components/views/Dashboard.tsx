@@ -14,7 +14,7 @@ import {
     Alert,
     IconButton,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { Tooltip } from '../ui/tooltip';
 import {
     LuPlus,
@@ -34,13 +34,11 @@ import {
     rerunSlurmJob,
     getSlurmClusterStatus,
 } from '../../services/api';
-import type { SlurmJob, PersitedJobInfo } from '../../services/types';
+import type { SlurmJob, PersitedJobInfo, ApiError } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { NO_JOB_ID, NO_JOB_STATE, NO_JR_JOB_ID } from '../../Constant';
 
-interface DashboardViewProps {
-    // Add props as needed
-}
+type DashboardViewProps = Record<string, never>;
 
 const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -143,7 +141,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
             queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Cancellation Failed',
                 description: error.message || 'Failed to cancel job',
@@ -165,10 +163,10 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
             queryClient.invalidateQueries({ queryKey: ['slurm-jobs'] });
             queryClient.invalidateQueries({ queryKey: ['slurm-persisted-jobs'] });
         },
-        onError: (error: any) => {
+        onError: (error: ApiError) => {
             toaster.create({
                 title: 'Error Rerunning Job',
-                description: error?.response?.data?.error || 'Failed to rerun job',
+                description: error.message || 'Failed to rerun job',
                 type: 'error',
                 duration: 5000,
             });
@@ -324,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 <Alert.Content>
                                     <Alert.Title>Error loading active jobs!</Alert.Title>
                                     <Alert.Description>
-                                        {(activeJobsError as any)?.message || 'Failed to load active jobs'}
+                                        {activeJobsError?.message || 'Failed to load active jobs'}
                                     </Alert.Description>
                                 </Alert.Content>
                             </Alert.Root>
@@ -515,7 +513,7 @@ export const DashboardView: React.FC<DashboardViewProps> = () => {
                                 <Alert.Content>
                                     <Alert.Title>Error loading persisted jobs!</Alert.Title>
                                     <Alert.Description>
-                                        {(persistedJobsError as any)?.message || 'Failed to load persisted jobs'}
+                                        {persistedJobsError?.message || 'Failed to load persisted jobs'}
                                     </Alert.Description>
                                 </Alert.Content>
                             </Alert.Root>

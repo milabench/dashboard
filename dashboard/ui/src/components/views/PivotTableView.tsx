@@ -1,4 +1,4 @@
-import { useState, useEffect, type ChangeEvent, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ChangeEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Tooltip } from "../../components/ui/tooltip"
 import {
@@ -10,7 +10,7 @@ import {
     Alert,
     NativeSelect,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { getPivot } from '../../services/api';
 import { PivotPreviewTable } from './PivotPreviewTable';
 import {
@@ -20,6 +20,16 @@ import {
     pivotTableQueryKey,
     type PivotField,
 } from '../../utils/pivotUrlParams';
+
+/** Parsed representation of one structured value column (e.g. `Exec__id=42/Metric_name=gpu.memory/Metric_value/avg`). */
+interface BackendValueStructure {
+    columnName: string;
+    columnFields: Array<{ field: string; value: string; originalField: string }>;
+    valueField: string;
+    aggregator: string;
+    fieldName: string;
+    originalFieldName: string;
+}
 
 interface PivotTableViewProps {
     fields: PivotField[];
@@ -38,6 +48,14 @@ interface PivotTableViewProps {
 
 const COPY_JSON_TOOLTIP = 'Copy raw pivot rows as JSON';
 const COPY_CSV_TOOLTIP = 'Copy the table as tab-separated values (TSV) with headers — paste into Excel or Google Sheets';
+
+/** Renders a plain fragment in the read-only share view, or Chakra's scroll area otherwise. */
+function TableScrollWrapper({ shareView, children }: { shareView: boolean; children: ReactNode }) {
+    if (shareView) {
+        return <>{children}</>;
+    }
+    return <Table.ScrollArea>{children}</Table.ScrollArea>;
+}
 
 const copyLinkStyle = {
     variant: 'ghost' as const,
@@ -66,11 +84,12 @@ export const PivotTableView = ({
     shareView = false,
 }: PivotTableViewProps) => {
     const queryClient = useQueryClient();
-    const [pivotData, setPivotData] = useState<any[]>([]);
+    const [pivotData, setPivotData] = useState<Record<string, unknown>[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [selectedBaselineColumn, setSelectedBaselineColumn] = useState<string | null>(null);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- resets local table state in response to an external reset signal (clearResultsToken) from the parent, and notifies the parent via callback; not a pure render-time derivation.
         setPivotData([]);
         setError(null);
         onPivotDataChange?.([]);
@@ -86,12 +105,13 @@ export const PivotTableView = ({
         const cached = queryClient.getQueryData<Record<string, unknown>[]>(pivotTableQueryKey(fields));
         if (!cached) return;
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only restore from the react-query cache also notifies parent callbacks (onPivotDataChange, onQueryResults), which must run post-commit rather than as a lazy initializer.
         setPivotData(cached);
         onPivotDataChange?.(cached);
         onQueryResults?.(cached.length);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps -- restore once on mount
 
-    const generatePivotFromFields = async (fieldsToUse: PivotField[]) => {
+    const generatePivotFromFields = useCallback(async (fieldsToUse: PivotField[]) => {
         try {
             setIsGenerating(true);
             setError(null);
@@ -124,22 +144,24 @@ export const PivotTableView = ({
                 onGenerationComplete();
             }
         }
-    };
+    }, [queryClient, onPivotDataChange, onQueryResults, onGenerationComplete, setIsGenerating]);
 
     // Respond to trigger from parent component
     useEffect(() => {
         if (triggerGeneration && fields.length > 0) {
             // Use fields directly since they are already PivotField[]
             const pivotFields: PivotField[] = fields;
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- generatePivotFromFields performs an async pivot fetch; triggerGeneration is reset once the fetch has been kicked off.
             generatePivotFromFields(pivotFields);
             // Reset trigger after generation
             setTriggerGeneration(false);
         }
-    }, [triggerGeneration, fields, isRelativePivot]);
+    }, [triggerGeneration, fields, isRelativePivot, generatePivotFromFields, setTriggerGeneration]);
 
     // Reset selected baseline column when data changes or relative pivot is disabled
     useEffect(() => {
         if (!isRelativePivot) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the user-selected baseline column when relative pivot is turned off or data changes; the selection is independently owned/mutated by the dropdown, so it can't be a pure derivation.
             setSelectedBaselineColumn(null);
         }
     }, [isRelativePivot, pivotData]);
@@ -188,14 +210,7 @@ export const PivotTableView = ({
 
         // Parse value columns to create multi-level header structure - maintain backend order
         const headerLevels: Array<Array<{ label: string, colspan: number, level: string }>> = [];
-        let backendValueStructures: Array<{
-            columnName: string;
-            columnFields: Array<{ field: string; value: string; originalField: string }>;
-            valueField: string;
-            aggregator: string;
-            fieldName: string;
-            originalFieldName: string;
-        }> = [];
+        let backendValueStructures: BackendValueStructure[] = [];
 
         if (valueColumns.length > 0) {
             // Parse the new structured column format
@@ -263,7 +278,7 @@ export const PivotTableView = ({
                 const levels: Array<Array<{ label: string, colspan: number, level: string }>> = [];
 
                 // Helper function to group consecutive columns
-                const groupConsecutive = (cols: any[], groupBy: (col: any) => string, levelType: string) => {
+                const groupConsecutive = (cols: BackendValueStructure[], groupBy: (col: BackendValueStructure) => string, levelType: string) => {
                     const groups: Array<{ label: string, colspan: number, level: string }> = [];
                     let currentLabel = '';
                     let currentCount = 0;
@@ -363,11 +378,14 @@ export const PivotTableView = ({
             }
 
             if (baselineKey && typeof row[baselineKey] === 'number') {
-                const baseline = row[baselineKey];
+                // Already verified numeric above; TS can't narrow a
+                // variable-keyed index access, hence the assertion.
+                const baseline = row[baselineKey] as number;
                 // Only normalize value columns, not row columns
                 columnStructure.valueColumns.forEach(key => {
-                    if (typeof row[key] === 'number' && key !== baselineKey) {
-                        processedRow[key] = baseline !== 0 ? row[key] / baseline : 0;
+                    const cellValue = row[key];
+                    if (typeof cellValue === 'number' && key !== baselineKey) {
+                        processedRow[key] = baseline !== 0 ? cellValue / baseline : 0;
                     }
                 });
                 // Set baseline column to 1.0 (100%)
@@ -382,7 +400,7 @@ export const PivotTableView = ({
     // Use backend column order
     const backendColumnNames = [
         ...columnStructure.rowColumns,
-        ...columnStructure.backendValueStructures.map((col: any) => col.columnName)
+        ...columnStructure.backendValueStructures.map((col: BackendValueStructure) => col.columnName)
     ];
 
     const copyJsonToClipboard = async () => {
@@ -411,7 +429,7 @@ export const PivotTableView = ({
                 type: 'success',
                 duration: 3000,
             });
-        } catch (error) {
+        } catch {
             toaster.create({
                 title: 'Failed to copy JSON',
                 description: 'Could not copy data to clipboard',
@@ -472,7 +490,7 @@ export const PivotTableView = ({
                 type: 'success',
                 duration: 3000,
             });
-        } catch (error) {
+        } catch {
             toaster.create({
                 title: 'Failed to copy table',
                 description: 'Could not copy table to clipboard',
@@ -482,7 +500,7 @@ export const PivotTableView = ({
         }
     };
 
-    const formatValue = (value: any) => {
+    const formatValue = (value: unknown): ReactNode => {
         if (typeof value === 'number') {
             if (isRelativePivot) {
                 return value.toFixed(2);
@@ -492,10 +510,13 @@ export const PivotTableView = ({
                 maximumFractionDigits: 2
             });
         }
-        return value;
+        if (value === null || value === undefined || typeof value === 'string' || typeof value === 'boolean') {
+            return value;
+        }
+        return String(value);
     };
 
-    const getCellStyle = (value: any) => {
+    const getCellStyle = (value: unknown) => {
         if (isRelativePivot && typeof value === 'number') {
             const intensity = Math.min(Math.abs(value - 1), 0.5) * 2;
             if (value > 1) {
@@ -506,10 +527,6 @@ export const PivotTableView = ({
         }
         return {};
     };
-
-    const TableScrollWrapper = shareView
-        ? ({ children }: { children: ReactNode }) => <>{children}</>
-        : Table.ScrollArea;
 
     const renderCopyButtons = () => (
         <Box
@@ -634,7 +651,7 @@ export const PivotTableView = ({
                     {/* Copy buttons */}
                     {renderCopyButtons()}
 
-                    <TableScrollWrapper>
+                    <TableScrollWrapper shareView={shareView}>
                         <Box pt={shareView ? 8 : 10}>
                         <Table.Root variant="line" size="sm" width="auto" height={shareView ? undefined : '100%'}>
                             <Table.Body>

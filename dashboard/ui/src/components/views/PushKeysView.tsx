@@ -13,9 +13,10 @@ import {
     Field,
     Textarea,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { requestPushKey, listPushKeys } from '../../services/api';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import type { ApiError } from '../../services/types';
+import { useViewMode } from '../../hooks/useViewMode';
 
 export const PushKeysView: React.FC = () => {
     usePageTitle('Push Keys');
@@ -76,10 +77,10 @@ export const PushKeysView: React.FC = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Error',
-                description: error?.message || 'Failed to request push key',
+                description: (error as ApiError).message || 'Failed to request push key',
                 type: 'error',
                 duration: 5000,
             });

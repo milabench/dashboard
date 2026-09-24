@@ -19,10 +19,10 @@ import {
     backfillRunGroups,
     type RelatedRunGroup,
 } from '../../services/api';
-import type { RunGroup, Execution } from '../../services/types';
+import type { RunGroup, Execution, FastReportRow } from '../../services/types';
 import { usePageTitle } from '../../hooks/usePageTitle';
-import { toaster } from '../ui/toaster';
-import { useViewMode } from '../../contexts/ViewModeContext';
+import { toaster } from '../ui/toaster-store';
+import { useViewMode } from '../../hooks/useViewMode';
 
 const STRATEGIES = ['hardware', 'config', 'software', 'milabench', 'platform', 'strict', 'manual'] as const;
 type Strategy = typeof STRATEGIES[number];
@@ -67,6 +67,21 @@ function renderCell(value: unknown, col: string): string {
     return String(value);
 }
 
+interface CompositeReportRow {
+    bench: string;
+    exec_id: number;
+    fail: number;
+    n: number;
+    ngpu: number;
+    perf: number;
+    'std%': number;
+    'sem%': number;
+    score: number;
+    log_score: number;
+    weight: number;
+    enabled: number;
+}
+
 type RowIssue = 'fail' | 'zero-perf';
 
 // Reuse the app's existing theme-aware status colors (see theme.css) rather
@@ -76,7 +91,7 @@ const ROW_ISSUE_TINT: Record<RowIssue, string> = {
     'zero-perf': 'color-mix(in srgb, var(--color-status-pending) 20%, transparent)',
 };
 
-function rowIssue(row: any): RowIssue | null {
+function rowIssue(row: CompositeReportRow): RowIssue | null {
     if ((row.fail ?? 0) > 0) return 'fail';
     if (!row.perf) return 'zero-perf'; // covers 0, null, and undefined
     return null;
@@ -85,7 +100,7 @@ function rowIssue(row: any): RowIssue | null {
 function CompositeReportPanel({ group, intersectGroupId }: { group: RunGroup; intersectGroupId?: number }) {
     const [dropMinMax, setDropMinMax] = useState(true);
 
-    const { data, isLoading, error } = useQuery<any[]>({
+    const { data, isLoading, error } = useQuery<FastReportRow[]>({
         queryKey: ['compositeReport', group._id, intersectGroupId, dropMinMax],
         queryFn: () => getRunGroupCompositeReport(group._id, { dropMinMax, intersectGroupId }),
     });
@@ -187,7 +202,7 @@ function CompositeReportPanel({ group, intersectGroupId }: { group: RunGroup; in
                                                 color={c === 'exec_id' ? 'var(--color-text-muted)' : 'var(--color-text)'}
                                                 fontWeight={issue && (c === 'fail' || c === 'perf') ? 'bold' : undefined}
                                             >
-                                                {renderCell((row as any)[c], c)}
+                                                {renderCell(row[c as keyof CompositeReportRow], c)}
                                             </Table.Cell>
                                         ))}
                                     </Table.Row>

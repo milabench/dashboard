@@ -19,7 +19,7 @@ import {
     Field,
     createListCollection,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import type { Weight } from '../../services/types';
 import { getProfileList, getProfileDetails, saveProfile, copyProfile } from '../../services/api';
 import Cookies from 'js-cookie';
@@ -89,7 +89,7 @@ export const Profile: React.FC = () => {
         setSelectedProfile(details.value[0] || '');
     };
 
-    const handleWeightChange = (id: number, field: keyof Weight, value: any) => {
+    const handleWeightChange = (id: number, field: keyof Weight, value: Weight[keyof Weight]) => {
         setWeights(weights.map(weight =>
             weight._id === id ? { ...weight, [field]: value } : weight
         ));

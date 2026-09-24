@@ -57,7 +57,7 @@ export function buildBenchHistorySpec(
     { title, yLabel, hideMinMax }: BenchHistorySpecOptions,
     w: number,
     h: number,
-): Record<string, any> | null {
+): Record<string, unknown> | null {
     if (!historyData || historyData.length === 0) return null;
 
     const chartWidth = Math.max(400, w - 350);

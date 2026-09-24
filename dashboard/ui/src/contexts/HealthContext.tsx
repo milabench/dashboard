@@ -1,35 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getHealth } from '../services/api';
-
-interface VersionInfo {
-    dashboard: string;
-    milabench: string;
-}
-
-interface HealthContextValue {
-    isBackendOnline: boolean;
-    lastChecked: Date | null;
-    version: VersionInfo | null;
-    devMode: boolean;
-    previewAvailable: boolean;
-}
-
-const HealthContext = createContext<HealthContextValue>({
-    isBackendOnline: true,
-    lastChecked: null,
-    version: null,
-    devMode: false,
-    previewAvailable: false,
-});
-
-export const useHealth = () => useContext(HealthContext);
+import { HealthContext } from '../hooks/useHealth';
 
 const POLL_INTERVAL_MS = 30_000;
 
 export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isBackendOnline, setIsBackendOnline] = useState(true);
     const [lastChecked, setLastChecked] = useState<Date | null>(null);
-    const [version, setVersion] = useState<VersionInfo | null>(null);
+    const [version, setVersion] = useState<{ dashboard: string; milabench: string } | null>(null);
     const [devMode, setDevMode] = useState(false);
     const [previewAvailable, setPreviewAvailable] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -52,6 +30,7 @@ export const HealthProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off an async health-check request and a polling timer; not a pure derivation.
         checkHealth();
         timerRef.current = setInterval(checkHealth, POLL_INTERVAL_MS);
         return () => {

@@ -1,5 +1,5 @@
 import { Box, Text } from '@chakra-ui/react';
-import { useHealth } from '../../contexts/HealthContext';
+import { useHealth } from '../../hooks/useHealth';
 
 export const MaintenanceBanner: React.FC = () => {
     const { isBackendOnline } = useHealth();

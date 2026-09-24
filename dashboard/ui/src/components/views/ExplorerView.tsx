@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -18,9 +18,9 @@ import {
     IconButton,
     createListCollection,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { getAllSavedQueries, saveQuery } from '../../services/api';
-import type { Execution } from '../../services/types';
+import type { Execution, SavedQuery } from '../../services/types';
 import { Loading } from '../common/Loading';
 import { api } from '../../services/api';
 import { Link } from 'react-router-dom';
@@ -102,16 +102,57 @@ export const ExplorerView = () => {
     const onLoadModalClose = () => setIsLoadModalOpen(false);
     const [saveQueryName, setSaveQueryName] = useState<string>('');
 
+    // Fetch executions based on filters
+    const { data: executions, isLoading: isQueryLoading, refetch } = useQuery({
+        queryKey: ['explorerExecutions', filters],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (filters.length > 0) {
+                params.append('filters', btoa(JSON.stringify(filters)));
+            }
+            const response = await api.get(`/exec/explore?${params.toString()}`);
+            return response.data;
+        },
+        enabled: filters.length > 0,
+    });
+
+    const handleSearchWithFilters = useCallback(async (filtersToSearch: Filter[]) => {
+        if (filtersToSearch.length === 0) {
+            toaster.create({
+                title: 'No filters',
+                description: 'Please add at least one filter to search',
+                type: 'warning',
+                duration: 3000,
+            });
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await refetch();
+        } catch (error) {
+            toaster.create({
+                title: 'Error searching executions',
+                description: error instanceof Error ? error.message : 'Unknown error',
+                type: 'error',
+                duration: 5000,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    }, [refetch]);
+
     // Initialize filters from URL parameters
     useEffect(() => {
         const filtersParam = searchParams.get('filters');
         if (filtersParam) {
             try {
                 const decodedFilters = JSON.parse(atob(filtersParam));
+                // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates filter state from the URL's `filters` query param on mount.
                 setFilters(decodedFilters);
                 // Trigger search with decoded filters
                 handleSearchWithFilters(decodedFilters);
-            } catch (error) {
+            } catch {
                 toaster.create({
                     title: 'Invalid URL parameters',
                     description: 'Could not parse filters from URL',
@@ -120,6 +161,7 @@ export const ExplorerView = () => {
                 });
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only URL hydration; `searchParams` is recreated on every URL change and `handleSearchWithFilters` depends on the executions query, so including them would re-hydrate/re-search on every filter-driven URL update instead of only on first load.
     }, []);
 
     // Fetch available fields
@@ -136,20 +178,6 @@ export const ExplorerView = () => {
     const { data: savedQueries } = useQuery({
         queryKey: ['savedQueries'],
         queryFn: getAllSavedQueries,
-    });
-
-    // Fetch executions based on filters
-    const { data: executions, isLoading: isQueryLoading, refetch } = useQuery({
-        queryKey: ['explorerExecutions', filters],
-        queryFn: async () => {
-            const params = new URLSearchParams();
-            if (filters.length > 0) {
-                params.append('filters', btoa(JSON.stringify(filters)));
-            }
-            const response = await api.get(`/exec/explore?${params.toString()}`);
-            return response.data;
-        },
-        enabled: filters.length > 0,
     });
 
     // Fetch quick filter options
@@ -257,32 +285,6 @@ export const ExplorerView = () => {
         setSearchParams(searchParams);
     };
 
-    const handleSearchWithFilters = async (filtersToSearch: Filter[]) => {
-        if (filtersToSearch.length === 0) {
-            toaster.create({
-                title: 'No filters',
-                description: 'Please add at least one filter to search',
-                type: 'warning',
-                duration: 3000,
-            });
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            await refetch();
-        } catch (error) {
-            toaster.create({
-                title: 'Error searching executions',
-                description: error instanceof Error ? error.message : 'Unknown error',
-                type: 'error',
-                duration: 5000,
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     const handleSearch = async () => {
         await handleSearchWithFilters(filters);
     };
@@ -311,7 +313,7 @@ export const ExplorerView = () => {
     };
 
     // Format value based on field type
-    const formatValue = (field: string, value: any) => {
+    const formatValue = (field: string, value: unknown) => {
         if (value === undefined || value === null) return '-';
 
         // Handle arrays (for 'in' operator)
@@ -327,13 +329,13 @@ export const ExplorerView = () => {
         // Handle dates
         if (field.toLowerCase().includes('date') || field.toLowerCase().includes('time')) {
             try {
-                return new Date(value).toLocaleString();
+                return new Date(value as string | number).toLocaleString();
             } catch {
-                return value;
+                return String(value);
             }
         }
 
-        return value;
+        return String(value);
     };
 
     const addQuickFilter = (type: 'gpu' | 'pytorch' | 'milabench', values: string[]) => {
@@ -371,7 +373,7 @@ export const ExplorerView = () => {
         // Create pivot parameters
         const params = new URLSearchParams();
 
-        let pivot_cols = ['Metric:name'];
+        const pivot_cols = ['Metric:name'];
         for (const filter of filters) {
             pivot_cols.push(filter.field);
         }
@@ -392,7 +394,7 @@ export const ExplorerView = () => {
         // Add current filters
         if (filters.length > 0) {
 
-            let pivot_filters = [...filters];
+            const pivot_filters = [...filters];
 
             pivot_filters.push({
                 field: 'Metric:name',
@@ -450,17 +452,17 @@ export const ExplorerView = () => {
         }
     };
 
-    const handleLoadQuery = (query: any) => {
+    const handleLoadQuery = (query: SavedQuery) => {
         const { url, parameters } = query.query;
 
         if (url === '/explorer') {
             // Load explorer-specific parameters
             if (parameters.filters) {
                 try {
-                    const decodedFilters = JSON.parse(atob(parameters.filters));
+                    const decodedFilters = JSON.parse(atob(parameters.filters as string));
                     setFilters(decodedFilters);
                     updateUrlParams(decodedFilters);
-                } catch (error) {
+                } catch {
                     toaster.create({
                         title: 'Error loading filters',
                         description: 'Could not parse saved filters',
@@ -471,7 +473,7 @@ export const ExplorerView = () => {
             }
 
             if (parameters.quickFilters) {
-                setQuickFilters(parameters.quickFilters);
+                setQuickFilters(parameters.quickFilters as typeof quickFilters);
             }
 
             toaster.create({
@@ -817,7 +819,7 @@ export const ExplorerView = () => {
                                         <Table.Row key={execution._id}>
                                             {getTableColumns().map((field) => (
                                                 <Table.Cell key={`${execution._id}-${field}`}>
-                                                    {formatValue(field, (execution as any)[field])}
+                                                    {formatValue(field, (execution as unknown as Record<string, unknown>)[field])}
                                                 </Table.Cell>
                                             ))}
                                             <Table.Cell>
@@ -914,8 +916,8 @@ export const ExplorerView = () => {
                             <VStack gap={4} align="stretch">
                                 {savedQueries && savedQueries.length > 0 ? (
                                     savedQueries
-                                        .filter((query: any) => query.query.url === '/explorer')
-                                        .map((query: any) => (
+                                        .filter((query: SavedQuery) => query.query.url === '/explorer')
+                                        .map((query: SavedQuery) => (
                                             <Box
                                                 key={query._id}
                                                 p={4}
@@ -954,7 +956,7 @@ export const ExplorerView = () => {
                                         No saved queries found
                                     </Text>
                                 )}
-                                {savedQueries && savedQueries.filter((query: any) => query.query.url === '/explorer').length === 0 && savedQueries.length > 0 && (
+                                {savedQueries && savedQueries.filter((query: SavedQuery) => query.query.url === '/explorer').length === 0 && savedQueries.length > 0 && (
                                     <Text color="var(--color-text-muted)" textAlign="center">
                                         No saved explorer queries found. Save queries from this view to see them here.
                                     </Text>

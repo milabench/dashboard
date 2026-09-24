@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { Tooltip } from '../ui/tooltip';
@@ -20,7 +20,7 @@ import {
     WrapItem,
     Field,
 } from '@chakra-ui/react';
-import { toaster } from '../ui/toaster';
+import { toaster } from '../ui/toaster-store';
 import { LuArrowLeft, LuRefreshCw, LuX, LuDownload, LuInfo, LuExternalLink, LuClock, LuPencil } from 'react-icons/lu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob, getSlurmJobScript, getSlurmTemplates, getSlurmProfiles } from '../../services/api';
@@ -28,10 +28,9 @@ import { JobSubmissionForm } from './JobSubmit';
 import type { JobSubmissionInitialData } from './JobSubmit';
 import { LogDisplay } from './LogDisplay';
 import { NO_JOB_ID } from '../../Constant';
+import type { SlurmJobDetail, ApiError } from '../../services/types';
 
-interface JobLogsViewProps {
-    // Add props as needed
-}
+type JobLogsViewProps = Record<string, never>;
 
 const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -82,6 +81,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     useEffect(() => {
         if (params_SlurmJobId !== slurmJobId) {
             console.log('URL parameter changed, updating slurmJobId from', slurmJobId, 'to', params_SlurmJobId);
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- resets several state slots (job status, polling, realtime trigger) together in response to route navigation, not a pure derivation of a single value.
             setSlurmJobId(params_SlurmJobId);
             // Reset state when navigating to a new job
             setJobStatus(null);
@@ -89,7 +89,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             setShouldPoll(true);
             setRealtimeUpdateTrigger(0);
         }
-    }, [params_SlurmJobId]);
+    }, [params_SlurmJobId, slurmJobId]);
 
     usePageTitle(`Job Logs - ${slurmJobId || 'Unknown'}`);
 
@@ -157,6 +157,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             const wasTerminal = isJobTerminal;
             const nowTerminal = isStateTerminal(newStatus);
 
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronizes local state with data arriving asynchronously from the polling useQuery above.
             setJobStatus(newStatus);
             setIsJobTerminal(nowTerminal);
 
@@ -186,7 +187,6 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     const {
         data: jobInfoData,
         isLoading: jobInfoLoading,
-        error: _jobInfoError
     } = useQuery({
         queryKey: ['slurm-job-info', jrJobId, slurmJobId],
         queryFn: () => {
@@ -243,7 +243,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
     };
 
     // Helper function to get job duration (uses realtimeUpdateTrigger for real-time updates)
-    const getJobDuration = (jobData: any) => {
+    const getJobDuration = useCallback((jobData: SlurmJobDetail | undefined) => {
         if (!jobData) return 'Unknown';
 
         // For terminal jobs, prioritize accounting data elapsed time if available
@@ -286,16 +286,18 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
         }
 
         return 'Not started';
-    };
+    }, [isJobTerminal, accountingData, jobStatus]);
 
     // Memoized job duration that updates in real-time for running jobs
     const currentJobDuration = useMemo(() => {
         return getJobDuration(jobInfoData);
-    }, [jobInfoData, accountingData, isJobTerminal, jobStatus, realtimeUpdateTrigger]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- realtimeUpdateTrigger is not read in the body, but it is intentionally kept as a dependency: it ticks every second (see the timer effect below) purely to force this memo to recompute so the duration reflects the current wall-clock time.
+    }, [jobInfoData, getJobDuration, realtimeUpdateTrigger]);
 
     // Countdown timer effect
     useEffect(() => {
         if (!shouldPoll) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- part of the timer-subscription effect below (resets the countdown shown by the interval); not a pure render-time derivation.
             setCountdown(0);
             return;
         }
@@ -377,10 +379,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Rerun Failed',
-                description: error.message || 'An unexpected error occurred',
+                description: (error as ApiError).message || 'An unexpected error occurred',
                 type: 'error',
                 duration: 5000,
             });
@@ -422,10 +424,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Cancel Failed',
-                description: error.message || 'An unexpected error occurred',
+                description: (error as ApiError).message || 'An unexpected error occurred',
                 type: 'error',
                 duration: 5000,
             });
@@ -472,10 +474,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Save Failed',
-                description: error.message || 'An unexpected error occurred',
+                description: (error as ApiError).message || 'An unexpected error occurred',
                 type: 'error',
                 duration: 5000,
             });
@@ -506,10 +508,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Push Failed',
-                description: error.message || 'An unexpected error occurred',
+                description: (error as ApiError).message || 'An unexpected error occurred',
                 type: 'error',
                 duration: 5000,
             });
@@ -551,10 +553,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     duration: 5000,
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Early Sync Failed',
-                description: error.message || 'An unexpected error occurred',
+                description: (error as ApiError).message || 'An unexpected error occurred',
                 type: 'error',
                 duration: 5000,
             });
@@ -601,10 +603,10 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 sbatch_args: data.sbatch_args,
             });
             setIsEditModalOpen(true);
-        } catch (error: any) {
+        } catch (error) {
             toaster.create({
                 title: 'Failed to Load Job Data',
-                description: error.message || 'Could not retrieve job script data',
+                description: (error as ApiError).message || 'Could not retrieve job script data',
                 type: 'error',
                 duration: 5000,
             });
@@ -778,31 +780,31 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                             </WrapItem>
 
                             {/* Additional job details from job data */}
-                            {(jobInfoData as any)?.gres_detail && (
+                            {jobInfoData?.gres_detail && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="var(--color-text)">
-                                        <strong>GRES:</strong> {(jobInfoData as any).gres_detail}
+                                        <strong>GRES:</strong> {jobInfoData.gres_detail}
                                     </Text>
                                 </WrapItem>
                             )}
-                            {(jobInfoData as any)?.cpus?.number && (
+                            {jobInfoData?.cpus?.number && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="var(--color-text)">
-                                        <strong>CPUs:</strong> {(jobInfoData as any).cpus.number}
+                                        <strong>CPUs:</strong> {jobInfoData.cpus.number}
                                     </Text>
                                 </WrapItem>
                             )}
-                            {(jobInfoData as any)?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
+                            {jobInfoData?.job_resources?.allocated_nodes?.[0]?.memory_allocated && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="var(--color-text)">
-                                        <strong>RAM:</strong> {Math.round((jobInfoData as any).job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
+                                        <strong>RAM:</strong> {Math.round(jobInfoData.job_resources.allocated_nodes[0].memory_allocated / 1024)} GB
                                     </Text>
                                 </WrapItem>
                             )}
-                            {(jobInfoData as any)?.nodes && (
+                            {jobInfoData?.nodes && (
                                 <WrapItem>
                                     <Text fontSize="sm" color="var(--color-text)">
-                                        <strong>Nodes:</strong> {(jobInfoData as any).nodes}
+                                        <strong>Nodes:</strong> {jobInfoData.nodes}
                                     </Text>
                                 </WrapItem>
                             )}
@@ -882,7 +884,7 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                         <Alert.Content>
                             <Alert.Title>Failed to load job status</Alert.Title>
                             <Alert.Description>
-                                {(statusError as any)?.message || 'Unknown error occurred'}
+                                {statusError?.message || 'Unknown error occurred'}
                             </Alert.Description>
                         </Alert.Content>
                     </Alert.Root>
