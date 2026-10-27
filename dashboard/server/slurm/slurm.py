@@ -51,6 +51,11 @@ class ClusterContext:
     remote_folder: str
     local_folder: str = '.'
     config: dict = None
+    # Hostname the compute nodes use to ssh back to the login node (epilogue).
+    # Defaults to $SLURM_SUBMIT_HOST, i.e. the node the job was submitted from.
+    login_host: str = None
+    # Give the compute nodes internet through an ssh SOCKS proxy to the login node
+    proxy: bool = False
 
 
 mila = ClusterContext(
@@ -67,12 +72,35 @@ mila = ClusterContext(
     local_folder=".",            
 
     # Dictionnary of node configuration for slurm submission
-    config={}
+    config={},
+
+    # login_host="login-2",
+)
+
+
+rorqual = ClusterContext(
+    # Cluster name
+    name="rorqual",
+
+    # SSH config name, keep things simple
+    ssh="rorqual",
+
+    # Relative to home
+    remote_folder="/home/delaunay/links/scratch",
+
+    # Relative to the globally configured local storage path
+    local_folder=".",            
+
+    # Dictionnary of node configuration for slurm submission
+    config={},
+
+    # login_host="rorqual4"
 )
 
 
 _registered_clusters: dict[str, ClusterContext] = {
     "mila": mila,
+    "rorqual": rorqual,
 }
 
 _cluster: ContextVar[ClusterContext] = ContextVar("cluster", default=mila)
@@ -636,6 +664,77 @@ def local_command(*args, timeout=10):
         }
 
 
+SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "scripts")
+
+
+def _default_script(name):
+    """Read a script shipped in dashboard/scripts, empty if missing"""
+    try:
+        with open(os.path.join(SCRIPTS_DIR, name)) as fp:
+            return fp.read()
+    except OSError:
+        return ""
+
+
+def _render_script(name, **values):
+    """Fill the @KEY@ placeholders of a script template from dashboard/scripts"""
+    text = _default_script(name)
+    for key, value in values.items():
+        text = text.replace(f"@{key}@", value)
+    return text
+
+
+def _inject_epilogue_hook(script, remote_dir, login_host=None, proxy=False):
+    """Make the compute node ssh back to the login node to run epilogue.sh on exit.
+
+    The hooks (hook_proxy.sh, hook_epilogue.sh) are inserted after the leading
+    shebang/#SBATCH header so sbatch directives are still honored. The epilogue
+    is best effort: it never changes the job exit code.
+    """
+    values = dict(
+        LOGIN_HOST=login_host or "${SLURM_SUBMIT_HOST}",
+        JOB_DIR=remote_dir,
+    )
+    hook = ""
+    if proxy:
+        hook += _render_script("hook_proxy.sh", **values)
+    hook += _render_script("hook_epilogue.sh", **values)
+
+    lines = script.splitlines(keepends=True)
+    idx = 0
+    for i, line in enumerate(lines):
+        if line.strip() == "" or line.startswith("#"):
+            idx = i + 1
+        else:
+            break
+    return "".join(lines[:idx]) + hook + "".join(lines[idx:])
+
+
+def _make_prologue(jr_job_id, remote_dir, user_prologue=""):
+    """Script run on the login node (through ssh) that does setup then submits the job."""
+    return _render_script(
+        "submit_prologue.sh", JOB_ID=jr_job_id, JOB_DIR=remote_dir, USER_SCRIPT=user_prologue or ""
+    )
+
+
+def _make_epilogue(jr_job_id, remote_dir, user_epilogue=""):
+    """Script run on the login node, triggered from the compute node when the job ends."""
+    return _render_script(
+        "submit_epilogue.sh", JOB_ID=jr_job_id, JOB_DIR=remote_dir, USER_SCRIPT=user_epilogue or ""
+    )
+
+
+def _upload_text(host, text, remote_path):
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+        f.write(text)
+        f.flush()
+        local_path = f.name
+    try:
+        return local_command("scp", local_path, f"{host}:{remote_path}", timeout=60)
+    finally:
+        os.unlink(local_path)
+
+
 def slurm_integration(app, bp, cache, database):
     """Add Slurm integration routes to the Flask app"""
 
@@ -701,33 +800,36 @@ def slurm_integration(app, bp, cache, database):
 
             try:
                 resolved_script = resolve_secrets(script_content, app.secret_store)
+                prologue = resolve_secrets(data.get('prologue') or _default_script('prologue.sh'), app.secret_store)
+                epilogue = resolve_secrets(data.get('epilogue') or _default_script('epilogue.sh'), app.secret_store)
             except ValueError as e:
                 return {'error': str(e)}
 
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(resolved_script)
-                script_path = f.name
-                f.flush()
+            resolved_script = _inject_epilogue_hook(
+                resolved_script, remote_dir, cluster_ctx.login_host,
+                proxy=bool(data.get('proxy', cluster_ctx.proxy)),
+            )
 
-                result = remote_command(_ssh_host(), f"'mkdir -p {remote_dir}'")
+            result = remote_command(_ssh_host(), f"'mkdir -p {remote_dir}'")
+            if not result['success']:
+                return {'error': f'Failed to create remote dir: {result["stderr"]}'}
+
+            sbatch_cmd = f"sbatch {' '.join(sbatch_args)} -- {remote_script}"
+
+            uploads = [
+                ("script.sbatch", resolved_script),
+                ("cmd.sh", sbatch_cmd),
+                ("prologue.sh", _make_prologue(jr_job_id, remote_dir, prologue)),
+                ("epilogue.sh", _make_epilogue(jr_job_id, remote_dir, epilogue)),
+            ]
+            for name, text in uploads:
+                result = _upload_text(_ssh_host(), text, f"{remote_dir}/{name}")
                 if not result['success']:
-                    return {'error': f'Failed to create remote dir: {result["stderr"]}'}
+                    return {'error': f'Failed to upload {name}: {result["stderr"]}'}
 
-                scp_cmd = f"scp {script_path} {_ssh_host()}:{remote_script}"
-                subprocess.check_call(scp_cmd, shell=True)
-
-            sbatch_cmd = f"'sbatch {' '.join(sbatch_args)} -- {remote_script}'"
-
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
-                f.write(sbatch_cmd[1:-1])
-                f.flush()
-                cmd_path = f.name
-                remote_cmd = f"{remote_dir}/cmd.sh"
-                scp_cmd = f"scp {cmd_path} mila:{remote_cmd}"
-                subprocess.check_call(scp_cmd, shell=True)
-
+            # The prologue runs on the login node, then submits the job
             print(sbatch_cmd)
-            result = remote_command(_ssh_host(), sbatch_cmd)
+            result = remote_command(_ssh_host(), f"'bash {remote_dir}/prologue.sh'", timeout=300)
 
             if result['success']:
                 job_id_match = re.search(r'Submitted batch job (\d+)', result['stdout'])
@@ -1068,6 +1170,8 @@ def slurm_integration(app, bp, cache, database):
             with open(new_local_script, "r") as fp:
                 script_text = fp.read()
             resolved_text = resolve_secrets(script_text, app.secret_store)
+            # The epilogue hook embeds the job folder, point it to the new job
+            resolved_text = resolved_text.replace(old_jr_job_id, new_jr_job_id)
             with open(new_local_script, "w") as fp:
                 fp.write(resolved_text)
         except ValueError as e:
@@ -1088,13 +1192,26 @@ def slurm_integration(app, bp, cache, database):
             fp.write(new_cmd[1:-1])
             fp.flush()
 
+        # Carry over the login node hooks (older jobs do not have them)
+        has_prologue = os.path.exists(f"{old_local_dir}/prologue.sh")
+        for name in ("prologue.sh", "epilogue.sh"):
+            old_hook = f"{old_local_dir}/{name}"
+            if os.path.exists(old_hook):
+                with open(old_hook) as fp:
+                    hook_text = fp.read().replace(old_jr_job_id, new_jr_job_id)
+                with open(f"{new_local_dir}/{name}", "w") as fp:
+                    fp.write(hook_text)
+
         # rsync the job to remote
         result = local_command("rsync", "-az", new_local_dir + "/", f"{_ssh_host()}:{new_remote_dir}")
         if not result['success']:
             return jsonify({'error': f'Failed to retrieve previous job command: {result["stderr"]}'}), 500
 
-        # Submit job
-        result = remote_command(_ssh_host(), new_cmd)
+        # Submit job, through the prologue on the login node when there is one
+        if has_prologue:
+            result = remote_command(_ssh_host(), f"'bash {new_remote_dir}/prologue.sh'", timeout=300)
+        else:
+            result = remote_command(_ssh_host(), new_cmd)
 
         if result['success']:
             # Extract job ID from output
