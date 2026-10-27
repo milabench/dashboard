@@ -7,7 +7,11 @@
 #
 # Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
 # share of the node (cpu / ram scale with the number of GPUs or cores requested).
-account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+#
+# Partitions: compute (default, do not name it; 15 min - 24h, 1 to 10 nodes, 128 with an allocation)
+#             debug   (1 running job, 1 to 2 nodes, up to 1h)
+# Trillium ignores --mem and cannot allocate a number of cores, full nodes still ask for all of them: a job gets whole nodes (192 cores, 768GB)
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>)
 nodes:
 - name: cpu
   count: 1224
@@ -23,3 +27,25 @@ nodes:
     - --mem=0
     cpu: 192
     ram: 749
+  - name: debug-1-node
+    slurm:
+    - --partition=debug
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --time=1:00:00
+    cpu: 192
+    ram: 755
+  - name: debug-2-nodes
+    slurm:
+    - --partition=debug
+    - --nodes=2
+    - --ntasks=2
+    - --ntasks-per-node=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --time=0:30:00
+    cpu: 384
+    ram: 1510
+max_time: 1-00:00:00

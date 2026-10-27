@@ -1003,6 +1003,15 @@ export const submitSlurmJob = async (request: {
     }
 };
 
+export const getSlurmJobCluster = async (jrJobId: string): Promise<{ cluster: string; login?: string }> => {
+    try {
+        const response = await api.get(`/slurm/jobs/${jrJobId}/cluster`);
+        return response.data;
+    } catch (error) {
+        return handleError(error);
+    }
+};
+
 export const getSlurmJobScript = async (jrJobId: string): Promise<{
     script: string;
     sbatch_args: string[];

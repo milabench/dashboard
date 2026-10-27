@@ -23,7 +23,7 @@ import {
 import { toaster } from '../ui/toaster-store';
 import { LuArrowLeft, LuRefreshCw, LuX, LuDownload, LuInfo, LuExternalLink, LuClock, LuPencil } from 'react-icons/lu';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmClusterStatus, pushJobFolder, earlySyncJob, getSlurmJobScript, getSlurmTemplates, getSlurmProfiles } from '../../services/api';
+import { getSlurmJobStdoutFull, getSlurmJobStderrFull, getSlurmJobStdoutSize, getSlurmJobStderrSize, getSlurmJobStatusSimple, getSlurmJobAccounting, rerunSlurmJob, cancelSlurmJob, saveSlurmJob, getSlurmJobInfo, getSlurmJobCluster, getSlurmClusterStatus, pushJobFolder, earlySyncJob, getSlurmJobScript, getSlurmTemplates, getSlurmProfiles } from '../../services/api';
 import { JobSubmissionForm } from './JobSubmit';
 import type { JobSubmissionInitialData } from './JobSubmit';
 import { LogDisplay } from './LogDisplay';
@@ -182,6 +182,14 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
             }
         }
     }, [jobStatusData, isJobTerminal, jobStatus, queryClient]);
+
+    // Cluster the job was submitted to, it never changes
+    const { data: jobClusterData } = useQuery({
+        queryKey: ['slurm-job-cluster', jrJobId],
+        queryFn: () => getSlurmJobCluster(jrJobId!),
+        enabled: !!jrJobId,
+        staleTime: Infinity,
+    });
 
     // Backup job info query for additional details (non-polling)
     const {
@@ -757,6 +765,13 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                 <Card.Root bg="var(--color-bg-card)" padding="10px" border="1px solid" borderColor="var(--color-border)">
                     <Card.Body>
                         <Wrap gap={4} rowGap={2} align="center">
+                            {jobClusterData?.cluster && (
+                                <WrapItem>
+                                    <Badge colorPalette="blue" title={jobClusterData.login}>
+                                        {jobClusterData.cluster}
+                                    </Badge>
+                                </WrapItem>
+                            )}
                             <WrapItem>
                                 <Text fontSize="sm" color="var(--color-text)">
                                     <strong>ID:</strong> {jrJobId}
@@ -842,8 +857,8 @@ export const JobLogsView: React.FC<JobLogsViewProps> = () => {
                     </Card.Body>
                 </Card.Root>
 
-                {/* Logs Display - Only show when we have job status */}
-                {jobStatus && (
+                {/* Logs Display - the logs are local files, show them even when the status could not be fetched */}
+                {(jobStatus || !statusLoading) && (
                     <Flex gap={6} direction={{ base: 'column', lg: 'row' }} className="log-holder" flex="1" minH={0} display="flex">
                         <LogDisplay
                             logType="stdout"

@@ -46,7 +46,7 @@ tamia:
 trillium:
   ssh: trillium
   login: trillium.alliancecan.ca
-  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path. Jobs cannot write to $HOME or $PROJECT
+  remote_folder: /home/delaunay/links/scratch/jobrunner
   local_folder: .
   # compute nodes have no internet access, tunnel through the login node
   proxy: true
@@ -55,7 +55,7 @@ trillium:
 trillium-gpu:
   ssh: trillium-gpu
   login: trillium-gpu.alliancecan.ca
-  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path. Jobs cannot write to $HOME or $PROJECT
+  remote_folder: /home/delaunay/links/scratch/jobrunner
   local_folder: .
   proxy: true
   nodes: nodes/trillium-gpu.yaml
@@ -63,7 +63,7 @@ trillium-gpu:
 nibi:
   ssh: nibi
   login: nibi.alliancecan.ca
-  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path
+  remote_folder: /home/delaunay/links/scratch/jobrunner
   local_folder: .
   # compute nodes have full internet access
   proxy: false

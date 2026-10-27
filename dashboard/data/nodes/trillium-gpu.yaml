@@ -10,7 +10,12 @@
 #
 # Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
 # share of the node (cpu / ram scale with the number of GPUs or cores requested).
-account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+#
+# Partitions: compute (default, do not name it; 15 min - 24h, 1 GPU or whole nodes, 5 nodes max, 25 with an allocation)
+#             debug   (1 running job, 1 GPU up to 2h, 4 GPUs 30 min, 8 GPUs (2 nodes) 15 min)
+# Only 1 GPU or multiples of 4 can be requested, no MIG. Cores and memory are fixed by the request, full nodes still ask for all of them:
+# 1 GPU = 24 cores + 188GiB, a whole node = 96 cores + 755GiB
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>)
 nodes:
 - name: h100
   count: 63
@@ -26,32 +31,55 @@ nodes:
     slurm:
     - --nodes=1
     - --ntasks=1
-    - --cpus-per-task=24
-    - --mem=187G
-    - --gpus=h100:1
+    - --gpus-per-node=1
     cpu: 24
     ram: 187
     gpu: 1
-  - name: 2-gpu
-    slurm:
-    - --nodes=1
-    - --ntasks=1
-    - --cpus-per-task=48
-    - --mem=374G
-    - --gpus-per-node=h100:2
-    cpu: 48
-    ram: 374
-    gpu: 2
   - name: 4-gpu
     slurm:
     - --nodes=1
     - --ntasks=1
     - --cpus-per-task=96
     - --mem=0
-    - --gpus-per-node=h100:4
+    - --gpus-per-node=4
     cpu: 96
     ram: 749
     gpu: 4
+  - name: debug-1-gpu
+    slurm:
+    - --partition=debug
+    - --nodes=1
+    - --ntasks=1
+    - --gpus-per-node=1
+    - --time=2:00:00
+    cpu: 24
+    ram: 188
+    gpu: 1
+  - name: debug-4-gpu
+    slurm:
+    - --partition=debug
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=0
+    - --gpus-per-node=4
+    - --time=0:30:00
+    cpu: 96
+    ram: 755
+    gpu: 4
+  - name: debug-8-gpu
+    slurm:
+    - --partition=debug
+    - --nodes=2
+    - --ntasks=2
+    - --ntasks-per-node=1
+    - --cpus-per-task=96
+    - --mem=0
+    - --gpus-per-node=4
+    - --time=0:15:00
+    cpu: 192
+    ram: 1510
+    gpu: 8
 - name: h200
   count: 1
   cpu: 96
@@ -66,22 +94,10 @@ nodes:
     slurm:
     - --nodes=1
     - --ntasks=1
-    - --cpus-per-task=24
-    - --mem=374G
     - --gpus=h200:1
     cpu: 24
     ram: 374
     gpu: 1
-  - name: 2-gpu
-    slurm:
-    - --nodes=1
-    - --ntasks=1
-    - --cpus-per-task=48
-    - --mem=749G
-    - --gpus-per-node=h200:2
-    cpu: 48
-    ram: 749
-    gpu: 2
   - name: 4-gpu
     slurm:
     - --nodes=1
@@ -106,28 +122,14 @@ nodes:
     slurm:
     - --nodes=1
     - --ntasks=1
-    - --cpus-per-task=12
-    - --mem=250G
     - --gpus=b200:1
     cpu: 12
     ram: 250
     gpu: 1
-  - name: 2-gpu
-    slurm:
-    - --nodes=1
-    - --ntasks=1
-    - --cpus-per-task=24
-    - --mem=500G
-    - --gpus-per-node=b200:2
-    cpu: 24
-    ram: 500
-    gpu: 2
   - name: 4-gpu
     slurm:
     - --nodes=1
     - --ntasks=1
-    - --cpus-per-task=48
-    - --mem=1000G
     - --gpus-per-node=b200:4
     cpu: 48
     ram: 1000
@@ -142,3 +144,4 @@ nodes:
     cpu: 96
     ram: 2000
     gpu: 8
+max_time: 1-00:00:00

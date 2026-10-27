@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
 from dataclasses import dataclass
 import os
@@ -19,7 +21,7 @@ import threading
 from filelock import FileLock, Timeout
 
 from cantilever.core.timer import timeit
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, g
 
 from .constant import *
 from .pipeline import Pipeline, JobNode, Sequential, Parallel
@@ -121,6 +123,76 @@ def _local_folder():
     return os.path.join(JOBRUNNER_LOCAL_CACHE, _cluster.get().local_folder)
 
 
+def _local_roots():
+    return {os.path.join(JOBRUNNER_LOCAL_CACHE, c.local_folder) for c in _registered_clusters.values()}
+
+
+def _job_cluster(jr_job_id):
+    """Cluster a job was submitted to, saved next to its data when it was submitted"""
+    for root in _local_roots():
+        try:
+            path = safe_path(root, jr_job_id, "meta", "cluster.txt")
+        except Exception:
+            continue
+
+        if os.path.exists(path):
+            try:
+                with open(path) as fp:
+                    return _registered_clusters.get(fp.read().strip())
+            except OSError:
+                pass
+    return None
+
+
+def _clusters_in_use():
+    """Clusters that have jobs, so we do not ssh into clusters that were never used.
+
+    Jobs saved before multi cluster support have no cluster file and belong to mila.
+    """
+    names = set()
+    legacy = False
+
+    for root in _local_roots():
+        try:
+            items = [i for i in os.listdir(root) if i[0] != '.' and os.path.isdir(os.path.join(root, i))]
+        except OSError:
+            continue
+
+        for item in items:
+            try:
+                with open(os.path.join(root, item, "meta", "cluster.txt")) as fp:
+                    names.add(fp.read().strip())
+            except OSError:
+                legacy = True
+
+    if legacy or not names:
+        names.add("mila")
+
+    return [_registered_clusters[n] for n in sorted(names) if n in _registered_clusters]
+
+
+def _find_cluster_of_slurm_job(job_id):
+    """Cluster of a slurm job id (the jobs list only gives the slurm id), None if unknown or ambiguous"""
+    found = set()
+    for root in _local_roots():
+        try:
+            items = os.listdir(root)
+        except OSError:
+            continue
+
+        for item in items:
+            try:
+                with open(os.path.join(root, item, "meta", "job_id.txt")) as fp:
+                    if fp.read().strip() != str(job_id):
+                        continue
+                with open(os.path.join(root, item, "meta", "cluster.txt")) as fp:
+                    found.add(fp.read().strip())
+            except OSError:
+                continue
+
+    return _registered_clusters[found.pop()] if len(found) == 1 and next(iter(found)) in _registered_clusters else None
+
+
 def is_state_terminal(state):
     return state in ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY")
 
@@ -139,6 +211,33 @@ def get_info_state(acc):
         return states[0]
     return None
 
+def _belongs_to_job(jr_job_id, data):
+    """Slurm job ids are only unique per cluster, accounting fetched from the wrong cluster
+    is the job of somebody else (or an old job) that happens to have the same id.
+
+    Jobs are submitted with --comment=jr_job_id=..., so the comment tells whose job it is.
+    """
+    if not isinstance(data, dict):
+        return True
+
+    comment = data.get("comment")
+    if isinstance(comment, dict):
+        comment = comment.get("job")
+
+    if isinstance(comment, str) and "jr_job_id=" in comment:
+        return f"jr_job_id={jr_job_id}" in comment
+
+    # No comment: the cluster name is all we have
+    cluster = _job_cluster(jr_job_id) or mila
+    name = data.get("cluster")
+    return not (isinstance(name, str) and name != "" and name != cluster.name)
+
+
+def _owner_of_meta_file(filename):
+    """jr_job_id of a <job>/meta/<file>"""
+    return os.path.basename(os.path.dirname(os.path.dirname(filename)))
+
+
 def is_acc_terminal(acc):
     if type(acc) is list:
         return False
@@ -151,7 +250,7 @@ def job_acc_cache_status(filename: str):
         try:
             job_acc = json.load(fp)
 
-            return is_acc_terminal(job_acc)
+            return is_acc_terminal(job_acc) and _belongs_to_job(_owner_of_meta_file(filename), job_acc)
         except json.decoder.JSONDecodeError:
             return False
 
@@ -288,7 +387,7 @@ def job_rsync_limiter(jr_job_id, limit=30):
 
 
 def rsync_jobrunner_folder(timeout=5, force=False):
-    with job_rsync_limiter(None) as can_run:
+    with cache_invalidator(None, f"limiter_{_cluster.get().name}.json", limit=30) as can_run:
         if not can_run and not force:
             print("RSYNC [full] skipped")
             return 0
@@ -413,6 +512,13 @@ def parse_comment(comment, results=None):
 
 
 def book_keeping():
+    """Run the bookkeeping of every cluster that has jobs"""
+    for cluster in _clusters_in_use():
+        with use_cluster(cluster):
+            _book_keeping()
+
+
+def _book_keeping():
     """This function runs to ensure the remote has a little jobs as possible
 
     - Do a full rsync
@@ -886,6 +992,28 @@ def slurm_integration(app, bp, cache, database):
 
     app._do_slurm_submit = _do_slurm_submit
 
+    # Monitoring routes act on the cluster the job was submitted to, not on the default one
+    @bp.before_request
+    def _select_cluster():
+        cluster = None
+
+        if jr_job_id := (request.view_args or {}).get("jr_job_id"):
+            cluster = _job_cluster(jr_job_id)
+
+        if cluster is None and (name := request.args.get("cluster")):
+            cluster = _registered_clusters.get(name)
+
+        if cluster is not None:
+            g._cluster_token = _cluster.set(cluster)
+
+    @bp.teardown_request
+    def _restore_cluster(exc=None):
+        if token := g.pop("_cluster_token", None):
+            try:
+                _cluster.reset(token)
+            except ValueError:
+                pass
+
     from .scheduled import scheduled_jobs_routes
     scheduled_jobs_routes(app, bp, cache, database)
 
@@ -946,8 +1074,10 @@ def slurm_integration(app, bp, cache, database):
     def api_slurm_persisted_limited(limit=None):
         """Get a list of job output still available"""
         try:
-            if rsync_jobrunner_folder() != 0:
-                print("Stale")
+            for cluster in _clusters_in_use():
+                with use_cluster(cluster):
+                    if rsync_jobrunner_folder() != 0:
+                        print(f"Stale {cluster.name}")
 
             # jobs = os.listdir(_local_folder())
             # jobs.remove(".git")
@@ -989,9 +1119,10 @@ def slurm_integration(app, bp, cache, database):
                             acc = fetch_latest_job_acc_cached(jr_job_id, job_id)
                             cache.set(key, acc, timeout=3600)
 
-                        threading.Thread(target=update).start()
+                        # a new thread does not inherit the cluster of the request
+                        threading.Thread(target=contextvars.copy_context().run, args=(update,)).start()
 
-                if value := cache.get(key):
+                if (value := cache.get(key)) and _belongs_to_job(jr_job_id, value):
                     if not is_acc_terminal(value):
                         print("Job acc not terminal, updating")
                         queue_update()
@@ -1006,6 +1137,11 @@ def slurm_integration(app, bp, cache, database):
                     with open(acc_path, "r") as fp:
                         try:
                             info = json.load(fp)
+
+                            if not _belongs_to_job(jr_job_id, info):
+                                print(f"Job acc of {jr_job_id} belongs to another job, updating")
+                                queue_update()
+                                return {}
 
                             if not is_acc_terminal(info):
                                 print("Job acc not terminal, updating")
@@ -1024,6 +1160,10 @@ def slurm_integration(app, bp, cache, database):
                     queue_update()
 
                 return {}
+
+            def load_job_acc(dir_path, jr_job_id, job_id, cluster_name):
+                with use_cluster(_registered_clusters.get(cluster_name, mila)):
+                    return load_acc(dir_path, jr_job_id, job_id)
 
             # Get all job directories and sort by creation time (oldest first) to preserve server send order
             job_dirs = []
@@ -1050,7 +1190,7 @@ def slurm_integration(app, bp, cache, database):
                         "last_accessed": stat.st_atime,
                         "freshness": time.time() - stat.st_mtime,
                         "info": info,
-                        "acc": load_acc(item_path, item, info.get("job_id"))
+                        "acc": load_job_acc(item_path, item, info.get("job_id"), cluster)
                     })
 
             # Sort by creation time (oldest first) to maintain server send order
@@ -1123,29 +1263,55 @@ def slurm_integration(app, bp, cache, database):
     # List jobs
     @bp.route('/api/slurm/jobs')
     def api_slurm_jobs():
-        """Get list of pending slurm jobs"""
+        """Get list of pending slurm jobs of one cluster (?cluster=) or of all the clusters in use"""
+        def cluster_jobs(cluster):
+            with use_cluster(cluster):
+                result = remote_command(_ssh_host(), "'squeue --json -u $USER'")
+
+                if not result['success']:
+                    return cluster.name, None, result["stderr"]
+
+                jobs = json.loads(result['stdout'])["jobs"]
+
+                # Extract jr_job_id from comment field for each job
+                for job in jobs:
+                    job['jr_job_id'] = None
+                    job['cluster'] = cluster.name
+
+                    if (comment := job.get('comment')) is not None:
+                        kv_dict = comment.split(';')
+
+                        for kv in kv_dict:
+                            try:
+                                k, v = kv.split("=")
+                                job[k] = v
+                            except ValueError:
+                                pass
+                return cluster.name, jobs, None
+
         try:
-            # Get running and pending jobs using JSON format
-            result = remote_command(_ssh_host(), "'squeue --json -u $USER'")
+            if name := request.args.get('cluster'):
+                if name not in _registered_clusters:
+                    return jsonify({'error': f'Unknown cluster: {name}'}), 400
+                clusters = [_registered_clusters[name]]
+            else:
+                clusters = _clusters_in_use()
 
-            if not result['success']:
-                return jsonify({'error': f'Failed to get jobs: {result["stderr"]}'}), 500
+            # Every cluster is a separate ssh, do not wait for them one after the other
+            with ThreadPoolExecutor(max_workers=len(clusters)) as pool:
+                results = list(pool.map(cluster_jobs, clusters))
 
-            jobs = json.loads(result['stdout'])["jobs"]
+            jobs = []
+            errors = []
+            for cluster_name, found, error in results:
+                if error is not None:
+                    errors.append(f"{cluster_name}: {error}")
+                else:
+                    jobs.extend(found)
 
-            # Extract jr_job_id from comment field for each job
-            for job in jobs:
-                job['jr_job_id'] = None
-
-                if (comment := job.get('comment')) is not None:
-                    kv_dict = comment.split(';')
-
-                    for kv in kv_dict:
-                        try:
-                            k, v = kv.split("=")
-                            job[k] = v
-                        except ValueError:
-                            pass
+            # A cluster that is down should not hide the jobs of the others
+            if errors and not jobs and len(errors) == len(results):
+                return jsonify({'error': f'Failed to get jobs: {"; ".join(errors)}'}), 500
 
             return jsonify(jobs)
 
@@ -1358,6 +1524,10 @@ def slurm_integration(app, bp, cache, database):
         """Cancel a Slurm job"""
         job_id = validate_slurm_job_id(job_id)
         try:
+            # ?cluster= when the caller knows it, else from the jobs we submitted
+            if "cluster" not in request.args and (cluster := _find_cluster_of_slurm_job(job_id)):
+                _cluster.set(cluster)
+
             result = remote_command(_ssh_host(), f'scancel {job_id}')
 
             if result['success']:
@@ -1434,7 +1604,7 @@ def slurm_integration(app, bp, cache, database):
             with open(filename, "r") as fp:
                 info = json.load(fp)
             state = get_info_state(info)
-            return state is not None and is_state_terminal(state)
+            return state is not None and is_state_terminal(state) and _belongs_to_job(_owner_of_meta_file(filename), info)
         except Exception:
             return False
 
@@ -1485,7 +1655,7 @@ def slurm_integration(app, bp, cache, database):
                         with open(sacct_info, "r") as fp:
                             sacct = json.load(fp)
                             state = get_acc_state(sacct)
-                            if state and is_state_terminal(state):
+                            if state and is_state_terminal(state) and _belongs_to_job(jr_job_id, sacct):
                                 return state
                     except:
                         pass
@@ -1495,7 +1665,7 @@ def slurm_integration(app, bp, cache, database):
                         with open(squeue_info, "r") as fp:
                             squeue = json.load(fp)
                             state = get_info_state(squeue)
-                            if state and is_state_terminal(state):
+                            if state and is_state_terminal(state) and _belongs_to_job(jr_job_id, squeue):
                                 return state
                     except:
                         pass
@@ -1517,6 +1687,12 @@ def slurm_integration(app, bp, cache, database):
             "status": cached_state
         }
   
+    @bp.route('/api/slurm/jobs/<jr_job_id>/cluster')
+    def api_slurm_job_cluster(jr_job_id):
+        """Cluster the job was submitted to (mila for the jobs saved before multi cluster support)"""
+        cluster = _job_cluster(jr_job_id) or mila
+        return jsonify({"cluster": cluster.name, "login": cluster.login})
+
     @bp.route('/api/slurm/jobs/<jr_job_id>/info')
     @local_cache("info.json", "jr_job_id", check_validation=job_info_cache_status)
     def api_slurm_job_info_cached(jr_job_id):

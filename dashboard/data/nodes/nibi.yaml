@@ -6,7 +6,7 @@
 #
 # Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
 # share of the node (cpu / ram scale with the number of GPUs or cores requested).
-account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>)
 nodes:
 - name: cpu
   count: 700
@@ -51,7 +51,6 @@ nodes:
     - --nodes=1
     - --ntasks=1
     - --cpus-per-task=192
-    - --mem=0
     - --mem=6000G
     cpu: 192
     ram: 6000
