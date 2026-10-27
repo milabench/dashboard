@@ -1,0 +1,147 @@
+# Rorqual (Alliance Canada, ETS) https://docs.alliancecan.ca/wiki/Rorqual
+# Login / copy node: rorqual.alliancecan.ca
+# Compute nodes have NO internet access (exceptions go through Alliance support).
+# Job duration: 1h minimum (5 min for tests), 7 days maximum. At most 1000 jobs (running + pending).
+# Scratch: $HOME/links/scratch  Project: $HOME/links/projects/<project>
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+max_time: 7-00:00:00
+nodes:
+- name: cpu
+  count: 670
+  cpu: 192
+  ram: 750
+  cpu_model: 2 x AMD EPYC 9654 (Zen 4) @ 2.4 GHz
+  disk: 480GB SATA SSD
+  chunks:
+  - name: ccd
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=8
+    - --mem=31G
+    cpu: 8
+    ram: 31
+  - name: half-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=375G
+    cpu: 96
+    ram: 375
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    cpu: 192
+    ram: 750
+- name: cpu-nvme
+  count: 8
+  cpu: 192
+  ram: 750
+  cpu_model: 2 x AMD EPYC 9654 (Zen 4) @ 2.4 GHz
+  disk: 3.84TB NVMe
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --tmp=1000G
+    cpu: 192
+    ram: 750
+- name: cpu-bigmem
+  count: 8
+  cpu: 192
+  ram: 3013
+  cpu_model: 2 x AMD EPYC 9654 (Zen 4) @ 2.4 GHz
+  disk: 480GB SATA SSD
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --mem=3000G
+    cpu: 192
+    ram: 3013
+- name: gpu
+  count: 93
+  cpu: 64
+  ram: 498
+  cpu_model: 2 x Intel Xeon Gold 6448Y @ 2.1 GHz
+  disk: 3.84TB NVMe
+  gpu:
+  - name: H100
+    ram: 80
+    count: 4
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=16
+    - --mem=124G
+    - --gpus=h100:1
+    cpu: 16
+    ram: 124
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=32
+    - --mem=249G
+    - --gpus-per-node=h100:2
+    cpu: 32
+    ram: 249
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=64
+    - --mem=0
+    - --gpus-per-node=h100:4
+    cpu: 64
+    ram: 498
+    gpu: 4
+  - name: mig-1g.10gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=2
+    - --mem=15G
+    - --gpus=h100_1g.10gb:1
+    cpu: 2
+    ram: 15
+    gpu: 1
+  - name: mig-2g.20gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=4
+    - --mem=31G
+    - --gpus=h100_2g.20gb:1
+    cpu: 4
+    ram: 31
+    gpu: 1
+  - name: mig-3g.40gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=6
+    - --mem=46G
+    - --gpus=h100_3g.40gb:1
+    cpu: 6
+    ram: 46
+    gpu: 1
+  notes: About half of the GPU nodes are split with MIG; mig-* chunks request one instance, cpu/ram are a proportional share,
+    not the Alliance 'bundles' ratios

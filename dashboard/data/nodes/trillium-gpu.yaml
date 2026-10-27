@@ -1,0 +1,144 @@
+# Trillium GPU sub-cluster (Alliance Canada, SciNet / U of Toronto) https://docs.alliancecan.ca/wiki/Trillium
+# Login node: trillium-gpu.alliancecan.ca   (different from the CPU sub-cluster)
+# Compute nodes have NO internet access. No local disk ($SLURM_TMPDIR is a RAM disk).
+# Jobs can only write to scratch, NOT to $HOME or $PROJECT.
+# Allocation is by whole node or by whole GPU. MIG is not available.
+# TODO: the wiki node table was garbled and the Trillium Quickstart was not provided:
+#   - verify the node groups below
+#   - the GRES names (h100 / h200 / b200) and partition names are guesses, check `sinfo -o "%P %G"`
+#   - max job duration is unknown
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+nodes:
+- name: h100
+  count: 63
+  cpu: 96
+  ram: 749
+  cpu_model: 1 x AMD EPYC 9654 (Zen 4) @ 2.4 GHz
+  gpu:
+  - name: H100
+    ram: 80
+    count: 4
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=24
+    - --mem=187G
+    - --gpus=h100:1
+    cpu: 24
+    ram: 187
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=374G
+    - --gpus-per-node=h100:2
+    cpu: 48
+    ram: 374
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=0
+    - --gpus-per-node=h100:4
+    cpu: 96
+    ram: 749
+    gpu: 4
+- name: h200
+  count: 1
+  cpu: 96
+  ram: 1498
+  cpu_model: 2 x AMD EPYC 9455 (Zen 5) @ 3.15 GHz
+  gpu:
+  - name: H200
+    ram: 141
+    count: 4
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=24
+    - --mem=374G
+    - --gpus=h200:1
+    cpu: 24
+    ram: 374
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=749G
+    - --gpus-per-node=h200:2
+    cpu: 48
+    ram: 749
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=0
+    - --gpus-per-node=h200:4
+    cpu: 96
+    ram: 1498
+    gpu: 4
+- name: b200
+  count: 52
+  cpu: 96
+  ram: 2000
+  cpu_model: 2 x Intel Xeon 8558P @ 2.7 GHz
+  gpu:
+  - name: B200
+    ram: 180
+    count: 8
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=12
+    - --mem=250G
+    - --gpus=b200:1
+    cpu: 12
+    ram: 250
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=24
+    - --mem=500G
+    - --gpus-per-node=b200:2
+    cpu: 24
+    ram: 500
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=1000G
+    - --gpus-per-node=b200:4
+    cpu: 48
+    ram: 1000
+    gpu: 4
+  - name: 8-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=0
+    - --gpus-per-node=b200:8
+    cpu: 96
+    ram: 2000
+    gpu: 8

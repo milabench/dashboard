@@ -1,0 +1,25 @@
+# Trillium CPU sub-cluster (Alliance Canada, SciNet / U of Toronto) https://docs.alliancecan.ca/wiki/Trillium
+# Login node: trillium.alliancecan.ca   (the GPU sub-cluster has its own login node, see trillium-gpu.yaml)
+# Compute nodes have NO internet access. No local disk ($SLURM_TMPDIR is a RAM disk).
+# Jobs can only write to scratch, NOT to $HOME or $PROJECT.
+# Allocation is by whole nodes of 192 cores.
+# TODO: the Trillium Quickstart was not provided: partition names, max job duration and the scratch path are unknown.
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+nodes:
+- name: cpu
+  count: 1224
+  cpu: 192
+  ram: 749
+  cpu_model: 2 x AMD EPYC 9655 (Zen 5) @ 2.6 GHz
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    cpu: 192
+    ram: 749

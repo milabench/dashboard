@@ -1,0 +1,161 @@
+# Nibi (Alliance Canada, SHARCNET / U of Waterloo) https://docs.alliancecan.ca/wiki/Nibi
+# Login node: nibi.alliancecan.ca (also the copy node)
+# Compute nodes have full internet access (no proxy needed).
+# /scratch has a soft quota of 1TB per user, exceeded for at most 60 days, after that no new writes.
+# TODO: max job duration is not stated on the page.
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+nodes:
+- name: cpu
+  count: 700
+  cpu: 192
+  ram: 748
+  cpu_model: 2 x Intel 6972P @ 2.4 GHz
+  disk: 3TB local
+  chunks:
+  - name: ccd
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=8
+    - --mem=31G
+    cpu: 8
+    ram: 31
+  - name: half-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=374G
+    cpu: 96
+    ram: 374
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    cpu: 192
+    ram: 748
+- name: cpu-bigmem
+  count: 10
+  cpu: 192
+  ram: 6000
+  cpu_model: 2 x Intel 6972P @ 2.4 GHz
+  disk: 3TB local
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --mem=6000G
+    cpu: 192
+    ram: 6000
+- name: gpu
+  count: 36
+  cpu: 112
+  ram: 2000
+  cpu_model: 2 x Intel 8570 @ 2.1 GHz
+  disk: 11TB local
+  gpu:
+  - name: H100
+    ram: 80
+    count: 8
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=14
+    - --mem=250G
+    - --gpus=h100:1
+    cpu: 14
+    ram: 250
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=28
+    - --mem=500G
+    - --gpus-per-node=h100:2
+    cpu: 28
+    ram: 500
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=56
+    - --mem=1000G
+    - --gpus-per-node=h100:4
+    cpu: 56
+    ram: 1000
+    gpu: 4
+  - name: 8-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=112
+    - --mem=0
+    - --gpus-per-node=h100:8
+    cpu: 112
+    ram: 2000
+    gpu: 8
+  - name: mig-1g.10gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=1
+    - --mem=31G
+    - --gpus=h100_1g.10gb:1
+    cpu: 1
+    ram: 31
+    gpu: 1
+  - name: mig-2g.20gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=3
+    - --mem=62G
+    - --gpus=h100_2g.20gb:1
+    cpu: 3
+    ram: 62
+    gpu: 1
+  - name: mig-3g.40gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=5
+    - --mem=93G
+    - --gpus=h100_3g.40gb:1
+    cpu: 5
+    ram: 93
+    gpu: 1
+  notes: About half of the GPU nodes are split with MIG; mig-* chunks request one instance, cpu/ram are a proportional share,
+    not the Alliance 'bundles' ratios
+- name: mi300a
+  count: 6
+  cpu: 96
+  ram: 495
+  cpu_model: 4 x AMD MI300A @ 2.1 GHz (Zen4 + CDNA3)
+  disk: 3TB local
+  gpu:
+  - name: MI300A
+    count: 4
+  chunks:
+  - name: full-node
+    cpu: 96
+    ram: 100
+    gpu: 4
+    slurm:
+    - --nodes=1
+    - --ntasks=4
+    - --cpus-per-task=24
+    - --mem=100g
+    - --gpus=mi300a:4
+  notes: Whole nodes only, build with ROCm (CUDA does not work), bind cores and memory of the 4 processes yourself

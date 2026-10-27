@@ -946,6 +946,8 @@ export const getSlurmProfiles = async (): Promise<SlurmProfile[]> => {
 export interface SlurmCluster {
     name: string;
     ssh: string;
+    login?: string;
+    proxy?: boolean;
 }
 
 export const getSlurmClusters = async (): Promise<SlurmCluster[]> => {

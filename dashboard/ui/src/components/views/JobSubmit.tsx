@@ -141,6 +141,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const [cpusPerTask, setCpusPerTask] = useState<string>('');
     const [ntasksPerNode, setNtasksPerNode] = useState<string>('');
     const [exclusive, setExclusive] = useState<boolean>(false);
+    // sbatch arguments without a form field (--gpus, --tmp, ...), space separated
+    const [extraArgs, setExtraArgs] = useState<string>('');
 
     // Schedule state
     const [scheduleName, setScheduleName] = useState<string>('');
@@ -272,10 +274,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
     const dependencyEventRef = useRef<HTMLSelectElement>(null);
     const dependencyJobRef = useRef<HTMLSelectElement>(null);
 
+    // Profiles are the node chunks of a cluster, only offer the ones of the selected cluster
+    const clusterProfiles = profiles.filter(p => (p.cluster || 'mila') === selectedCluster);
+
+    const handleClusterSelect = (clusterName: string) => {
+        setSelectedCluster(clusterName);
+        if (!profiles.some(p => p.name === selectedProfile && (p.cluster || 'mila') === clusterName)) {
+            setSelectedProfile('');
+        }
+    };
+
     // Handler functions
     const handleProfileSelect = (profileName: string) => {
         setSelectedProfile(profileName);
-        const selectedProfileData = profiles?.find(p => p.name === profileName);
+        const selectedProfileData = clusterProfiles.find(p => p.name === profileName);
         if (selectedProfileData) {
             if (selectedProfileData.cluster) {
                 setSelectedCluster(selectedProfileData.cluster);
@@ -300,6 +312,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                 gpusPerTaskRef.current.value = selectedProfileData.parsed_args.gpus_per_task || '';
             }
             setExclusive(selectedProfileData.parsed_args.exclusive || false);
+            setExtraArgs((selectedProfileData.parsed_args.extra || []).join(' '));
             if (exportVarsRef.current) {
                 exportVarsRef.current.value = selectedProfileData.parsed_args.export || '';
             }
@@ -357,6 +370,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         if (exclusive) sbatch_args.push('--exclusive');
         if (exportVars) sbatch_args.push(`--export=${exportVars}`);
         if (nodelist) sbatch_args.push(`-w ${nodelist}`);
+        sbatch_args.push(...extraArgs.split(/\s+/).filter(a => a !== ''));
 
         const filteredArgs = sbatch_args.filter(arg => !arg.startsWith('--dependency'));
 
@@ -423,6 +437,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
         if (exclusive) args.push('--exclusive');
         if (exportVars && exportVars.trim() !== '') args.push(`--export=${exportVars}`);
         if (nodelist && nodelist.trim() !== '') args.push(`-w ${nodelist}`);
+        args.push(...extraArgs.split(/\s+/).filter(a => a !== ''));
         if (dependencyEvent && dependencyJobId) {
             args.push(`--dependency=${dependencyEvent}:${dependencyJobId}`);
         }
@@ -759,7 +774,7 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                         <NativeSelect.Root size="md" flex={1}>
                                             <NativeSelect.Field
                                                 value={selectedCluster}
-                                                onChange={(e) => setSelectedCluster(e.target.value)}
+                                                onChange={(e) => handleClusterSelect(e.target.value)}
                                             >
                                                 {clusters.map((c) => (
                                                     <option key={c.name} value={c.name}>{c.name}</option>
@@ -777,12 +792,12 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                                 value={selectedProfile}
                                                 onChange={setSelectedProfile}
                                                 onSelect={handleProfileSelect}
-                                                suggestions={profiles.map(p => p.name)}
+                                                suggestions={clusterProfiles.map(p => p.name)}
                                                 placeholder="Select a profile or enter custom name"
                                                 size="md"
                                                 width="100%"
                                                 renderSuggestion={(suggestion) => {
-                                                    const profile = profiles.find(p => p.name === suggestion);
+                                                    const profile = clusterProfiles.find(p => p.name === suggestion);
                                                     return (
                                                         <VStack align="start" gap={0}>
                                                             <Text fontWeight="medium" color="var(--color-text)">{suggestion}</Text>
@@ -961,6 +976,18 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
                                                 ref={nodelistRef}
                                                 defaultValue=""
                                                 placeholder="e.g., cn-d[003-004]"
+                                                flex={1}
+                                            />
+                                        </HStack>
+                                    </Field.Root>
+
+                                    <Field.Root gridColumn="1 / -1">
+                                        <HStack gap={3} align="center">
+                                            <Field.Label minW="120px" mb={0} color="var(--color-text)">Other Args</Field.Label>
+                                            <Input
+                                                value={extraArgs}
+                                                onChange={(e) => setExtraArgs(e.target.value)}
+                                                placeholder="e.g., --gpus=h100:4 --tmp=1000G"
                                                 flex={1}
                                             />
                                         </HStack>

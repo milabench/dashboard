@@ -389,6 +389,8 @@ export interface SlurmTemplate {
 export interface SlurmProfile {
     name: string;
     cluster?: string;
+    // Node type of the cluster this profile (chunk) requests
+    node?: string;
     description: string;
     sbatch_args: string[];
     parsed_args: {
@@ -404,6 +406,8 @@ export interface SlurmProfile {
         exclusive?: boolean;
         export?: string;
         nodelist?: string;
+        // sbatch arguments without a form field (--gpus, --tmp, ...)
+        extra?: string[];
     };
 }
 

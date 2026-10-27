@@ -1,0 +1,373 @@
+# Mila cluster
+# Node types with their preconfigured slurm requests (chunks), ported from the profiles of
+# milabench/config/clusters/slurm.yaml. A chunk keeps the exact sbatch arguments of its profile.
+# The A6000 node type has no profile yet.
+nodes:
+- name: A100l
+  gpu:
+  - name: A100
+    ram: 80
+    count: 8
+  notes: cn-d[003-004], partition milabench
+  chunks:
+  - name: multi-node-full
+    slurm:
+    - --partition=milabench
+    - -w cn-d[003-004]
+    - --ntasks=2
+    - --gpus-per-task=a100l:8
+    - --exclusive
+    - --nodes=2
+    - --cpus-per-task=128
+    - --time=2:00:00
+    - --ntasks-per-node=1
+    - --mem=0
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+  - name: single-node-full-A100l
+    slurm:
+    - --job-name=1x8xA100_run
+    - --partition=milabench
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=128
+    - --mem=0
+    - --time=4:00:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --export=ALL
+    - -w cn-d[003-004]
+  - name: multi-node-full-A100l
+    slurm:
+    - --job-name=2x8xA100_run
+    - --partition=milabench
+    - --nodes=2
+    - --ntasks=2
+    - --cpus-per-task=128
+    - --mem=0
+    - --time=6:00:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --export=ALL
+    - -w cn-d[003-004]
+  - name: single-A100
+    slurm:
+    - --job-name=1x1xA100_run
+    - --partition=milabench
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=16
+    - --mem=256G
+    - --time=6:00:00
+    - --gpus-per-task=1
+    - --ntasks-per-node=1
+    - --export=ALL
+    - -w cn-d[003-004]
+  - name: 1x2xA100
+    slurm:
+    - --job-name=1x2xA100_run
+    - --partition=milabench
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=32
+    - --mem=256G
+    - --time=4:00:00
+    - --gpus-per-task=2
+    - --ntasks-per-node=1
+    - --export=ALL
+    - -w cn-d[003-004]
+  - name: 1x8xA100l
+    slurm:
+    - --job-name=1x8xA100_run
+    - --partition=milabench
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=128
+    - --mem=0
+    - --time=3:00:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL
+    - -w cn-d004
+- name: A100
+  gpu:
+  - name: A100
+    ram: 40
+    count: 8
+  chunks:
+  - name: multi-node-a100
+    slurm:
+    - --job-name=milabench_job
+    - --partition=milabench
+    - --nodes=2
+    - --ntasks=1
+    - --cpus-per-task=128
+    - --mem=0
+    - --time=4:30:00
+    - --gpus-per-task=a100:8
+    - --ntasks-per-node=1
+    - --export=ALL,MILABENCH_SIZER_AUTO=1,MILABENCH_SIZER_MULTIPLE=8
+- name: L40S
+  gpu:
+  - name: L40S
+    ram: 48
+    count: 4
+  notes: cn-l[001-092]
+  chunks:
+  - name: single-node-full-L40S
+    slurm:
+    - --job-name=1x4xL40s_run
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=0
+    - --time=4:30:00
+    - --gpus-per-task=4
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+    - -w cn-l[001-092]
+  - name: multi-node-full-L40S
+    slurm:
+    - --job-name=1x4xL40s_run
+    - --nodes=2
+    - --ntasks=2
+    - --cpus-per-task=48
+    - --mem=0
+    - --time=02:00:00
+    - --gpus-per-task=4
+    - --ntasks-per-node=1
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+    - -w cn-l[001-092]
+  - name: 1x4xL40S
+    slurm:
+    - --job-name=1x4xL40s_run
+    - --partition=long
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=0
+    - --time=4:30:00
+    - --gpus-per-task=4
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+    - -w cn-l[001-092]
+- name: H100
+  gpu:
+  - name: H100
+    ram: 80
+    count: 8
+  notes: cn-n[001-002], partition staff-idt
+  chunks:
+  - name: multi-node-full-H100
+    slurm:
+    - --job-name=2x8xH100_run
+    - --partition=staff-idt
+    - --nodes=2
+    - --ntasks=2
+    - --cpus-per-task=192
+    - --mem=0
+    - --time=6:00:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+    - -w cn-n[001-002]
+  - name: single-node-full-H100
+    slurm:
+    - --job-name=1x8xH100_run
+    - --partition=staff-idt
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --time=2:30:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL
+    - -w cn-n[001-002]
+  - name: single-H100
+    slurm:
+    - --job-name=1x1xH100_run
+    - --partition=staff-idt
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=24
+    - --mem=256G
+    - --time=2:30:00
+    - --gpus-per-task=1
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL
+    - -w cn-n[001-002]
+  - name: 1x8xH100
+    slurm:
+    - --job-name=1x8xH100_run
+    - --partition=staff-idt
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --time=3:00:00
+    - --gpus-per-task=8
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL
+    - -w cn-n[001-002]
+- name: RTX8000
+  gpu:
+  - name: RTX8000
+    ram: 48
+    count: 8
+  chunks:
+  - name: multi-node-rtx
+    slurm:
+    - --job-name=1x8xRTX8000_run
+    - --nodes=2
+    - --ntasks=2
+    - --cpus-per-task=64
+    - --mem=0
+    - --time=2:00:00
+    - --gpus-per-task=rtx8000:8
+    - --ntasks-per-node=1
+  - name: multi-node-small
+    slurm:
+    - --partition=staff-idt
+    - --gpus-per-task=rtx8000:2
+    - --ntasks=1
+    - --exclusive
+    - --nodes=2
+    - --cpus-per-task=16
+    - --time=1:30:00
+    - --ntasks-per-node=1
+    - --mem=128G
+    - --export=ALL,MILABENCH_SIZER_AUTO=1,MILABENCH_SIZER_MULTIPLE=8
+- name: V100
+  gpu:
+  - name: V100
+    ram: 32
+    count: 8
+  chunks:
+  - name: multi-node-v100
+    slurm:
+    - --partition=staff-idt
+    - --gpus-per-task=v100:8
+    - --ntasks=1
+    - --exclusive
+    - --nodes=2
+    - --cpus-per-task=40
+    - --time=1:30:00
+    - --ntasks-per-node=1
+    - --mem=0
+    - --exclusive
+    - --export=ALL,MILABENCH_SIZER_AUTO=1,MILABENCH_SIZER_MULTIPLE=8
+- name: gpu
+  notes: any GPU, small profiles used for prepare / pin / install
+  chunks:
+  - name: single-node-small
+    slurm:
+    - --partition=staff-idt
+    - --ntasks=1
+    - --gpus-per-task=2
+    - --exclusive
+    - --nodes=1
+    - --cpus-per-task=16
+    - --time=1:30:00
+    - --ntasks-per-node=1
+    - --mem=128G
+    - --export=ALL,MILABENCH_SIZER_AUTO=1,MILABENCH_SIZER_MULTIPLE=8
+  - name: run_pin.sh
+    slurm:
+    - --job-name=pin
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=2
+    - --mem=16G
+    - --time=02:00:00
+    - --gpus-per-task=1
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: run_shared_install_prepare
+    slurm:
+    - --job-name=setup
+    - --partition=staff-idt
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=4
+    - --mem=32G
+    - --time=01:30:00
+    - --gpus-per-task=1
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: 1x1xGPU
+    slurm:
+    - --job-name=1x1xGPU_pin
+    - --partition=milabench
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=128
+    - --mem=0
+    - --time=4:00:00
+    - --gpus-per-task=1
+    - --ntasks-per-node=1
+    - --exclusive
+    - --export=ALL
+- name: cpu
+  notes: no GPU
+  chunks:
+  - name: test_profile
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=1
+    - --mem=0
+    - --time=0:10:00
+    - --gpus-per-task=0
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: tar_prepare
+    slurm:
+    - --job-name=tar
+    - --partition=staff-idt
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=2
+    - --mem=32G
+    - --time=03:00:00
+    - --gpus-per-task=0
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: multi-node-cpu
+    slurm:
+    - --job-name=prepare_podman
+    - --nodes=2
+    - --ntasks=2
+    - --cpus-per-task=2
+    - --mem=8G
+    - --time=2:00:00
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: 1x1xCPU
+    slurm:
+    - --job-name=1x1xCPU
+    - --partition=unkillable-cpu
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=2
+    - --mem=16G
+    - --time=1:00:00
+    - --gpus-per-task=0
+    - --ntasks-per-node=1
+    - --export=ALL
+  - name: 10x1xCPU
+    slurm:
+    - --job-name=10x1xCPU
+    - --nodes=10
+    - --ntasks=1
+    - --cpus-per-task=1
+    - --mem=0
+    - --time=0:01:00
+    - --gpus-per-task=0
+    - --ntasks-per-node=1
+    - --export=ALL

@@ -56,52 +56,47 @@ class ClusterContext:
     login_host: str = None
     # Give the compute nodes internet through an ssh SOCKS proxy to the login node
     proxy: bool = False
+    # Public hostname of the login node, informational
+    login: str = None
 
 
-mila = ClusterContext(
-    # Cluster name
-    name="mila",
-
-    # SSH config name, keep things simple
-    ssh="mila",
-
-    # Relative to home
-    remote_folder="~/scratch/jobrunner",
-
-    # Relative to the globally configured local storage path
-    local_folder=".",            
-
-    # Dictionnary of node configuration for slurm submission
-    config={},
-
-    # login_host="login-2",
-)
+# Clusters are defined in data/cluster.yaml, the node types and their
+# preconfigured slurm requests (chunks) in data/nodes/<cluster>.yaml
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+CLUSTER_FILE = os.path.join(DATA_DIR, "cluster.yaml")
 
 
-rorqual = ClusterContext(
-    # Cluster name
-    name="rorqual",
+def load_clusters(path=CLUSTER_FILE) -> dict[str, ClusterContext]:
+    """Build the cluster registry from cluster.yaml"""
+    with open(path) as fp:
+        definitions = yaml.safe_load(fp) or {}
 
-    # SSH config name, keep things simple
-    ssh="rorqual",
+    clusters = {}
+    for name, spec in definitions.items():
+        spec = dict(spec)
 
-    # Relative to home
-    remote_folder="/home/delaunay/links/scratch",
+        # Node definitions live in their own file, relative to cluster.yaml
+        nodes = {}
+        nodes_file = spec.pop("nodes", None)
+        if nodes_file:
+            with open(os.path.join(os.path.dirname(path), nodes_file)) as fp:
+                nodes = yaml.safe_load(fp) or {}
 
-    # Relative to the globally configured local storage path
-    local_folder=".",            
+        clusters[name] = ClusterContext(
+            name=name,
+            ssh=spec.get("ssh", name),
+            remote_folder=spec["remote_folder"],
+            local_folder=spec.get("local_folder", "."),
+            config=nodes,
+            login=spec.get("login"),
+            login_host=spec.get("login_host"),
+            proxy=bool(spec.get("proxy", False)),
+        )
+    return clusters
 
-    # Dictionnary of node configuration for slurm submission
-    config={},
 
-    # login_host="rorqual4"
-)
-
-
-_registered_clusters: dict[str, ClusterContext] = {
-    "mila": mila,
-    "rorqual": rorqual,
-}
+_registered_clusters: dict[str, ClusterContext] = load_clusters()
+mila = _registered_clusters["mila"]
 
 _cluster: ContextVar[ClusterContext] = ContextVar("cluster", default=mila)
 
@@ -592,11 +587,45 @@ def _parse_sbatch_args(sbatch_args):
                 parsed['exclusive'] = True
             elif key == 'export':
                 parsed['export'] = value if value else 'ALL'
+            else:
+                # Not a form field (--gpus, --gpus-per-node, --tmp, ...), carried as is
+                parsed.setdefault('extra', []).append(arg)
         elif arg.startswith('-w'):
             # Handle nodelist (-w option)
             parsed['nodelist'] = arg[3:] if len(arg) > 3 else ''
 
     return parsed
+
+
+def _cluster_chunk_profiles():
+    """Profiles built from the node types of the clusters (data/nodes/<cluster>.yaml).
+
+    Each chunk is a preconfigured slurm request for one node type of a cluster.
+    """
+    profiles = []
+    for cluster_name, ctx in _registered_clusters.items():
+        for node in (ctx.config or {}).get('nodes', []):
+            gpus = ", ".join(
+                f"{g.get('count', 1)}x {g['name']} {g['ram']}GB" if 'ram' in g else f"{g.get('count', 1)}x {g['name']}"
+                for g in node.get('gpu', [])
+            )
+            description = " - ".join(x for x in (node['name'], gpus, node.get('notes')) if x)
+
+            for chunk in node.get('chunks', []):
+                # "--key value" -> "--key=value" so the arguments parse like the others
+                args = [
+                    "=".join(a.split(None, 1)) if a.startswith('--') and ' ' in a else a
+                    for a in chunk['slurm']
+                ]
+                profiles.append({
+                    'name': chunk['name'],
+                    'cluster': cluster_name,
+                    'node': node['name'],
+                    'description': description,
+                    'sbatch_args': args,
+                    'parsed_args': _parse_sbatch_args(args),
+                })
+    return profiles
 
 
 def remote_command(host, command, timeout=5):
@@ -794,8 +823,9 @@ def slurm_integration(app, bp, cache, database):
             sbatch_args.extend([
                 f"--job-name={job_name}",
                 f'--comment="jr_job_id={jr_job_id}"',
-                f"--output={remote_dir.replace('~/', '')}/log.stdout",
-                f"--error={remote_dir.replace('~/', '')}/log.stderr",
+                # the submit prologue cd's into the job folder, so these are relative to it
+                "--output=log.stdout",
+                "--error=log.stderr",
             ])
 
             try:
@@ -1185,6 +1215,10 @@ def slurm_integration(app, bp, cache, database):
 
         # Remove old dependency requirements
         old_cmd = re.sub(r'--dependency=[a-z:0-9,\?]*', '', old_cmd)
+
+        # Older jobs wrote home-relative log paths, the submit prologue now cd's into the job folder
+        old_cmd = re.sub(r'--output=\S+', '--output=log.stdout', old_cmd)
+        old_cmd = re.sub(r'--error=\S+', '--error=log.stderr', old_cmd)
 
         new_cmd = "'" + old_cmd.replace(old_jr_job_id, new_jr_job_id) + "'"
 
@@ -1655,6 +1689,8 @@ def slurm_integration(app, bp, cache, database):
             clusters.append({
                 'name': name,
                 'ssh': ctx.ssh,
+                'login': ctx.login,
+                'proxy': ctx.proxy,
             })
         return jsonify(clusters)
 
@@ -1669,8 +1705,14 @@ def slurm_integration(app, bp, cache, database):
             with open(SLURM_PROFILES, 'r') as f:
                 configs = yaml.safe_load(f)
 
-            profiles = []
+            profiles = _cluster_chunk_profiles()
+            chunk_names = {p['name'] for p in profiles}
+
             for profile_name, profile_data in configs.items():
+                # Already ported to the node definitions of a cluster
+                if profile_name in chunk_names:
+                    continue
+
                 # Support both formats:
                 #   old: profile_name: [args...]
                 #   new: profile_name: { cluster: "name", args: [args...] }

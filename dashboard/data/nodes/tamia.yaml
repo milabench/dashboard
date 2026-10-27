@@ -1,0 +1,98 @@
+# tamIA (Alliance Canada / PAICE, Universite Laval) https://docs.alliancecan.ca/wiki/TamIA
+# Login / copy node: tamia.alliancecan.ca
+# Compute nodes have NO internet access (exceptions go through Alliance support).
+# Job duration: 1h minimum (5 min for tests), 24h maximum. At most 1000 jobs (running + pending).
+# Whole nodes only: a GPU job must use all the GPUs of its nodes (4 for H100, 8 for H200).
+# Reachable from Canada only.
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (aip-<pi>)
+max_time: 1-00:00:00
+nodes:
+- name: h200
+  count: 12
+  cpu: 64
+  ram: 1024
+  cpu_model: 2 x Intel Xeon Gold 6448Y @ 2.1 GHz
+  disk: 7.68TB SSD
+  gpu:
+  - name: H200
+    ram: 141
+    count: 8
+  chunks:
+  - name: 8-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=64
+    - --mem=0
+    - --gpus-per-node=h200:8
+    cpu: 64
+    ram: 1024
+    gpu: 8
+  notes: GPU jobs must use all the GPUs of the node
+- name: h100
+  count: 53
+  cpu: 48
+  ram: 512
+  cpu_model: 2 x Intel Xeon Gold 6442Y @ 2.6 GHz
+  disk: 7.68TB SSD
+  gpu:
+  - name: H100
+    ram: 80
+    count: 4
+  chunks:
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=0
+    - --gpus-per-node=h100:4
+    - --partition=gpubase_bynode_b3
+    cpu: 48
+    ram: 512
+    gpu: 4
+  - name: tamia-single-node
+    slurm:
+    - --partition gpubase_bynode_b3
+    - --gpus-per-task=4
+    - --ntasks=1
+    - --exclusive
+    - --nodes=1
+    - --cpus-per-task=48
+    - --time=2:00:00
+    - --ntasks-per-node=1
+    - --mem=0
+    - --exclusive
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+  - name: tamia-multi-node
+    slurm:
+    - --partition gpubase_bynode_b3
+    - --gpus-per-task=4
+    - --ntasks=2
+    - --exclusive
+    - --nodes=2
+    - --cpus-per-task=48
+    - --time=1:30:00
+    - --ntasks-per-node=1
+    - --mem=0
+    - --exclusive
+    - --export=ALL,MILABENCH_SIZER_AUTO=0
+  notes: GPU jobs must use all the GPUs of the node
+- name: cpu
+  count: 8
+  cpu: 64
+  ram: 512
+  cpu_model: 2 x Intel Xeon Gold 6438M @ 2.2 GHz
+  disk: 7.68TB SSD
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=64
+    - --mem=0
+    cpu: 64
+    ram: 512

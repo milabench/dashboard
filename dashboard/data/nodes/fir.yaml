@@ -1,0 +1,130 @@
+# Fir (Alliance Canada, SFU) https://docs.alliancecan.ca/wiki/Fir
+# Login node: fir.alliancecan.ca
+# Compute nodes have full internet access (no proxy needed).
+# Job duration: 1h minimum (5 min for tests), 7 days maximum.
+#
+# Each node type lists `chunks`: preconfigured slurm requests sized as a proportional
+# share of the node (cpu / ram scale with the number of GPUs or cores requested).
+account: null        # TODO: slurm account (def-<pi> / rrg-<pi>, aip-<pi> on tamIA)
+max_time: 7-00:00:00
+nodes:
+- name: cpu
+  count: 864
+  cpu: 192
+  ram: 750
+  cpu_model: 2 x AMD EPYC 9655 (Zen 5) @ 2.7 GHz
+  disk: 7.84TB NVMe
+  chunks:
+  - name: ccd
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=8
+    - --mem=31G
+    cpu: 8
+    ram: 31
+  - name: half-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=96
+    - --mem=375G
+    cpu: 96
+    ram: 375
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    cpu: 192
+    ram: 750
+- name: cpu-bigmem
+  count: 8
+  cpu: 192
+  ram: 6000
+  cpu_model: 2 x AMD EPYC 9654 (Zen 4) @ 2.4 GHz
+  disk: 7.84TB NVMe
+  chunks:
+  - name: full-node
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=192
+    - --mem=0
+    - --mem=6000G
+    cpu: 192
+    ram: 6000
+- name: gpu
+  count: 160
+  cpu: 48
+  ram: 1125
+  cpu_model: 1 x AMD EPYC 9454 (Zen 4) @ 2.75 GHz
+  disk: 7.84TB NVMe
+  gpu:
+  - name: H100
+    ram: 80
+    count: 4
+  chunks:
+  - name: 1-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=12
+    - --mem=281G
+    - --gpus=h100:1
+    cpu: 12
+    ram: 281
+    gpu: 1
+  - name: 2-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=24
+    - --mem=562G
+    - --gpus-per-node=h100:2
+    cpu: 24
+    ram: 562
+    gpu: 2
+  - name: 4-gpu
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=48
+    - --mem=0
+    - --gpus-per-node=h100:4
+    cpu: 48
+    ram: 1125
+    gpu: 4
+  - name: mig-1g.10gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=1
+    - --mem=35G
+    - --gpus=nvidia_h100_80gb_hbm3_1g.10gb:1
+    cpu: 1
+    ram: 35
+    gpu: 1
+  - name: mig-2g.20gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=3
+    - --mem=70G
+    - --gpus=nvidia_h100_80gb_hbm3_2g.20gb:1
+    cpu: 3
+    ram: 70
+    gpu: 1
+  - name: mig-3g.40gb
+    slurm:
+    - --nodes=1
+    - --ntasks=1
+    - --cpus-per-task=4
+    - --mem=105G
+    - --gpus=nvidia_h100_80gb_hbm3_3g.40gb:1
+    cpu: 4
+    ram: 105
+    gpu: 1
+  notes: About half of the GPU nodes are split with MIG; mig-* chunks request one instance, cpu/ram are a proportional share,
+    not the Alliance 'bundles' ratios

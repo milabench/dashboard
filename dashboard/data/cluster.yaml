@@ -1,0 +1,70 @@
+# Clusters the dashboard can submit to.
+#
+# Fields mirror server/slurm/slurm.py:ClusterContext
+#   ssh            ssh config host name
+#   remote_folder  where jobrunner stores its job folders on the cluster
+#   local_folder   relative to the dashboard local storage
+#   proxy          give compute nodes internet through an ssh SOCKS proxy to the login node
+#   login_host     hostname compute nodes use to ssh back to the login node
+#                  (default: $SLURM_SUBMIT_HOST)
+#   nodes          node definitions file, relative to this folder
+mila:
+  ssh: mila
+  remote_folder: ~/scratch/jobrunner
+  local_folder: .
+  proxy: false
+  nodes: nodes/mila.yaml
+
+rorqual:
+  ssh: rorqual
+  login: rorqual.alliancecan.ca
+  remote_folder: /home/delaunay/links/scratch/jobrunner
+  local_folder: .
+  # compute nodes have no internet access, tunnel through the login node
+  proxy: true
+  nodes: nodes/rorqual.yaml
+
+fir:
+  ssh: fir
+  login: fir.alliancecan.ca
+  remote_folder: /home/delaunay/scratch/jobrunner
+  local_folder: .
+  # compute nodes have full internet access
+  proxy: false
+  nodes: nodes/fir.yaml
+
+tamia:
+  ssh: tamia
+  login: tamia.alliancecan.ca
+  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path, the wiki does not state it
+  local_folder: .
+  # compute nodes have no internet access, tunnel through the login node
+  proxy: true
+  nodes: nodes/tamia.yaml
+
+# Trillium has one login node per sub-cluster, so it is two clusters for the dashboard
+trillium:
+  ssh: trillium
+  login: trillium.alliancecan.ca
+  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path. Jobs cannot write to $HOME or $PROJECT
+  local_folder: .
+  # compute nodes have no internet access, tunnel through the login node
+  proxy: true
+  nodes: nodes/trillium.yaml
+
+trillium-gpu:
+  ssh: trillium-gpu
+  login: trillium-gpu.alliancecan.ca
+  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path. Jobs cannot write to $HOME or $PROJECT
+  local_folder: .
+  proxy: true
+  nodes: nodes/trillium-gpu.yaml
+
+nibi:
+  ssh: nibi
+  login: nibi.alliancecan.ca
+  remote_folder: ~/scratch/jobrunner   # TODO: confirm the scratch path
+  local_folder: .
+  # compute nodes have full internet access
+  proxy: false
+  nodes: nodes/nibi.yaml
